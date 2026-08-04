@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 Provider = Literal["openai", "anthropic", "google", "deepseek"]
+Mode = Literal["mobile", "pc"]
 
 
 class ModelConfig(BaseModel):
@@ -37,6 +38,7 @@ class GenerationResult(BaseModel):
     model_id: str
     name: str
     provider: Provider
+    mode: Mode = "mobile"
     html: str = ""
     reasoning: str = ""
     log_url: str = ""
@@ -45,6 +47,7 @@ class GenerationResult(BaseModel):
 
 
 class GenerateRequest(BaseModel):
-    """The user's one-sentence mobile UI requirement."""
+    """The user's one-sentence UI requirement."""
 
     prompt: str = Field(min_length=1)
+    mode: Mode = "mobile"

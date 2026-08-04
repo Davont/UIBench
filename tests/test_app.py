@@ -103,6 +103,35 @@ def test_openai_role_mapping(reasoning_client) -> None:
     assert "system" in roles
 
 
+def _system_text(calls) -> str:
+    for m in calls[0]["messages"]:
+        if m["role"] == "system":
+            return m["content"]
+    return ""
+
+
+def test_default_mode_is_mobile(reasoning_client) -> None:
+    resp = reasoning_client.post("/api/generate", json={"prompt": "电商首页"})
+    assert resp.status_code == 200
+    assert _REASONING_CALLS
+    assert "Tailwind" in _system_text(_REASONING_CALLS)
+    first = _parse_stream(resp)[1]["result"]
+    assert first["mode"] == "mobile"
+
+
+def test_pc_mode_uses_pc_prompt(reasoning_client) -> None:
+    resp = reasoning_client.post("/api/generate", json={"prompt": "后台仪表盘", "mode": "pc"})
+    assert resp.status_code == 200
+    assert _REASONING_CALLS
+    sys_text = _system_text(_REASONING_CALLS)
+    assert "Ant Design" in sys_text
+    assert "ECharts" in sys_text
+    assert "React" in sys_text
+    assert "Tailwind" in sys_text
+    first = _parse_stream(resp)[1]["result"]
+    assert first["mode"] == "pc"
+
+
 def test_reasoning_captured_and_archived(reasoning_client, tmp_path) -> None:
     resp = reasoning_client.post("/api/generate", json={"prompt": "电商首页"})
     assert resp.status_code == 200
@@ -139,9 +168,11 @@ def test_last_run_restorable(reasoning_client, tmp_path) -> None:
     data = last.json()
     assert data["prompt"] == "电商首页"
     assert data["run_id"]
+    assert data["mode"] == "mobile"
     assert data["models"]
     assert data["results"]
     assert data["results"][0]["log_url"].startswith("/api/log/")
+    assert data["results"][0]["mode"] == "mobile"
     # both last_run.json and per-run run.json are persisted
     assert (tmp_path / "logs" / "last_run.json").exists()
     assert (tmp_path / "logs" / data["run_id"] / "run.json").exists()
@@ -171,6 +202,36 @@ def test_inject_shared_css_neither() -> None:
     html = "<div>hi</div>"
     out = app_mod.inject_shared_css(html)
     assert out.startswith('<link rel="stylesheet" href="/shared.css">')
+
+
+def test_inject_pc_bootstrap_after_babel() -> None:
+    html = ('<html><head>'
+            '<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>'
+            '<script type="text/babel" data-presets="react">const A=1;</script>'
+            '</head><body></body></html>')
+    out = app_mod.inject_pc_bootstrap(html)
+    # registers react-classic right after the babel loader
+    assert "registerPreset(\"react-classic\"" in out
+    assert out.index("react-classic") > out.index("babel.min.js")
+    # the text/babel script now points at react-classic
+    assert 'data-presets="react-classic"' in out
+    assert 'data-presets="react"' not in out
+
+
+def test_inject_for_render_pc_combines() -> None:
+    html = ('<html><head><script src="https://unpkg.com/@babel/standalone/babel.min.js">'
+            '</script></head><body></body></html>')
+    out = app_mod.inject_for_render(html, "pc")
+    assert "/shared.css" in out
+    assert "react-classic" in out
+    assert 'runtime:"classic"' in out
+
+
+def test_inject_for_render_mobile_no_bootstrap() -> None:
+    html = "<html><head></head><body></body></html>"
+    out = app_mod.inject_for_render(html, "mobile")
+    assert "/shared.css" in out
+    assert "react-classic" not in out
 
 
 def test_empty_prompt_rejected(client) -> None:

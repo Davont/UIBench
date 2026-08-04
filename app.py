@@ -22,7 +22,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Str
 
 from config import settings
 from uibench.models import chat_model_for, load_model_registry
-from uibench.prompts import MOBILE_GENERATION_PROMPT
+from uibench.prompts import prompt_for
 from uibench.schemas import GenerateRequest, GenerationResult, ModelConfig
 
 app = FastAPI(title="UIBench", version="0.4.0")
@@ -94,7 +94,7 @@ def _safe_name(name: str) -> str:
 
 def _write_log(run_id: str, key: str, model_cfg: ModelConfig, prompt_text: str,
                content: str, reasoning: str, html: str, elapsed: float,
-               error: str | None) -> None:
+               error: str | None, mode: str = "mobile") -> None:
     """Archive one model's full output to a markdown log file."""
     try:
         run_dir = LOGS_DIR / run_id
@@ -103,6 +103,7 @@ def _write_log(run_id: str, key: str, model_cfg: ModelConfig, prompt_text: str,
         parts = [
             f"# {model_cfg.name or model_cfg.id}",
             f"- 模型: `{model_cfg.id}`  供应商: {model_cfg.provider}  端点: `{model_cfg.base_url or '默认'}`",
+            f"- 模式: {mode}（{'PC端 antd+echarts' if mode == 'pc' else '移动端 Tailwind'}）",
             f"- 运行: `{run_id}`  卡片key: `{key}`",
             f"- 时间: {datetime.now().isoformat(timespec='seconds')}",
             f"- 耗时: {elapsed}s",
@@ -134,13 +135,15 @@ def _write_log(run_id: str, key: str, model_cfg: ModelConfig, prompt_text: str,
         pass
 
 
-def _write_last_run(run_id: str, prompt_text: str, keyed, results, total: float) -> None:
+def _write_last_run(run_id: str, prompt_text: str, keyed, results, total: float,
+                    mode: str = "mobile") -> None:
     """Persist the full result set so a page refresh can restore it."""
     try:
         LOGS_DIR.mkdir(parents=True, exist_ok=True)
         payload = {
             "run_id": run_id,
             "prompt": prompt_text,
+            "mode": mode,
             "total_seconds": total,
             "models": [
                 {"key": str(i), "model_id": m.id, "name": m.name or m.id, "provider": m.provider}
@@ -158,12 +161,12 @@ def _write_last_run(run_id: str, prompt_text: str, keyed, results, total: float)
 
 
 async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
-                        key: str, run_id: str) -> GenerationResult:
+                        key: str, run_id: str, mode: str = "mobile") -> GenerationResult:
     """Call one model (in a worker thread) and return its rendered result."""
     start = time.perf_counter()
     try:
         chat = chat_model_for(model_cfg)
-        messages = MOBILE_GENERATION_PROMPT.invoke({"prompt": prompt_text})
+        messages = prompt_for(mode).invoke({"prompt": prompt_text})
 
         content = ""
         reasoning = ""
@@ -205,12 +208,13 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
         if not reasoning:
             reasoning = _extract_reasoning(None, content)
         _write_log(run_id, key, model_cfg, prompt_text, content, reasoning,
-                   html, round(elapsed, 2), None)
+                   html, round(elapsed, 2), None, mode)
         return GenerationResult(
             key=key,
             model_id=model_cfg.id,
             name=model_cfg.name or model_cfg.id,
             provider=model_cfg.provider,
+            mode=mode,
             html=html,
             reasoning=reasoning,
             log_url=f"/api/log/{run_id}/{key}",
@@ -218,12 +222,13 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
         )
     except Exception as exc:  # noqa: BLE001 - surface the error on the card
         elapsed = round(time.perf_counter() - start, 2)
-        _write_log(run_id, key, model_cfg, prompt_text, "", "", "", elapsed, str(exc))
+        _write_log(run_id, key, model_cfg, prompt_text, "", "", "", elapsed, str(exc), mode)
         return GenerationResult(
             key=key,
             model_id=model_cfg.id,
             name=model_cfg.name or model_cfg.id,
             provider=model_cfg.provider,
+            mode=mode,
             html="",
             reasoning="",
             log_url=f"/api/log/{run_id}/{key}",
@@ -267,7 +272,7 @@ async def generate(req: GenerateRequest):
         queue: asyncio.Queue[GenerationResult] = asyncio.Queue()
 
         async def worker(i: int, m: ModelConfig) -> None:
-            await queue.put(await _generate_one(m, req.prompt, str(i), run_id))
+            await queue.put(await _generate_one(m, req.prompt, str(i), run_id, req.mode))
 
         tasks = [asyncio.create_task(worker(i, m)) for i, m in keyed]
         collected: list[GenerationResult] = []
@@ -284,7 +289,7 @@ async def generate(req: GenerateRequest):
 
         await asyncio.gather(*tasks)
         total = round(time.perf_counter() - start, 2)
-        _write_last_run(run_id, req.prompt, keyed, collected, total)
+        _write_last_run(run_id, req.prompt, keyed, collected, total, req.mode)
         yield json.dumps(
             {"type": "done", "total_seconds": total},
             ensure_ascii=False,
@@ -321,8 +326,11 @@ def shared_css():
 
 
 def inject_shared_css(html: str) -> str:
-    """Inject a <link> to /shared.css into a model's HTML so its internal
-    scrollbars also use the mobile style. Handles missing <head>."""
+    """Inject a <link> to /shared.css into a model's HTML.
+
+    Kept for reference/tests; the live injection (shared.css + PC babel
+    classic-runtime bootstrap) happens in the frontend JS `injectForRender`.
+    """
     link = '<link rel="stylesheet" href="/shared.css">'
     low = html.lower()
     idx = low.find("<head>")
@@ -335,6 +343,42 @@ def inject_shared_css(html: str) -> str:
         if at != -1:
             return html[:at + 1] + "<head>" + link + "</head>" + html[at + 1:]
     return link + html
+
+
+def inject_pc_bootstrap(html: str) -> str:
+    """Force Babel to use the CLASSIC JSX runtime (emit React.createElement,
+    no ESM `import`) so the transformed script doesn't crash as a classic
+    <script> ("Cannot use import statement outside a module").
+
+    Per @babel/standalone docs, options are passed to a built-in preset by
+    registering a NEW preset that wraps it, then pointing data-presets at it.
+    """
+    reg = (
+        '<script>'
+        'Babel.registerPreset("react-classic",'
+        '{presets:[[Babel.availablePresets["react"],{runtime:"classic"}]]});'
+        '</script>'
+    )
+    m = re.search(r'<script\s+src="[^"]*babel[^"]*\.js"[^>]*></script>', html, re.IGNORECASE)
+    if m:
+        html = html[:m.end()] + reg + html[m.end():]
+    else:
+        html = reg + html
+    # point every text/babel script's data-presets at react-classic instead of react
+    html = re.sub(
+        r'(data-presets\s*=\s*["\'][^"\']*)\breact\b([^"\']*["\'])',
+        r'\1react-classic\2',
+        html,
+    )
+    return html
+
+
+def inject_for_render(html: str, mode: str = "mobile") -> str:
+    """Apply shared.css + (PC) babel classic-runtime bootstrap."""
+    html = inject_shared_css(html)
+    if mode == "pc":
+        html = inject_pc_bootstrap(html)
+    return html
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -403,6 +447,18 @@ INDEX_HTML = """<!DOCTYPE html>
   .phone { width: 360px; max-width: 100%; height: 640px; border: 0;
     border-radius: 18px; background: #fff;
     box-shadow: 0 8px 30px rgba(0,0,0,.45); }
+  /* mode segmented control */
+  .seg { display: inline-flex; border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden; align-self: flex-start; }
+  .seg button { background: transparent; color: var(--muted); border: 0;
+    padding: 8px 16px; font-size: 14px; cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button.active { background: var(--accent); color: #fff; }
+  /* PC desktop preview (scaled to fit) */
+  .pc-wrap { width: 100%; overflow: hidden; border-radius: 18px; background: #fff;
+    box-shadow: 0 8px 30px rgba(0,0,0,.45); position: relative; }
+  .pc-frame { width: 1920px; height: 1080px; border: 0; display: block;
+    transform-origin: top left; background: #fff; }
   .error { color: var(--err); padding: 24px 16px; text-align: center;
     font-size: 14px; word-break: break-word; width: 100%; }
   .empty { color: var(--muted); padding: 48px 16px; text-align: center; width: 100%; }
@@ -443,7 +499,11 @@ INDEX_HTML = """<!DOCTYPE html>
 </header>
 <main>
   <form id="form">
-    <textarea id="prompt" placeholder="例如：一个带顶部搜索框、商品轮播图和底部 Tab 导航的电商首页"></textarea>
+    <div class="seg" id="mode">
+      <button type="button" data-mode="mobile">移动端</button>
+      <button type="button" data-mode="pc" class="active">PC 端</button>
+    </div>
+    <textarea id="prompt" placeholder="例如：移动端→带顶部搜索框、商品轮播图和底部 Tab 导航的电商首页；PC 端→带侧边菜单、统计卡和销售趋势折线图的后台仪表盘"></textarea>
     <button id="btn" type="submit">生成对比</button>
   </form>
   <div id="meta" class="meta"></div>
@@ -457,13 +517,38 @@ const promptEl = document.getElementById('prompt');
 const resultsEl = document.getElementById('results');
 const metaEl = document.getElementById('meta');
 const modalRoot = document.getElementById('modal-root');
+const modeEl = document.getElementById('mode');
 
 let count = 0, done = 0;
+let currentMode = 'mobile';
+const pcFrames = [];  // [{wrap, iframe}] to rescale on resize
+
+function getMode() {
+  const active = modeEl.querySelector('.active');
+  return active ? active.dataset.mode : 'mobile';
+}
+function setMode(mode) {
+  currentMode = mode;
+  modeEl.querySelectorAll('button').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+}
+modeEl.querySelectorAll('button').forEach(b => {
+  b.addEventListener('click', () => setMode(b.dataset.mode));
+});
+
+function scalePcFrame(entry) {
+  const scale = Math.min(entry.wrap.clientWidth / 1920, 1);
+  entry.iframe.style.transform = 'scale(' + scale + ')';
+  entry.wrap.style.height = Math.round(1080 * scale) + 'px';
+}
+window.addEventListener('resize', () => pcFrames.forEach(scalePcFrame));
 
 function applyStart(models) {
   count = models.length; done = 0;
   metaEl.innerHTML = '<span class="spin"></span>共 ' + count + ' 个模型生成中…';
   resultsEl.innerHTML = '';
+  pcFrames.length = 0;
   models.forEach(m => resultsEl.appendChild(makeCard(m)));
 }
 function applyResult(r) {
@@ -472,20 +557,22 @@ function applyResult(r) {
   if (done < count) metaEl.innerHTML = '<span class="spin"></span>已完成 ' + done + '/' + count + '…';
 }
 function applyDone(total) {
-  metaEl.innerHTML = '共 <b>' + count + '</b> 个模型 · 并行总耗时 <b>' + total + 's</b>';
+  const tag = currentMode === 'pc' ? 'PC端 antd' : '移动端';
+  metaEl.innerHTML = '共 <b>' + count + '</b> 个模型 · ' + tag + ' · 并行总耗时 <b>' + total + 's</b>';
 }
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const prompt = promptEl.value.trim();
   if (!prompt) return;
+  currentMode = getMode();
   btn.disabled = true;
   const oldText = btn.textContent;
   btn.textContent = '生成中…';
   try {
     const resp = await fetch('/api/generate', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({prompt})
+      body: JSON.stringify({prompt, mode: currentMode})
     });
     if (!resp.ok) {
       const t = await resp.text();
@@ -524,6 +611,7 @@ async function restoreLast() {
     if (!resp.ok) return;
     const data = await resp.json();
     if (data.prompt) promptEl.value = data.prompt;
+    if (data.mode) setMode(data.mode);
     applyStart(data.models || []);
     (data.results || []).forEach(r => applyResult(r));
     applyDone(data.total_seconds);
@@ -543,7 +631,14 @@ function makeCard(m) {
     '<span class="time">生成中…</span>';
   const body = document.createElement('div');
   body.className = 'card-body';
-  body.innerHTML = '<div class="skeleton"></div>';
+  const sk = document.createElement('div');
+  sk.className = 'skeleton';
+  if (currentMode === 'pc') {
+    sk.style.width = '100%';
+    sk.style.height = '480px';
+    sk.style.maxWidth = 'none';
+  }
+  body.appendChild(sk);
   card.append(head, body);
   return card;
 }
@@ -587,16 +682,30 @@ function fillCard(r) {
     const open = document.createElement('button');
     open.textContent = '新标签打开';
     open.onclick = () => {
-      const b = new Blob([injectSharedCss(r.html)], {type: 'text/html'});
+      const b = new Blob([injectForRender(r.html, r.mode)], {type: 'text/html'});
       window.open(URL.createObjectURL(b), '_blank');
     };
     tools.append(copy, open);
     body.appendChild(tools);
+
+    const isPc = (r.mode === 'pc');
     const iframe = document.createElement('iframe');
-    iframe.className = 'phone';
     iframe.setAttribute('sandbox', 'allow-scripts allow-forms allow-modals allow-popups');
-    iframe.srcdoc = injectSharedCss(r.html);
-    body.appendChild(iframe);
+    iframe.srcdoc = injectForRender(r.html, r.mode);
+    if (isPc) {
+      const wrap = document.createElement('div');
+      wrap.className = 'pc-wrap';
+      iframe.className = 'pc-frame';
+      wrap.appendChild(iframe);
+      body.appendChild(wrap);
+      const entry = {wrap, iframe};
+      pcFrames.push(entry);
+      // scale after the iframe is in the layout
+      requestAnimationFrame(() => scalePcFrame(entry));
+    } else {
+      iframe.className = 'phone';
+      body.appendChild(iframe);
+    }
   } else {
     body.appendChild(tools);
     const empty = document.createElement('div');
@@ -606,17 +715,43 @@ function fillCard(r) {
   }
 }
 
-function injectSharedCss(html) {
-  const link = '<link rel="stylesheet" href="/shared.css">';
-  const low = html.toLowerCase();
-  let idx = low.indexOf('<head>');
-  if (idx !== -1) { const at = idx + 6; return html.slice(0, at) + link + html.slice(at); }
-  idx = low.indexOf('<html');
-  if (idx !== -1) {
-    const at = low.indexOf('>', idx);
-    if (at !== -1) return html.slice(0, at + 1) + '<head>' + link + '</head>' + html.slice(at + 1);
+function injectForRender(html, mode) {
+  // 1) shared mobile-style scrollbar css
+  var link = '<link rel="stylesheet" href="/shared.css">';
+  var low = html.toLowerCase();
+  var idx = low.indexOf('<head>');
+  if (idx !== -1) { html = html.slice(0, idx + 6) + link + html.slice(idx + 6); }
+  else {
+    idx = low.indexOf('<html');
+    if (idx !== -1) {
+      var at = low.indexOf('>', idx);
+      if (at !== -1) html = html.slice(0, at + 1) + '<head>' + link + '</head>' + html.slice(at + 1);
+    } else { html = link + html; }
   }
-  return link + html;
+  // 2) PC: force classic JSX runtime so Babel emits React.createElement (no ESM import)
+  if (mode === 'pc') html = injectPcBootstrap(html);
+  return html;
+}
+
+function injectPcBootstrap(html) {
+  // Force classic JSX runtime: register a wrapped preset pointing at the
+  // built-in react preset with {runtime:"classic"} (per @babel/standalone
+  // docs), then rewrite data-presets="react" -> "react-classic" so scripts
+  // use it. Emits React.createElement, no ESM import, no blank page.
+  var reg = '<script>'
+    + 'Babel.registerPreset("react-classic",'
+    + '{presets:[[Babel.availablePresets["react"],{runtime:"classic"}]]});'
+    + '<' + '/script>';
+  var m = html.match(/<script\\s+src="[^"]*babel[^"]*\\.js"[^>]*><\\/script>/i);
+  if (m) {
+    var end = m.index + m[0].length;
+    html = html.slice(0, end) + reg + html.slice(end);
+  } else {
+    html = reg + html;
+  }
+  html = html.replace(/(data-presets\\s*=\\s*["'][^"']*)\\breact\\b([^"']*["'])/g,
+    '$1react-classic$2');
+  return html;
 }
 
 function openLog(url, title) {
