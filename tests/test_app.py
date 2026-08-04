@@ -103,6 +103,47 @@ def test_openai_role_mapping(reasoning_client) -> None:
     assert "system" in roles
 
 
+def test_reasoning_effort_passed_when_set(monkeypatch, tmp_path) -> None:
+    """A model with reasoning_effort set must forward it to the API."""
+    from uibench.schemas import ModelConfig
+    captured: list[dict] = []
+
+    def _factory(*a, **k):
+        msg = _FakeMsg()
+
+        def _create(**kk):
+            captured.append(kk)
+            return SimpleNamespace(choices=[SimpleNamespace(message=msg)])
+        return SimpleNamespace(root_client=SimpleNamespace(
+            chat=SimpleNamespace(completions=SimpleNamespace(create=_create))))
+
+    # patch the registry to a single deepseek-style model with effort=high
+    monkeypatch.setattr(app_mod, "chat_model_for", _factory)
+    monkeypatch.setattr(app_mod, "LOGS_DIR", tmp_path / "logs")
+    monkeypatch.setattr(app_mod, "load_model_registry", lambda: [
+        ModelConfig(id="deepseek-v4-flash", provider="openai",
+                    name="DeepSeek v4 Flash (官方)",
+                    base_url="https://api.deepseek.com/v1",
+                    api_key="sk-x", reasoning_effort="high")
+    ])
+    with TestClient(app_mod.app) as c:
+        resp = c.post("/api/generate", json={"prompt": "x"})
+    assert resp.status_code == 200
+    assert captured
+    call = captured[0]
+    assert call["reasoning_effort"] == "high"
+    assert call["extra_body"] == {"thinking": {"type": "enabled"}}
+
+
+def test_no_reasoning_effort_when_unset(client) -> None:
+    """DashScope-style models (no reasoning_effort) must not send thinking params."""
+    # the default client fixture uses FakeListChatModel (no root_client -> invoke path)
+    # so nothing to assert on the wire; this just guards the field defaults to None
+    from uibench.schemas import ModelConfig
+    m = ModelConfig(id="qwen3.7-plus", provider="openai")
+    assert m.reasoning_effort is None
+
+
 def _system_text(calls) -> str:
     for m in calls[0]["messages"]:
         if m["role"] == "system":

@@ -28,5 +28,8 @@ config/models.yaml
 *.log
 logs/
 
+# Local backups of uncommitted work
+backup_*/
+
 # pytest cache
 .pytest_cache/

@@ -20,6 +20,11 @@ class ModelConfig(BaseModel):
       model's key (recommended - keeps secrets out of the YAML). If unset
       in the environment the build fails explicitly.
     - ``api_key``: a literal key (NOT recommended - will be committed).
+    - ``reasoning_effort``: DeepSeek thinking-mode strength. One of
+      ``low`` / ``high`` / ``xhigh`` / ``max`` (enables thinking), or
+      ``none`` (disables thinking). When unset, the API default applies
+      (DeepSeek: thinking on, effort high). Only used for the openai-
+      compatible direct call path.
     """
 
     id: str
@@ -29,6 +34,7 @@ class ModelConfig(BaseModel):
     base_url: str | None = None
     api_key_env: str | None = None
     api_key: str | None = None
+    reasoning_effort: str | None = None
 
 
 class GenerationResult(BaseModel):

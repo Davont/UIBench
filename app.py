@@ -187,6 +187,13 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
                             "temperature": settings.temperature}
             if settings.max_tokens is not None:
                 kwargs["max_tokens"] = settings.max_tokens
+            # DeepSeek thinking-mode strength (effort). None = API default.
+            effort = model_cfg.reasoning_effort
+            if effort == "none":
+                kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
+            elif effort:
+                kwargs["reasoning_effort"] = effort
+                kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
             raw = await asyncio.to_thread(
                 root_client.chat.completions.create, **kwargs
             )

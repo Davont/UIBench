@@ -34,7 +34,26 @@ models:
     name: "GLM 5.2"
 
   # ===== DeepSeek 官方端点（覆盖 base_url + api_key）=====
+  # reasoning_effort: low / high / max（开思考）/ none（关思考）
+  # 同一模型按不同思考强度展开为多张卡片，便于横向对比。
+  # YAML 锚点 &ds_url / &ds_key 复用，密钥只填一次。
   - id: deepseek-v4-flash
-    name: "DeepSeek v4 Flash (官方)"
-    base_url: "https://api.deepseek.com/v1"
-    api_key: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"   # <-- 填你的 DeepSeek key
+    name: "DeepSeek v4 Flash · 无思考"
+    base_url: &ds_url "https://api.deepseek.com/v1"
+    api_key: &ds_key "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"   # <-- 填你的 DeepSeek key
+    reasoning_effort: none
+  - id: deepseek-v4-flash
+    name: "DeepSeek v4 Flash · low"
+    base_url: *ds_url
+    api_key: *ds_key
+    reasoning_effort: low
+  - id: deepseek-v4-flash
+    name: "DeepSeek v4 Flash · high"
+    base_url: *ds_url
+    api_key: *ds_key
+    reasoning_effort: high
+  - id: deepseek-v4-flash
+    name: "DeepSeek v4 Flash · max"
+    base_url: *ds_url
+    api_key: *ds_key
+    reasoning_effort: max

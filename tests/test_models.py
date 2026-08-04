@@ -7,7 +7,7 @@ from uibench.schemas import ModelConfig
 
 def test_defaults_merged_into_models():
     models = load_model_registry()
-    assert len(models) == 6
+    assert len(models) == 9
     by_name = {m.name: m for m in models}
 
     # DashScope models inherit the default endpoint + key
@@ -16,10 +16,14 @@ def test_defaults_merged_into_models():
     assert ds.base_url == "https://dashscope.aliyuncs.com/compatible-mode/v1"
     assert ds.api_key == "sk-2ab9f98663e7471aaaef953d21f5b1e4"
 
-    # DeepSeek-official model overrides base_url + api_key
-    flash = by_name["DeepSeek v4 Flash (官方)"]
-    assert flash.base_url == "https://api.deepseek.com/v1"
-    assert flash.api_key == "sk-a1d2a065cc2e431fbbb6c914f986018b"
+    # DeepSeek-official: one model expanded into 4 effort cards
+    flash_cards = [m for m in models if m.id == "deepseek-v4-flash"]
+    assert len(flash_cards) == 4
+    assert {m.reasoning_effort for m in flash_cards} == {"none", "low", "high", "max"}
+    none_card = by_name["DeepSeek v4 Flash · 无思考"]
+    assert none_card.base_url == "https://api.deepseek.com/v1"
+    assert none_card.api_key == "sk-a1d2a065cc2e431fbbb6c914f986018b"
+    assert none_card.reasoning_effort == "none"
 
 
 def test_run_options_loaded_from_yaml():

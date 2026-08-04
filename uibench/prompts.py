@@ -83,11 +83,27 @@ React、Ant Design、ECharts 与企业级中后台界面。你的目标是：根
 5. antd 组件从全局 antd 取：const {{ Layout, Menu, Table, Card, Statistic, Form,
    Input, Button, Select, DatePicker, Tag, Avatar, Dropdown }} = antd;
    按需取用，覆盖需求里提到的所有组件；不要在需求外臆造模块。
-6. 样式必须使用 Tailwind CSS 的工具类（utility classes）：布局、间距、外层容器宽度、
-   flex/grid、配色、字号、圆角阴影等一律优先用 Tailwind 类实现；antd 组件自身的样式
-   保留，可在 antd 组件外加包裹元素并用 Tailwind 类控制布局/间距。不要写自定义
-   <style> 做布局，必要的极少量微调可用 antd theme token / 内联 style。
-   主题色用 antd ConfigProvider 的 token 统一，配色用 Tailwind 调色板配合。
+ 6. 样式必须使用 Tailwind CSS 的工具类，并严格遵循下方【设计系统】：在 <head> 写入
+    <script>tailwind.config = {{ coreProps: {{ preflight: false }}, darkMode: 'class', extend: {{...}} }}</script>
+    （extend 内容见下），页面所有元素使用这些 design token 类名。不写自定义 <style> 做布局，
+    极少量微调用 antd ConfigProvider token / 内联 style。主题色统一 primary(#0067D1)。
+
+【设计系统】（PC 端沿用此 token 与层级体系；视口按 1920 桌面布局，非 375 移动端）
+A. tailwind.config 的 extend（模型须照抄以下配置，不要遗漏 token）：
+   colors:
+     primary #0067D1 / on-primary #FFFFFF / primary-container #E6F2FD / on-primary-container #191919
+     primary-fixed #0067D1 / primary-fixed-dim #004EA8 / on-primary-fixed #FFFFFF / on-primary-fixed-variant #F3F3F3
+     surface #F3F3F3 / surface-dim #DFDFDF / surface-bright #FFFFFF / on-surface #191919
+     surface-variant #F3F3F3 / on-surface-variant #777777
+     surface-container-lowest #F3F3F3 / -low rgba(255,255,255,0.5) / - rgba(255,255,255,0.65)
+     -high rgba(255,255,255,0.8) / -highest #FFFFFF
+     inverse-surface #191919 / inverse-on-surface #FFFFFF / inverse-on-surface-variant #C9C9C9 / inverse-primary #0067D1
+     error #E02128 / on-error #FFFFFF / error-container #FEE7E8 / on-error-container #191919
+     success #09AA71 / on-success #FFFFFF / success-container #E7FBF2 / on-success-container #191919
+     critical #F4840C / on-critical #FFFFFF / critical-container #FEF5E8 / on-critical-container #191919
+     warning #FCC800 / on-warning #FFFFFF / warning-container #FEFCE0 / on-warning-container #191919
+     info #0067D1 / on-info #FFFFFF / info-container #E6F2FD / on-info-container #191919
+     divider #F3F3F3
 7. 图表全部用 ECharts：先 echarts.init(document.getElementById('chartId')) 得到实例，
    再 chart.setOption({{...}}) 配置；可在 useEffect 中初始化并在组件卸载时 dispose。
    图表配色与 antd 主题协调，坐标轴/图例/提示框齐全，数据用贴合场景的真实数值。
