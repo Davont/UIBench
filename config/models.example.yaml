@@ -27,11 +27,31 @@ models:
   - id: kimi-k2.6
     name: "Kimi k2.6"
   - id: qwen3.7-max
-    name: "Qwen3.7 Max"
+    name: "Qwen3.7 Max · 无思考"
+    reasoning_effort: none
+  - id: qwen3.7-max
+    name: "Qwen3.7 Max · low"
+    reasoning_effort: low
+  - id: qwen3.7-max
+    name: "Qwen3.7 Max · medium"
+    reasoning_effort: medium
+  - id: qwen3.7-max
+    name: "Qwen3.7 Max · high"
+    reasoning_effort: high
   - id: qwen3.7-plus
     name: "Qwen3.7 Plus"
   - id: glm-5.2
-    name: "GLM 5.2"
+    name: "GLM 5.2 · 无思考"
+    reasoning_effort: none
+  - id: glm-5.2
+    name: "GLM 5.2 · low"
+    reasoning_effort: low
+  - id: glm-5.2
+    name: "GLM 5.2 · medium"
+    reasoning_effort: medium
+  - id: glm-5.2
+    name: "GLM 5.2 · high"
+    reasoning_effort: high
 
   # ===== DeepSeek 官方端点（覆盖 base_url + api_key）=====
   # reasoning_effort: low / high / max（开思考）/ none（关思考）

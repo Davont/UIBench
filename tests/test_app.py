@@ -259,6 +259,18 @@ def test_inject_pc_bootstrap_after_babel() -> None:
     assert 'data-presets="react"' not in out
 
 
+def test_inject_pc_bootstrap_includes_error_handler() -> None:
+    html = ('<html><head>'
+            '<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>'
+            '</head><body></body></html>')
+    out = app_mod.inject_pc_bootstrap(html)
+    # global error handler surfaces Babel/runtime errors on a blank root
+    # instead of leaving the card white-screened
+    assert 'addEventListener("error"' in out
+    assert '渲染失败' in out
+    assert 'getElementById("root")' in out
+
+
 def test_inject_for_render_pc_combines() -> None:
     html = ('<html><head><script src="https://unpkg.com/@babel/standalone/babel.min.js">'
             '</script></head><body></body></html>')

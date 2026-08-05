@@ -22,6 +22,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Str
 
 from config import settings
 from uibench.models import chat_model_for, load_model_registry
+from uibench.pc import inject_pc_bootstrap
 from uibench.prompts import prompt_for
 from uibench.schemas import GenerateRequest, GenerationResult, ModelConfig
 
@@ -350,34 +351,6 @@ def inject_shared_css(html: str) -> str:
         if at != -1:
             return html[:at + 1] + "<head>" + link + "</head>" + html[at + 1:]
     return link + html
-
-
-def inject_pc_bootstrap(html: str) -> str:
-    """Force Babel to use the CLASSIC JSX runtime (emit React.createElement,
-    no ESM `import`) so the transformed script doesn't crash as a classic
-    <script> ("Cannot use import statement outside a module").
-
-    Per @babel/standalone docs, options are passed to a built-in preset by
-    registering a NEW preset that wraps it, then pointing data-presets at it.
-    """
-    reg = (
-        '<script>'
-        'Babel.registerPreset("react-classic",'
-        '{presets:[[Babel.availablePresets["react"],{runtime:"classic"}]]});'
-        '</script>'
-    )
-    m = re.search(r'<script\s+src="[^"]*babel[^"]*\.js"[^>]*></script>', html, re.IGNORECASE)
-    if m:
-        html = html[:m.end()] + reg + html[m.end():]
-    else:
-        html = reg + html
-    # point every text/babel script's data-presets at react-classic instead of react
-    html = re.sub(
-        r'(data-presets\s*=\s*["\'][^"\']*)\breact\b([^"\']*["\'])',
-        r'\1react-classic\2',
-        html,
-    )
-    return html
 
 
 def inject_for_render(html: str, mode: str = "mobile") -> str:
@@ -746,6 +719,15 @@ function injectPcBootstrap(html) {
   // docs), then rewrite data-presets="react" -> "react-classic" so scripts
   // use it. Emits React.createElement, no ESM import, no blank page.
   var reg = '<script>'
+    + '(function(){'
+    + 'window.addEventListener("error",function(e){'
+    + 'var b=document.getElementById("root");'
+    + 'if(!b||b.innerHTML.trim())return;'
+    + 'var m=(e&&(e.message||(e.error&&(e.error.stack||e.error.message))))||String(e);'
+    + 'var s=String(m).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");'
+    + 'b.innerHTML=`<div style="font:13px/1.6 -apple-system,system-ui,sans-serif;padding:16px;color:#b91c1c;white-space:pre-wrap;word-break:break-all;background:#fef2f2;border:1px solid #fecaca;border-radius:8px"><b>渲染失败</b>（脚本错误）\\n${s}</div>`;'
+    + '});'
+    + '})();'
     + 'Babel.registerPreset("react-classic",'
     + '{presets:[[Babel.availablePresets["react"],{runtime:"classic"}]]});'
     + '<' + '/script>';
