@@ -54,7 +54,9 @@
       "minChildren": 0,
       "maxChildren": null,
       "allowedParents": null,
-      "allowedChildren": ["Span"],
+      "allowedChildren": [
+        "Span"
+      ],
       "requiredFields": [],
       "minApiVersion": 7
     },
@@ -64,9 +66,13 @@
       "acceptsChildren": false,
       "minChildren": 0,
       "maxChildren": 0,
-      "allowedParents": ["Text"],
+      "allowedParents": [
+        "Text"
+      ],
       "allowedChildren": [],
-      "requiredFields": ["content"],
+      "requiredFields": [
+        "content"
+      ],
       "minApiVersion": 7
     },
     {
@@ -77,7 +83,9 @@
       "maxChildren": 0,
       "allowedParents": null,
       "allowedChildren": [],
-      "requiredFields": ["src"],
+      "requiredFields": [
+        "src"
+      ],
       "minApiVersion": 7
     },
     {
@@ -88,7 +96,9 @@
       "maxChildren": 0,
       "allowedParents": null,
       "allowedChildren": [],
-      "requiredFields": ["props.symbol"],
+      "requiredFields": [
+        "props.symbol"
+      ],
       "minApiVersion": 11
     },
     {
@@ -109,6 +119,58 @@
       "minChildren": 0,
       "maxChildren": 1,
       "allowedParents": null,
+      "allowedChildren": null,
+      "requiredFields": [],
+      "minApiVersion": 7
+    },
+    {
+      "name": "List",
+      "kind": "container",
+      "acceptsChildren": true,
+      "minChildren": 0,
+      "maxChildren": null,
+      "allowedParents": null,
+      "allowedChildren": [
+        "ListItem"
+      ],
+      "requiredFields": [],
+      "minApiVersion": 7
+    },
+    {
+      "name": "ListItem",
+      "kind": "container",
+      "acceptsChildren": true,
+      "minChildren": 0,
+      "maxChildren": 1,
+      "allowedParents": [
+        "List"
+      ],
+      "allowedChildren": null,
+      "requiredFields": [],
+      "minApiVersion": 7
+    },
+    {
+      "name": "Grid",
+      "kind": "container",
+      "acceptsChildren": true,
+      "minChildren": 0,
+      "maxChildren": null,
+      "allowedParents": null,
+      "allowedChildren": [
+        "GridItem"
+      ],
+      "requiredFields": [],
+      "minApiVersion": 7
+    },
+    {
+      "name": "GridItem",
+      "kind": "container",
+      "acceptsChildren": true,
+      "minChildren": 0,
+      "maxChildren": 1,
+      "allowedParents": [
+        "Grid"
+      ],
       "allowedChildren": null,
       "requiredFields": [],
       "minApiVersion": 7

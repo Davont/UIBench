@@ -15,7 +15,6 @@ from uibench.image_tools import (
     image_resource_urls,
     image_search_requests,
     image_tool_result_for_model,
-    missing_photo_attributions,
     unresolved_image_bindings,
 )
 from uibench.pc import SYSTEM_PC
@@ -50,8 +49,13 @@ def test_sanitize_accepts_only_unsplash_https_urls() -> None:
     assert _sanitize_photos([malicious]) == []
 
 
-def test_sanitize_requires_attribution_and_tracking_metadata() -> None:
-    assert _sanitize_photos([_photo(photographer="")]) == []
+def test_sanitize_allows_missing_attribution_but_requires_tracking_metadata() -> None:
+    without_attribution = _sanitize_photos([
+        _photo(photographer="", photographer_url=""),
+    ])
+    assert len(without_attribution) == 1
+    assert without_attribution[0]["photographer"] == ""
+    assert without_attribution[0]["photographer_url"] == ""
     assert _sanitize_photos([_photo(download_location="")]) == []
 
 
@@ -119,18 +123,16 @@ def test_protocol_relative_urls_are_audited_in_every_image_context() -> None:
     }
 
 
-def test_html_comments_do_not_create_image_or_attribution_evidence() -> None:
+def test_html_comments_do_not_create_image_evidence() -> None:
     html = """
     <!-- <img src=//evil.test/commented> -->
     <img src="https://images.unsplash.com/photo-safe">
     <!-- <a href="https://unsplash.com/@example?utm_source=uibench&utm_medium=referral">
       Photo by Example on Unsplash</a> -->
     """
-    photo = _sanitize_photos([_photo()])[0]
     assert image_resource_urls(html) == {
         "https://images.unsplash.com/photo-safe",
     }
-    assert missing_photo_attributions([photo], html) == ("safe-id",)
 
 
 def test_dynamic_image_bindings_are_fail_closed_without_blocking_script_cdn() -> None:
@@ -190,57 +192,6 @@ def test_distinct_photos_canonicalize_unsplash_query_variants() -> None:
 def test_sanitize_rejects_missing_or_invalid_photo_ids() -> None:
     assert _sanitize_photos([_photo(id="")]) == []
     assert _sanitize_photos([_photo(id="bad/id")]) == []
-
-
-def test_used_photos_require_visible_linked_unsplash_credit() -> None:
-    photo = _sanitize_photos([_photo()])[0]
-    photo["slot"] = "hero"
-    image = '<img src="https://images.unsplash.com/photo-safe">'
-    assert missing_photo_attributions([photo], image) == ("hero",)
-
-    credited = image + (
-        '<a href="https://unsplash.com/@example?utm_medium=referral&amp;utm_source=uibench">'
-        'Photo by Example on Unsplash</a>'
-    )
-    assert missing_photo_attributions([photo], credited) == ()
-
-    hidden = image + (
-        '<a hidden href="https://unsplash.com/@example?utm_source=uibench&amp;utm_medium=referral">'
-        'Photo by Example on Unsplash</a>'
-    )
-    assert missing_photo_attributions([photo], hidden) == ("hero",)
-
-    visually_hidden = image + (
-        '<a class="sr-only" '
-        'href="https://unsplash.com/@example?utm_source=uibench&amp;utm_medium=referral">'
-        'Photo by Example on Unsplash</a>'
-    )
-    assert missing_photo_attributions([photo], visually_hidden) == ("hero",)
-
-    hidden_ancestor = image + (
-        '<div aria-hidden="true"><a href="https://unsplash.com/@example?utm_source=uibench&amp;utm_medium=referral">'
-        'Photo by Example on Unsplash</a></div>'
-    )
-    assert missing_photo_attributions([photo], hidden_ancestor) == ("hero",)
-
-    hidden_text = image + (
-        '<a href="https://unsplash.com/@example?utm_source=uibench&amp;utm_medium=referral">'
-        '<span hidden>Photo by Example on Unsplash</span></a>'
-    )
-    assert missing_photo_attributions([photo], hidden_text) == ("hero",)
-
-    template_credit = image + (
-        '<template><a href="https://unsplash.com/@example?utm_source=uibench&amp;utm_medium=referral">'
-        'Photo by Example on Unsplash</a></template>'
-    )
-    assert missing_photo_attributions([photo], template_credit) == ("hero",)
-
-    pc_jsx_credit = image + (
-        '<div id="root"></div><script type="text/babel">'
-        'const Credit = () => <a href="https://unsplash.com/@example">'
-        'Photo by Example on Unsplash</a>;</script>'
-    )
-    assert missing_photo_attributions([photo], pc_jsx_credit) == ("hero",)
 
 
 def test_approved_image_urls_are_exact_tool_results() -> None:
@@ -335,7 +286,7 @@ def test_prompts_never_allow_invented_image_urls() -> None:
     for prompt in (SYSTEM_MOBILE, SYSTEM_PC):
         assert "search_photos" in prompt
         assert "绝不得自行编造" in prompt
-        assert "Photo by <photographer> on Unsplash" in prompt
+        assert "Photo by <photographer> on Unsplash" not in prompt
 
 
 def test_image_tool_accepts_windows_virtualenv_python(monkeypatch, tmp_path) -> None:

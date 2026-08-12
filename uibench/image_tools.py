@@ -7,12 +7,21 @@ import os
 import re
 from collections.abc import Awaitable, Callable
 from html import unescape
-from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import httpx
+
+# Preload the optional MCP SDK (and its httpx2 dependency) while the process is
+# still single-threaded.  The openai client probes sys.modules["httpx2"] without
+# taking the import lock, so letting the first `import mcp` happen inside a
+# concurrent request can expose a partially initialized httpx2 module to the
+# model-call worker threads (AttributeError: ... has no attribute 'Response').
+try:
+    import mcp.client.stdio  # noqa: F401
+except ImportError:
+    pass
 
 from config import settings
 
@@ -386,114 +395,6 @@ def _canonical_image_asset(value: str) -> str:
     return f"{host}{parsed.path}"
 
 
-def _normalized_url(value: str) -> str:
-    parsed = urlparse(unescape(value).strip())
-    query = urlencode(sorted(parse_qsl(parsed.query, keep_blank_values=True)))
-    return urlunparse(parsed._replace(fragment="", query=query))
-
-
-_VOID_TAGS = {
-    "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
-    "meta", "param", "source", "track", "wbr",
-}
-
-
-def _statically_hidden(tag: str, attrs: dict[str, str | None]) -> bool:
-    if tag in {"script", "style", "template", "noscript"}:
-        return True
-    if tag == "details" and "open" not in attrs:
-        return True
-    if "hidden" in attrs or str(attrs.get("aria-hidden") or "").casefold() in {"true", "{true}"}:
-        return True
-    classes = str(attrs.get("class") or attrs.get("classname") or "")
-    if re.search(r"(?:^|\s)(?:hidden|invisible|sr-only|opacity-0)(?:\s|$)", classes, re.IGNORECASE):
-        return True
-    style = str(attrs.get("style") or "")
-    if "{" in style or re.search(
-        r"(?:display\s*:\s*none|visibility\s*:\s*hidden|"
-        r"opacity\s*:\s*0(?:\D|$)|font-size\s*:\s*0(?:\D|$))",
-        style,
-        re.IGNORECASE,
-    ):
-        return True
-    return False
-
-
-class _VisibleAttributionParser(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self.stack: list[dict[str, Any]] = []
-        self.links: list[tuple[str, str]] = []
-        self.invalid = False
-
-    def handle_starttag(self, tag: str, attrs_list) -> None:
-        tag = tag.casefold()
-        attrs = {str(key).casefold(): value for key, value in attrs_list}
-        hidden = bool(self.stack and self.stack[-1]["hidden"]) or _statically_hidden(tag, attrs)
-        anchor = None
-        if tag == "a" and not hidden:
-            href = str(attrs.get("href") or "").strip()
-            if href.startswith("https://") and "{" not in href:
-                anchor = {"href": _normalized_url(href), "text": []}
-        frame = {"tag": tag, "hidden": hidden, "anchor": anchor}
-        if tag not in _VOID_TAGS:
-            self.stack.append(frame)
-
-    def handle_startendtag(self, tag: str, attrs_list) -> None:
-        self.handle_starttag(tag, attrs_list)
-        if tag.casefold() not in _VOID_TAGS:
-            self.handle_endtag(tag)
-
-    def handle_data(self, data: str) -> None:
-        if not self.stack or self.stack[-1]["hidden"]:
-            return
-        for frame in reversed(self.stack):
-            if frame["anchor"] is not None:
-                frame["anchor"]["text"].append(data)
-                break
-
-    def handle_endtag(self, tag: str) -> None:
-        tag = tag.casefold()
-        if not self.stack or self.stack[-1]["tag"] != tag:
-            self.invalid = True
-            return
-        frame = self.stack.pop()
-        if frame["anchor"] is not None:
-            text = " ".join("".join(frame["anchor"]["text"]).split())
-            self.links.append((frame["anchor"]["href"], text))
-
-
-def _visible_attribution_links(html: str) -> list[tuple[str, str]]:
-    parser = _VisibleAttributionParser()
-    try:
-        parser.feed(html or "")
-        parser.close()
-    except Exception:
-        return []
-    if parser.invalid or parser.stack:
-        return []
-    return parser.links
-
-
-def missing_photo_attributions(
-    photos: list[dict[str, Any]], html: str,
-) -> tuple[str, ...]:
-    """Return used Unsplash slots lacking a visible linked photographer credit."""
-    links = _visible_attribution_links(html)
-    missing: list[str] = []
-    for photo in distinct_used_photos(photos, html):
-        photographer = " ".join(str(photo.get("photographer") or "").split())
-        photographer_url = str(photo.get("photographer_url") or "")
-        expected_url = _normalized_url(photographer_url) if photographer_url else ""
-        expected_text = f"photo by {photographer} on unsplash".casefold()
-        if not expected_url or not photographer or not any(
-            href == expected_url and expected_text in text.casefold()
-            for href, text in links
-        ):
-            missing.append(str(photo.get("slot") or photo.get("id") or "photo"))
-    return tuple(dict.fromkeys(missing))
-
-
 def image_search_requests(
     arguments: dict[str, Any], *, max_requests: int,
 ) -> list[dict[str, Any]]:
@@ -606,9 +507,9 @@ def _sanitize_photos(payload: Any) -> list[dict[str, Any]]:
             raw.get("download_location"), {"api.unsplash.com"}
         )
         photographer = str(raw.get("photographer") or "").strip()[:120]
-        # Attribution and download tracking are required by the Unsplash API.
-        # If metadata enrichment failed, do not offer that photo to the model.
-        if not photographer or not photographer_url or not download_location:
+        # Keep download tracking mandatory, but do not discard an otherwise
+        # usable image when photographer attribution metadata is unavailable.
+        if not download_location:
             continue
         photos.append({
             "id": photo_id,
@@ -862,7 +763,6 @@ def image_tool_result_for_model(photos: list[dict[str, Any]]) -> str:
                 "Use only a returned urls.regular or urls.small URL; never invent a URL.",
                 "Each photo.slot is the exact page slot it belongs to; do not swap unrelated assets.",
                 "If a returned slot represents a visible product/content card, render its photo in that card instead of an icon or empty placeholder.",
-                "Add visible linked credit: Photo by <photographer> on Unsplash.",
                 "If no photo fits, use a token-controlled placeholder instead.",
             ],
         },

@@ -8,14 +8,24 @@ from html.parser import HTMLParser
 from typing import Literal
 
 from uibench.arkui.components import ComponentDefinition, load_component_registry
+from uibench.arkui.symbols import (
+    SymbolResolution,
+    is_known_lucide_icon,
+    pinned_lucide_version,
+    resolve_lucide_icon,
+    resolve_lucide_icon_near,
+    resolve_symbol,
+)
 
-DiagnosticSeverity = Literal["warning", "error"]
+# "notice" records that an annotation was read differently than written while
+# the rendered result is unchanged; only "warning" means the ArkUI project can
+# no longer look like the captured page.
+DiagnosticSeverity = Literal["notice", "warning", "error"]
 ComponentSource = Literal["explicit", "html"]
 ExportReadiness = Literal["ready", "lossy", "blocked", "unavailable"]
 
 _NODE_ID_RE = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
 _ROLE_RE = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
-_SYMBOL_RE = re.compile(r"^(?:app|sys)\.symbol\.[A-Za-z0-9_]+$")
 _VOID_TAGS = frozenset({
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
     "meta", "param", "source", "track", "wbr",
@@ -204,6 +214,12 @@ class ComponentNode:
     attributes: tuple[tuple[str, str], ...]
     text_content: str
     renderer_supported: bool
+    # Direct text fragments in document order. Each entry pairs the fragment
+    # with the number of direct component children registered before it, so
+    # rich text such as ``共 <span>3</span> 台`` keeps the parent's fragments
+    # positioned around the styled spans instead of collapsing into one
+    # order-less string.
+    text_runs: tuple[tuple[int, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -218,6 +234,10 @@ class ComponentMetadataReport:
     @property
     def warnings(self) -> tuple[ComponentDiagnostic, ...]:
         return tuple(item for item in self.diagnostics if item.severity == "warning")
+
+    @property
+    def notices(self) -> tuple[ComponentDiagnostic, ...]:
+        return tuple(item for item in self.diagnostics if item.severity == "notice")
 
     @property
     def component_counts(self) -> dict[str, int]:
@@ -252,21 +272,13 @@ class ComponentMetadataReport:
     def export_readiness(self) -> ExportReadiness:
         if self.explicit_components == 0:
             return "unavailable"
-        screen_ir_blocking_codes = {
-            "ARKUI_COMPONENT_METADATA_MISSING",
-            "ARKUI_IMAGE_SRC_MISSING",
-            "ARKUI_NODE_ID_MISSING",
-            "ARKUI_SPAN_CONTENT_MISSING",
-        }
+        # Screen IR needs one addressable root and a stable id per node; both
+        # are only warnings here because they can come from inferred markup.
         if (
             self.errors
             or self.unsupported_components
             or any(node.node_id is None for node in self.nodes)
             or self.root_components != 1
-            or any(
-                item.code in screen_ir_blocking_codes
-                for item in self.diagnostics
-            )
         ):
             return "blocked"
         if self.warnings:
@@ -316,6 +328,7 @@ class ComponentMetadataReport:
                 "exportable": self.export_readiness in {"ready", "lossy"},
                 "errors": len(self.errors),
                 "warnings": len(self.warnings),
+                "notices": len(self.notices),
             },
             "diagnostics": [
                 {
@@ -450,6 +463,38 @@ def _relevant_attributes(attrs: dict[str, str]) -> tuple[tuple[str, str], ...]:
     ))
 
 
+_WHITESPACE_RUN_RE = re.compile(r"\s+")
+
+
+def _normalized_text_runs(
+    fragments: list[tuple[int, str]],
+    child_count: int,
+) -> tuple[tuple[int, str], ...]:
+    """Collapse raw text fragments the way inline HTML whitespace renders.
+
+    Runs of whitespace become one space; leading whitespace before the first
+    child and trailing whitespace after the last child disappear at the block
+    edge. A single space *between* a fragment and a neighbouring child stays,
+    because the browser renders it (``共 <span>3</span> 台``).
+    """
+    merged: list[tuple[int, str]] = []
+    for position, text in fragments:
+        if merged and merged[-1][0] == position:
+            merged[-1] = (position, merged[-1][1] + text)
+        else:
+            merged.append((position, text))
+    runs: list[tuple[int, str]] = []
+    for position, text in merged:
+        collapsed = _WHITESPACE_RUN_RE.sub(" ", text)
+        if position == 0:
+            collapsed = collapsed.lstrip()
+        if position == child_count:
+            collapsed = collapsed.rstrip()
+        if collapsed:
+            runs.append((position, collapsed))
+    return tuple(runs)
+
+
 class _ComponentMetadataParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -458,7 +503,11 @@ class _ComponentMetadataParser(HTMLParser):
         self.diagnostics: list[ComponentDiagnostic] = []
         self.frames: list[_Frame] = []
         self.seen_ids: dict[str, tuple[int, int]] = {}
-        self.node_text: list[list[str]] = []
+        # Text fragments per node, each tagged with how many direct component
+        # children that node held when the fragment arrived (its "run
+        # position" between the child components).
+        self.node_text: list[list[tuple[int, str]]] = []
+        self.node_child_counts: list[int] = []
         self.node_depths: list[int] = []
         self.component_depth_exceeded = False
         self.document = _DocumentStructureState()
@@ -527,6 +576,148 @@ class _ComponentMetadataParser(HTMLParser):
         else:
             self.seen_ids[node_id] = self.getpos()
 
+    def _promote_orphan_span(
+        self,
+        definition: ComponentDefinition,
+        parent_index: int | None,
+        node_id: str | None,
+    ) -> ComponentDefinition:
+        """Read a span outside a text as the Text it can only have meant.
+
+        ArkUI has no legal form for ``Span`` outside ``Text``, so a standalone
+        span has exactly one sensible reading. Applying the registry fallback
+        keeps the node, its text and its geometry intact, which is why this is
+        a notice — the annotation was re-read but the rendered result is
+        unchanged — rather than one of the blocking structural errors. Other
+        fallbacks stay unused: they would change what the page means.
+        """
+        if definition.key != "span":
+            return definition
+        parent = self.nodes[parent_index] if parent_index is not None else None
+        if parent is not None and parent.component == "text":
+            return definition
+        fallback = self.registry.components[definition.fallback or "text"]
+        self._diagnostic(
+            "ARKUI_SPAN_PROMOTED_TO_TEXT",
+            "notice",
+            f"span outside a text parent was exported as {fallback.key!r}; "
+            "annotate standalone text as text and keep span for styled "
+            "fragments inside a text",
+            node_id=node_id,
+            component=definition.key,
+        )
+        return fallback
+
+    def _promote_orphan_list_item(
+        self,
+        definition: ComponentDefinition,
+        parent_index: int | None,
+        node_id: str | None,
+    ) -> ComponentDefinition:
+        """Read a list-item outside a list as the plain container it must be.
+
+        ArkUI has no legal form for ``ListItem`` outside ``List``, so, exactly
+        like the orphan span above, the registry fallback is the one reading
+        that keeps the node, its children and its geometry. Only the
+        collection semantics that had no list to belong to are dropped, which
+        is why this is a notice and not a structural error.
+        """
+        if definition.key != "list-item":
+            return definition
+        parent = self.nodes[parent_index] if parent_index is not None else None
+        if parent is not None and parent.component == "list":
+            return definition
+        fallback = self.registry.components[definition.fallback or "column"]
+        self._diagnostic(
+            "ARKUI_LIST_ITEM_PROMOTED_TO_COLUMN",
+            "notice",
+            f"list-item outside a list parent was exported as "
+            f"{fallback.key!r}; keep list-item for the entries of a list",
+            node_id=node_id,
+            component=definition.key,
+        )
+        return fallback
+
+    def _resolve_symbol(
+        self,
+        definition: ComponentDefinition,
+        attributes: dict[str, str],
+        node_id: str | None,
+    ) -> ComponentDefinition:
+        """Bind a symbol node to a HarmonyOS resource that actually exists.
+
+        ``data-lucide`` is evidence: the page cannot render without it and the
+        icon library is fixed, so it beats a hand-written ``data-symbol``,
+        which is only the model's guess at a mapping it has no way to verify.
+        An icon HarmonyOS has no resource for degrades to an empty container of
+        the same size, which keeps the surrounding layout intact.
+        """
+        lucide_name = attributes.get("data-lucide", "").strip()
+        declared = attributes.get("data-symbol", "").strip()
+        if lucide_name and not is_known_lucide_icon(lucide_name):
+            # The pinned Lucide build cannot render this name, so the browser
+            # page shows no icon here at all. Resolving it against HarmonyOS
+            # symbols (a name such as "person" happens to exist there), or
+            # honouring a declared data-symbol, would invent a glyph the
+            # captured page never had.
+            attributes.pop("data-symbol", None)
+            self._diagnostic(
+                "ARKUI_LUCIDE_ICON_UNKNOWN",
+                "warning",
+                f"data-lucide {lucide_name!r} is not an icon of the pinned "
+                f"Lucide catalogue ({pinned_lucide_version()}); the browser "
+                "renders no icon for it, so it was exported as an empty "
+                "placeholder of the same size",
+                node_id=node_id,
+                component=definition.key,
+            )
+            return self.registry.components[definition.fallback or "column"]
+        resolution = (
+            resolve_lucide_icon(lucide_name) if lucide_name
+            else SymbolResolution(status="malformed")
+        )
+        if not resolution.supported and declared:
+            resolution = resolve_symbol(declared)
+        if not resolution.supported and lucide_name:
+            # Last tier before the placeholder: a reviewed visually similar
+            # substitute. It keeps a real glyph on the page but cannot claim
+            # fidelity, so the hit is reported as a lossy warning.
+            resolution = resolve_lucide_icon_near(lucide_name)
+        if resolution.supported:
+            assert resolution.canonical is not None
+            attributes["data-symbol"] = resolution.canonical
+            if resolution.approximate:
+                self._diagnostic(
+                    "ARKUI_SYMBOL_APPROXIMATED",
+                    "warning",
+                    f"data-lucide {lucide_name!r} has no exact HarmonyOS "
+                    f"symbol; the visually similar {resolution.canonical!r} "
+                    "was substituted",
+                    node_id=node_id,
+                    component=definition.key,
+                )
+            return definition
+
+        described = (
+            f"data-lucide {lucide_name!r}" if lucide_name
+            else f"data-symbol {declared!r}" if declared
+            else "symbol without data-lucide"
+        )
+        hint = (
+            f"; closest available: {', '.join(resolution.suggestions)}"
+            if resolution.suggestions else ""
+        )
+        attributes.pop("data-symbol", None)
+        self._diagnostic(
+            "ARKUI_SYMBOL_UNAVAILABLE",
+            "warning",
+            f"{described} has no HarmonyOS system symbol; exported as an "
+            "empty placeholder of the same size" + hint,
+            node_id=node_id,
+            component=definition.key,
+        )
+        return self.registry.components[definition.fallback or "column"]
+
     def _validate_structure(
         self,
         definition: ComponentDefinition,
@@ -534,9 +725,11 @@ class _ComponentMetadataParser(HTMLParser):
         node_id: str | None,
     ) -> None:
         parent = self.nodes[parent_index] if parent_index is not None else None
-        if definition.allowed_parents is not None and (
+        parent_invalid = definition.allowed_parents is not None and (
             parent is None or parent.component not in definition.allowed_parents
-        ):
+        )
+        if parent_invalid:
+            assert definition.allowed_parents is not None
             expected = ", ".join(sorted(definition.allowed_parents))
             actual = parent.component if parent is not None else "document root"
             self._diagnostic(
@@ -553,6 +746,25 @@ class _ComponentMetadataParser(HTMLParser):
             parent_definition.allowed_children is not None
             and definition.key not in parent_definition.allowed_children
         ):
+            if parent.component in {"list", "grid"} and not parent_invalid:
+                # ArkUI's List holds nothing but ListItems and its Grid
+                # nothing but GridItems, so a component that may legally sit
+                # inside one has exactly one reading here: the content of one
+                # entry. Screen IR generates that item wrapper around it and
+                # the child keeps its own geometry.
+                item_key = "list-item" if parent.component == "list" else "grid-item"
+                self._diagnostic(
+                    "ARKUI_LIST_CHILD_WRAPPED_AS_ITEM"
+                    if parent.component == "list"
+                    else "ARKUI_GRID_CHILD_WRAPPED_AS_ITEM",
+                    "notice",
+                    f"{definition.key!r} directly inside a {parent.component} "
+                    f"was exported inside a generated {item_key}; annotate "
+                    f"each {parent.component} entry as {item_key}",
+                    node_id=node_id,
+                    component=definition.key,
+                )
+                return
             expected = ", ".join(sorted(parent_definition.allowed_children))
             self._diagnostic(
                 "ARKUI_COMPONENT_CHILD_INVALID",
@@ -600,6 +812,12 @@ class _ComponentMetadataParser(HTMLParser):
             definition = self.registry.components[component]
             node_id = attributes.get("data-node-id", "").strip() or None
             ui_role = attributes.get("data-ui-role", "").strip() or None
+            parent_index = self._parent_index()
+            definition = self._promote_orphan_span(definition, parent_index, node_id)
+            definition = self._promote_orphan_list_item(
+                definition, parent_index, node_id,
+            )
+            component = definition.key
             if ui_role is not None and not _ROLE_RE.fullmatch(ui_role):
                 self._diagnostic(
                     "ARKUI_UI_ROLE_INVALID",
@@ -627,24 +845,22 @@ class _ComponentMetadataParser(HTMLParser):
                         component=component,
                     )
             if component == "symbol":
-                symbol = attributes.get("data-symbol", "").strip()
-                if symbol and not _SYMBOL_RE.fullmatch(symbol):
-                    self._diagnostic(
-                        "ARKUI_SYMBOL_INVALID",
-                        "error",
-                        "data-symbol must be a canonical app.symbol.* or sys.symbol.* resource",
-                        node_id=node_id,
-                        component=component,
-                    )
+                definition = self._resolve_symbol(definition, attributes, node_id)
+                component = definition.key
             if component == "image" and not attributes.get("src", "").strip():
+                # An Image with nothing to show is a placeholder box the model
+                # drew with CSS, and ArkUI's Image cannot stand in for it.
                 self._diagnostic(
                     "ARKUI_IMAGE_SRC_MISSING",
-                    "error" if explicit_value else "warning",
-                    "image requires a non-empty src attribute",
+                    "warning",
+                    "image has no src and was exported as a plain container",
                     node_id=node_id,
                     component=component,
                 )
-            parent_index = self._parent_index()
+                definition = self.registry.components[
+                    definition.fallback or "column"
+                ]
+                component = definition.key
             self._validate_structure(definition, parent_index, node_id)
             component_depth = (
                 1 if parent_index is None else self.node_depths[parent_index] + 1
@@ -679,7 +895,10 @@ class _ComponentMetadataParser(HTMLParser):
                 renderer_supported=definition.renderer_supported,
             ))
             self.node_text.append([])
+            self.node_child_counts.append(0)
             self.node_depths.append(component_depth)
+            if parent_index is not None:
+                self.node_child_counts[parent_index] += 1
 
         if normalized_tag not in _VOID_TAGS:
             self.frames.append(_Frame(tag=normalized_tag, node_index=node_index))
@@ -703,14 +922,22 @@ class _ComponentMetadataParser(HTMLParser):
     def handle_data(self, data: str) -> None:
         for frame in reversed(self.frames):
             if frame.node_index is not None:
-                self.node_text[frame.node_index].append(data)
+                self.node_text[frame.node_index].append(
+                    (self.node_child_counts[frame.node_index], data)
+                )
                 return
 
     def finish(self) -> ComponentMetadataReport:
         self.nodes = [
-            replace(node, text_content=" ".join(
-                " ".join(self.node_text[index]).split()
-            ))
+            replace(
+                node,
+                text_content=" ".join(" ".join(
+                    text for _, text in self.node_text[index]
+                ).split()),
+                text_runs=_normalized_text_runs(
+                    self.node_text[index], self.node_child_counts[index]
+                ),
+            )
             for index, node in enumerate(self.nodes)
         ]
         child_counts = Counter(
@@ -722,15 +949,31 @@ class _ComponentMetadataParser(HTMLParser):
             maximum = self.registry.components[node.component].max_component_children
             actual = child_counts.get(index, 0)
             if maximum is not None and actual > maximum:
-                self._diagnostic(
-                    "ARKUI_COMPONENT_CHILD_COUNT_EXCEEDED",
-                    "error",
-                    f"{node.component!r} accepts at most {maximum} component child; found {actual}",
-                    node_id=node.node_id,
-                    component=node.component,
-                    line=node.line,
-                    column=node.column,
-                )
+                if maximum >= 1:
+                    # A single-slot container still holds these children in the
+                    # browser; Screen IR gives them the one wrapper ArkUI needs.
+                    self._diagnostic(
+                        "ARKUI_CONTENT_WRAPPED_FOR_SINGLE_SLOT",
+                        "notice",
+                        f"{node.component!r} accepts at most {maximum} "
+                        f"component child but holds {actual}; they were "
+                        "exported inside one generated layout child",
+                        node_id=node.node_id,
+                        component=node.component,
+                        line=node.line,
+                        column=node.column,
+                    )
+                else:
+                    self._diagnostic(
+                        "ARKUI_COMPONENT_CHILD_COUNT_EXCEEDED",
+                        "error",
+                        f"{node.component!r} is a leaf component and cannot "
+                        f"hold component children; found {actual}",
+                        node_id=node.node_id,
+                        component=node.component,
+                        line=node.line,
+                        column=node.column,
+                    )
             if node.component == "span" and not node.text_content:
                 self._diagnostic(
                     "ARKUI_SPAN_CONTENT_MISSING",
@@ -753,7 +996,11 @@ class _ComponentMetadataParser(HTMLParser):
 
 
 def analyze_component_metadata(html: str) -> ComponentMetadataReport:
-    """Extract component metadata without executing or rewriting the HTML."""
+    """Extract component metadata without executing or rewriting the HTML.
+
+    Resolved ``data-symbol`` values are reported in their canonical SDK
+    spelling; the HTML document itself is never modified.
+    """
     if not isinstance(html, str):
         raise TypeError("html must be a string")
     depth_violation = find_html_tree_depth_violation(html)

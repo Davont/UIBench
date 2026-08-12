@@ -191,11 +191,13 @@ image_tool_max_assets: 6
          → 同轮模型共享图片库 → 模型输出 HTML → 使用不足时自动修复一次
 ```
 
-UIBench 只接受 `images.unsplash.com` 的 HTTPS 图片。每个模型最多发起一次
+UIBench 优先使用图片工具返回的 `images.unsplash.com` HTTPS 图片。每个模型最多发起一次
 `search_photos` 工具调用，但可在一次调用中按具名视觉槽位批量搜索最多
 `image_tool_max_assets` 张图片。同一次对比运行会复用相同批次，避免五个模型重复消耗
-Unsplash 配额；模型必须把返回图片用于对应槽位，并显示带链接的摄影师 / Unsplash
-署名。需求中明确写出的数量（如“生成 5 张肖像图”）会直接成为槽位数量，并受
+Unsplash 配额；模型必须把返回图片用于对应槽位。摄影师信息缺失不会阻止图片生成或
+页面预览。模型自行生成远程图片 URL、动态图片绑定或图片数量不足时只显示“图片异常”
+告警，仍会保留并渲染完整 HTML，不设置预览阻断门槛。需求中明确写出的数量（如“生成
+5 张肖像图”）会直接成为槽位数量，并受
 `image_tool_max_assets` 上限约束。Access Key、
 MCP 目录和真实模型配置均被 Git 忽略，不会提交到 fork 仓库。
 
@@ -244,12 +246,17 @@ Token 源文件位于 `uibench/design_tokens/tokens.json`；四个风格必须�
 > 映射常见的中性色、边框、主色和状态色，因此可以进行基础风格切换，但不能保证完整
 > 迁移。重新生成且使用 `dt-*` 合约的页面才具备完整主题能力。
 
-### 可选 ArkUI 结构导出
+### 可选 ArkUI 工程导出
 
 移动端模式可勾选“生成 ArkUI 可导出元数据”。开启后，模型只使用当前
-`html-to-arkui` 公共契约已支持的 10 个组件：`Column`、`Row`、`Stack`、
-`Scroll`、`Text`、`Span`、`Image`、`SymbolGlyph`、`Divider`、`Button`。
-`List`、`Grid`、表单输入等规划组件暂不允许导出。
+`html-to-arkui` 公共契约已支持的 14 个组件：`Column`、`Row`、`Stack`、
+`Scroll`、`Text`、`Span`、`Image`、`SymbolGlyph`、`Divider`、`Button`、
+`List`、`ListItem`、`Grid`、`GridItem`。`List` 只接受 `ListItem` 子节点，
+`ListItem` 最多包含一个已标注组件子节点，条目间距写在 `List` 上；横向列表按
+浏览器实际主轴导出为 `.listDirection(Axis.Horizontal)`，无需额外标注。`Grid`
+只接受 `GridItem` 子节点，轨道与间距从浏览器实测的 `grid-template-*` / `gap`
+冻结为 `.columnsTemplate()` 等修饰器，显式跨行列（`col-span-*` 等）不支持并会
+阻断导出。表单输入等规划组件暂不允许导出。
 
 转换器已作为包含全部运行依赖的固定 `.tgz` 放在
 `vendor/html-to-arkui/`，安装 UIBench 时执行：
@@ -261,24 +268,66 @@ npm ci --ignore-scripts --offline
 UIBench 默认只读取根目录 `node_modules/@local/html-to-arkui`，不依赖兄弟仓库，也不需要
 访问 npm registry。转换器开发者可以用 `HTML_TO_ARKUI_ROOT` 显式覆盖到本地源仓库；
 部署环境不应设置该变量。生成结果通过组件校验后，卡片会显示“下载鸿蒙工程”。
-也可以直接调用：
+也可以直接调用。下面只展示请求形状；`computed` 为节选，不能原样提交：
 
 ```text
 POST /api/arkui/export
 {
   "html": "...",
   "page_name": "GeneratedPage",
-  "mode": "annotated"
+  "mode": "annotated",
+  "snapshot": {
+    "snapshotVersion": 1,
+    "viewportWidth": 390,
+    "viewportHeight": 844,
+    "theme": "light",
+    "tokenTheme": "harmonyos",
+    "canvasBackgroundColor": "rgb(255, 255, 255)",
+    "canvasBackgroundImage": "none",
+    "nodes": [{
+      "nodeId": "page",
+      "tag": "main",
+      "bbox": [0, 0, 390, 844],
+      "visible": true,
+      "computed": {
+        "display": "flex",
+        "flexDirection": "column",
+        "width": "390px",
+        "height": "844px"
+      }
+    }]
+  }
 }
 ```
+
+Web 页面会自动生成并提交完整 `BrowserSnapshot`。直接调用 annotated API 时也必须提供
+经过校验的快照；缺少快照会返回 `UIBENCH_BROWSER_SNAPSHOT_REQUIRED`（HTTP 422）。每个
+节点的 `computed` 必须包含浏览器捕获协议定义的全部白名单字段，而不只是
+`display` / `width` / `height`；缺字段会返回
+`UIBENCH_BROWSER_SNAPSHOT_INCOMPLETE`，其 `details.reason` 为
+`computed-style-capture-fields-missing`，`details.missingFields` 列出缺失字段。这样不会把
+Pydantic 补出的默认空值误认为真实浏览器样式，也不会再生成只有组件树、没有样式
+modifier 的工程。`generic` 模式仍保留 source-only 的 best-effort 转换。
+严格导出还会校验 HTML/body 的画布背景：纯色画布会被提升到唯一组件根（`dt-bg-canvas`
+写在 `<body>` 上也可以），背景图或渐变返回 `UIBENCH_CANVAS_BACKGROUND_IMAGE_UNSUPPORTED`。
+组件根上方有可寻址 wrapper、用半透明色与画布混合，或用自己的不透明色但没有包含整个视口
+（可滚动页面的根比视口高，判定的是包含而非尺寸相等）时，浏览器里同时看得见画布和根两种
+颜色而一个 ArkUI 背景表达不了，返回 `UIBENCH_CANVAS_BACKGROUND_ROOT_UNSUPPORTED`。每个节点还必须显式提交
+`directParentNodeId` 与 `isFlexItem`（值可以是 `null` / `false`），避免省略 provenance
+字段后绕过 DOM 结构校验。
 
 当前版本已完成 Component Manifest → 固定 390×844 浏览器快照 → Screen IR v2 →
 ArkTS → 完整 HarmonyOS 工程链路。浏览器快照会固化当前主题的 computed style、bbox 和可见状态，
 并在 CORS 允许时读取页面已经渲染的 PNG/JPEG/GIF/WebP 图片和简单背景图。后端按内容
 校验、去重，输出 `resources/base/media` 和 `$r('app.media.*')` 绑定；它不会主动访问网络。
-缺节点、资源抓取失败或包含阴影、transform、filter、复杂背景、非均匀边框等能力时返回
-`lossy`。下载 ZIP 是 DevEco Studio 6.0.2 / HarmonyOS SDK 6.0.2（API 22）的单模块 Stage
-工程，包含应用配置、UIAbility、页面路由、Hvigor 配置和资源。生成器及真实导出样例已通过
+缺少任一 annotated 节点快照，或 `Row` / `Column` 元数据与浏览器布局冲突时会阻止
+导出；资源抓取失败或包含阴影、transform、filter、复杂背景等能力时返回 `lossy`。
+Flex 扩展项只有在零 basis、兼容 shrink、直接 DOM 父节点与 Flex-item 身份均通过快照
+验证后才会映射为 `layoutWeight`。完整工程响应缺少 ZIP 的
+`bundle.contentBase64` 时，Web 页面会明确报错并停止下载，不会降级成单个 ETS 文件。
+下载 ZIP 是 DevEco Studio 6.0.2 / HarmonyOS SDK 6.0.2
+（API 22）的单模块 Stage 工程，包含应用配置、UIAbility、页面路由、Hvigor 配置和资源。
+生成器及真实导出样例已通过
 ArkTS 编译和 unsigned HAP 打包；签名和本机 SDK 路径由开发者打开工程后配置。旧 HTML
 可使用 `mode: "generic"` 进行平台转换器的 best-effort 兜底。
 
@@ -362,7 +411,7 @@ unsigned 调试 HAP；报告只记录 `device-install-accepted`，这不等于�
 3. 每张卡片会实时显示当前阶段、⏱ 耗时和最近的生成日志。先完成的模型
    会立即显示手机框预览，其他模型继续在原卡片中运行。
 4. 每张卡片可 **复制 HTML** 或 **新标签打开** 单独预览；开启 ArkUI 元数据后，
-   通过校验的移动端结果还可以下载结构版 ArkTS。
+   通过校验的移动端结果还可以下载带固化计算样式的完整 HarmonyOS 工程。
 
 > 生产部署可改用 `uvicorn app:app --host 0.0.0.0 --port 8000`，并加 `--workers`
 > 或反向代理。开发调试可加 `--reload`。

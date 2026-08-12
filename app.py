@@ -45,7 +45,6 @@ from uibench.image_tools import (
     image_tool_available,
     image_tool_result_for_model,
     image_search_requests,
-    missing_photo_attributions,
     track_used_photos,
     unresolved_image_bindings,
 )
@@ -501,8 +500,7 @@ def _image_repair_instruction(
 
 把每张图片放入其 slot 对应的 Banner 或商品/内容卡片，但只有素材语义与原需求匹配时才
 使用。不得为了匹配图片而修改用户指定的商品、人物或内容文案；没有匹配素材时保留受控
-占位。不得编造新的图片 URL。保留原需求中的功能与整体设计，并为每位实际使用图片的
-摄影师保留可见、可点击的 `Photo by <photographer> on Unsplash` 署名。只输出完整 HTML，必须以 <!DOCTYPE html>
+占位。不得编造新的图片 URL。保留原需求中的功能与整体设计。只输出完整 HTML，必须以 <!DOCTYPE html>
 开始并以 </html> 结束，不要使用 Markdown 代码围栏。"""
 
 
@@ -627,7 +625,8 @@ def _write_log(run_id: str, key: str, model_cfg: ModelConfig, prompt_text: str,
             f"  explicit={arkui_summary.get('explicitComponents', 0)}"
             f"  inferred={arkui_summary.get('inferredComponents', 0)}"
             f"  errors={arkui_summary.get('errors', 0)}"
-            f"  warnings={arkui_summary.get('warnings', 0)}",
+            f"  warnings={arkui_summary.get('warnings', 0)}"
+            f"  notices={arkui_summary.get('notices', 0)}",
             "",
             "## 用户需求",
             "",
@@ -1132,8 +1131,7 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
                     HumanMessage(content=(
                         "请使用下面这份经过批准的图片素材库生成完整 HTML。"
                         "每张图片只能用于语义匹配的 slot；不得为了匹配素材改写用户"
-                        "指定的内容，不得编造 URL。实际使用时必须加入可见、可点击的"
-                        "摄影师 Unsplash 署名；没有匹配素材时使用受控占位。\n\n"
+                        "指定的内容，不得编造 URL；没有匹配素材时使用受控占位。\n\n"
                         + result_text
                     )),
                 ]
@@ -1150,21 +1148,11 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
         error = None
         image_used = _used_photo_count(image_photos, html)
         unapproved_images = _unapproved_remote_image_urls(image_photos, html)
-        missing_attributions = missing_photo_attributions(image_photos, html)
         if html and unapproved_images:
-            error = (
-                "模型使用了未经图片工具批准的远程图片，已阻止预览"
+            image_error = (
+                "模型使用了未经图片工具批准的远程图片，已继续预览"
                 f"（{len(unapproved_images)} 个 URL）"
             )
-            image_error = error
-            html = ""
-        elif html and missing_attributions:
-            error = (
-                "模型使用了 Unsplash 图片但缺少可见、可点击的摄影师署名，"
-                f"已阻止预览（{len(missing_attributions)} 个槽位）"
-            )
-            image_error = error
-            html = ""
         elif not html:
             error = _incomplete_html_error(
                 content=content,
@@ -1186,14 +1174,22 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
                         part for part in (image_error, shortage) if part
                     )[:500]
             elif image_used < minimum_photo_slots:
-                image_error = (
+                shortage = (
                     f"图片使用不足：使用 {image_used}/"
                     f"{minimum_photo_slots} 张"
                 )
+                if shortage not in image_error:
+                    image_error = "; ".join(
+                        part for part in (image_error, shortage) if part
+                    )[:500]
         elif error is None and image_photos and image_used < len(image_photos):
-            image_error = (
+            shortage = (
                 f"图片使用不足：使用 {image_used}/{len(image_photos)} 张"
             )
+            if shortage not in image_error:
+                image_error = "; ".join(
+                    part for part in (image_error, shortage) if part
+                )[:500]
 
         if error is None and html and image_photos:
             if image_cache is not None:
@@ -1411,9 +1407,9 @@ def last_run():
     if not p.exists():
         return JSONResponse({"error": "尚无运行记录"}, status_code=404)
     payload = json.loads(p.read_text(encoding="utf-8"))
-    # Results written before status/image-policy enforcement may contain
-    # model-invented remote image URLs. Migrate them safely on restore instead
-    # of letting a page refresh bypass the new validation boundary.
+    # Results written before image-policy telemetry may contain model-invented
+    # remote image URLs. Keep their preview available and surface the condition
+    # as a non-blocking image warning on restore.
     for raw_result in payload.get("results", []):
         if not isinstance(raw_result, dict) or raw_result.get("status"):
             continue
@@ -1428,13 +1424,10 @@ def last_run():
         )
         if unresolved_images or (remote_images and has_no_approved_batch):
             message = (
-                "历史结果包含未经图片工具批准的远程图片，已阻止预览"
+                "历史结果包含未经图片工具批准的远程图片，已继续预览"
             )
-            raw_result["status"] = "failed"
-            raw_result["error"] = message
             raw_result["image_error"] = message
-            raw_result["html"] = ""
-        elif raw_result.get("error"):
+        if raw_result.get("error"):
             raw_result["status"] = "failed"
         elif raw_result.get("image_error"):
             raw_result["status"] = "degraded"
@@ -1485,15 +1478,25 @@ async def export_arkui(req: ArkUiExportRequest):
         if req.mode == "annotated"
         else export_generic_html
     )
+    export_options: dict[str, object] = {
+        "page_name": req.page_name,
+        "page_description": req.page_description,
+        "viewport_width": req.viewport_width,
+        "viewport_height": req.viewport_height,
+        "snapshot": req.snapshot,
+    }
+    if req.mode == "annotated":
+        # A downloadable annotated project must preserve the rendered visual
+        # contract.  Structure-only conversion remains available to internal
+        # callers through export_annotated_html(require_snapshot=False), but
+        # the public delivery endpoint must never silently emit an unstyled
+        # HarmonyOS project.
+        export_options["require_snapshot"] = True
     try:
         result = await asyncio.to_thread(
             exporter,
             req.html,
-            page_name=req.page_name,
-            page_description=req.page_description,
-            viewport_width=req.viewport_width,
-            viewport_height=req.viewport_height,
-            snapshot=req.snapshot,
+            **export_options,
         )
     except ArkUiExporterError as exc:
         status_code = 422
@@ -1556,6 +1559,10 @@ def index():
 # --------------------------------------------------------------------------- #
 # Single-page UI (self-contained, no external assets)
 # --------------------------------------------------------------------------- #
+MOBILE_VIEWPORT_WIDTH = 390
+MOBILE_VIEWPORT_HEIGHT = 844
+
+
 INDEX_HTML = """<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -1596,7 +1603,11 @@ INDEX_HTML = """<!DOCTYPE html>
   .meta-pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
     box-shadow: 0 0 0 0 rgba(79,140,255,.35); animation: softPulse 1.8s ease-out infinite; }
   .grid { display: grid; gap: 22px;
-    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); }
+    /* 390px preview + 2x16px card padding + 2px card border. On narrow hosts
+       the card may shrink, but the iframe itself keeps the canonical export
+       viewport and the preview slot owns any horizontal scrolling. */
+    grid-template-columns: repeat(auto-fill,
+      minmax(min(calc(__UIBENCH_MOBILE_VIEWPORT_WIDTH__px + 34px), 100%), 1fr)); }
   .card { background: var(--panel); border: 1px solid var(--border);
     border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
   .card-head { display: grid; grid-template-columns: minmax(0, 1fr) auto;
@@ -1621,8 +1632,9 @@ INDEX_HTML = """<!DOCTYPE html>
     animation: softPulse 1.8s ease-out infinite; }
   .stage-label { min-width: 0; color: var(--text); font-size: 13px; font-weight: 600;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .preview-slot { width: 100%; display: flex; flex-direction: column; align-items: center; }
-  .render-status { width: 360px; max-width: 100%; margin-bottom: 12px; padding: 9px 12px;
+  .preview-slot { width: 100%; display: flex; flex-direction: column; align-items: center;
+    overflow-x: auto; overflow-y: hidden; }
+  .render-status { width: __UIBENCH_MOBILE_VIEWPORT_WIDTH__px; max-width: 100%; margin-bottom: 12px; padding: 9px 12px;
     border-radius: 9px; background: rgba(79,140,255,.08); color: #aabbd6;
     font-size: 12px; text-align: center; }
   .render-status.wide { width: 100%; }
@@ -1639,9 +1651,17 @@ INDEX_HTML = """<!DOCTYPE html>
     border-radius: 8px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
   .tools button:hover { color: var(--text); border-color: var(--accent); }
   .tools button:disabled { opacity: .45; cursor: not-allowed; }
-  .phone { width: 360px; max-width: 100%; height: 640px; border: 0;
+  .tools button.export-blocked { color: var(--err); border-color: rgba(255,107,107,.4); }
+  .tools button.export-blocked:hover { color: var(--err); border-color: var(--err); }
+  .phone { width: __UIBENCH_MOBILE_VIEWPORT_WIDTH__px; min-width: __UIBENCH_MOBILE_VIEWPORT_WIDTH__px; max-width: none;
+    height: __UIBENCH_MOBILE_VIEWPORT_HEIGHT__px; border: 0;
     border-radius: 18px; background: #fff;
     box-shadow: 0 8px 30px rgba(0,0,0,.45); }
+  @media (max-width: 520px) {
+    .preview-slot { align-items: flex-start; }
+    .preview-slot > .tools, .preview-slot > .render-status,
+    .preview-slot > .skeleton, .preview-slot > .error { width: 100%; }
+  }
   /* mode segmented control */
   .seg { display: inline-flex; border: 1px solid var(--border);
     border-radius: 10px; overflow: hidden; align-self: flex-start; }
@@ -1672,7 +1692,7 @@ INDEX_HTML = """<!DOCTYPE html>
   .empty { color: var(--muted); padding: 48px 16px; text-align: center; width: 100%; }
   @keyframes shimmer { 0%{background-position:-400px 0} 100%{background-position:400px 0} }
   @keyframes softPulse { 70%,100% { box-shadow: 0 0 0 7px rgba(79,140,255,0); } }
-  .skeleton { width: 360px; max-width: 100%; height: 640px; border-radius: 18px;
+  .skeleton { width: __UIBENCH_MOBILE_VIEWPORT_WIDTH__px; max-width: 100%; height: __UIBENCH_MOBILE_VIEWPORT_HEIGHT__px; border-radius: 18px;
     background: linear-gradient(90deg, #11141a 0px, #181d26 200px, #11141a 400px);
     background-size: 800px 100%; animation: shimmer 2.2s infinite ease-in-out; }
   .spin { display:inline-block; width:14px; height:14px; border:2px solid var(--muted);
@@ -1699,6 +1719,20 @@ INDEX_HTML = """<!DOCTYPE html>
     font-size: 12.5px; line-height: 1.6; color: var(--text); }
   .modal-load { color: var(--muted); padding: 24px; text-align: center; }
   .modal-err { color: var(--err); padding: 24px; text-align: center; }
+  /* lossy export details */
+  .tools button.lossy-reasons { color: var(--time); border-color: rgba(251,191,36,.4); }
+  .tools button.lossy-reasons:hover { color: var(--time); border-color: var(--time); }
+  .diag-summary { margin: 0 0 14px; font-size: 13px; line-height: 1.7; color: var(--text); }
+  .diag-note-head { margin: 18px 0 10px; font-size: 12.5px; color: var(--muted); }
+  .diag-item { border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; margin-bottom: 10px; }
+  .diag-title { display: flex; align-items: baseline; gap: 8px;
+    font-size: 13px; line-height: 1.5; color: var(--text); }
+  .diag-badge { flex: none; font-size: 11px; border-radius: 6px; padding: 1px 7px;
+    border: 1px solid var(--border); color: var(--muted); }
+  .diag-item.warning .diag-badge { color: var(--time); border-color: rgba(251,191,36,.5); }
+  .diag-meta { margin-top: 5px; font-size: 11.5px; color: var(--muted); word-break: break-word;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   @media (prefers-reduced-motion: reduce) {
     .spin, .skeleton, .stage-dot, .meta-pulse { animation: none !important; }
   }
@@ -2190,48 +2224,67 @@ function fillCard(r) {
     const exportBtn = document.createElement('button');
     const readiness = arkuiSummary.exportReadiness || 'blocked';
     exportBtn.textContent = readiness === 'blocked' ? 'ArkUI 不可导出' : '下载鸿蒙工程';
-    exportBtn.disabled = !arkuiSummary.exportable;
+    if (!arkuiSummary.exportable) exportBtn.classList.add('export-blocked');
     exportBtn.title = readiness === 'ready'
-      ? '在固定 390×844 视口固化当前主题的计算样式后导出'
-      : '查看日志中的 ArkUI Manifest 诊断';
+      ? '在固定 __UIBENCH_MOBILE_VIEWPORT_WIDTH__×__UIBENCH_MOBILE_VIEWPORT_HEIGHT__ 视口固化当前主题的计算样式后导出'
+      : (arkuiSummary.exportable
+          ? '查看日志中的 ArkUI Manifest 诊断'
+          : '点击查看不可导出的原因');
+    const lossyBtn = document.createElement('button');
+    lossyBtn.className = 'lossy-reasons';
+    lossyBtn.style.display = 'none';
+    lossyBtn.textContent = '有损原因';
+    lossyBtn.title = '查看这次导出无法还原网页效果的具体差异';
+    var exportLabelResetTimer = null;
     exportBtn.onclick = async () => {
+      if (!arkuiSummary.exportable) {
+        window.alert(formatArkUiBlockReasons(r.arkui_manifest));
+        return;
+      }
+      if (exportLabelResetTimer !== null) {
+        window.clearTimeout(exportLabelResetTimer);
+        exportLabelResetTimer = null;
+      }
       const oldLabel = exportBtn.textContent;
       exportBtn.disabled = true;
+      lossyBtn.style.display = 'none';
       exportBtn.textContent = '导出中…';
       try {
-        var snapshot = null;
-        try {
-          exportBtn.textContent = '固化样式…';
-          snapshot = await captureArkUiSnapshot(r);
-        } catch (snapshotError) {
-          console.warn('ArkUI browser snapshot unavailable', snapshotError);
-        }
+        exportBtn.textContent = '固化样式…';
+        const snapshot = await captureArkUiSnapshot(r);
         exportBtn.textContent = '生成 ArkTS…';
         const exported = await requestArkUiExport(r, snapshot);
-        if (exported.bundle && exported.bundle.contentBase64) {
-          downloadBase64(
-            exported.bundle.filename || ('Generated_' + r.key + '_HarmonyOS.zip'),
-            exported.bundle.contentBase64,
-            exported.bundle.mimeType || 'application/zip'
-          );
-        } else {
-          downloadText(
-            'Generated_' + r.key + '.ets',
-            exported.arkTs,
-            'text/plain;charset=utf-8'
-          );
+        downloadBase64(
+          withDownloadTimestamp(
+            exported.bundle.filename || ('Generated_' + r.key + '_HarmonyOS.zip')
+          ),
+          exported.bundle.contentBase64,
+          exported.bundle.mimeType || 'application/zip'
+        );
+        const exportDiagnostics = Array.isArray(exported.diagnostics)
+          ? exported.diagnostics : [];
+        const isLossy = exported.quality.readiness !== 'ready';
+        if (isLossy) {
+          const warningCount = exportDiagnostics.filter(
+            item => item && item.severity === 'warning').length;
+          lossyBtn.textContent = '有损原因（' + warningCount + '）';
+          lossyBtn.style.display = '';
+          lossyBtn.onclick = () => openArkUiLossDetails(r.name, exportDiagnostics);
         }
-        exportBtn.textContent = exported.quality.readiness === 'ready'
-          ? '已下载' : '已下载（有损）';
-        window.setTimeout(() => { exportBtn.textContent = oldLabel; }, 1500);
+        exportBtn.textContent = isLossy ? '已下载（有损）' : '已下载';
+        exportLabelResetTimer = window.setTimeout(() => {
+          exportLabelResetTimer = null;
+          exportBtn.textContent = oldLabel;
+        }, 1500);
       } catch (error) {
+        console.error('ArkUI export failed', error);
         window.alert('ArkUI 导出失败：' + String(error));
         exportBtn.textContent = oldLabel;
       } finally {
-        exportBtn.disabled = !arkuiSummary.exportable;
+        exportBtn.disabled = false;
       }
     };
-    tools.appendChild(exportBtn);
+    tools.append(exportBtn, lossyBtn);
   }
 
   if (r.error) {
@@ -2381,12 +2434,15 @@ function normalizeDesignTokenClasses(html) {
     });
 }
 
-function arkuiSnapshotRuntime() {
+function arkuiSnapshotRuntime(captureSession) {
   var styleProperties = [
-    'display', 'flexDirection', 'position', 'top', 'left', 'width', 'height',
+    'display', 'flexDirection', 'flexGrow', 'flexShrink', 'flexBasis',
+    'position', 'top', 'left', 'width', 'height',
     'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
     'marginTop', 'marginRight', 'marginBottom', 'marginLeft',
     'rowGap', 'columnGap', 'justifyContent', 'alignItems',
+    'gridTemplateColumns', 'gridTemplateRows', 'gridAutoFlow',
+    'gridRowStart', 'gridRowEnd', 'gridColumnStart', 'gridColumnEnd',
     'backgroundColor', 'backgroundImage',
     'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
     'borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor',
@@ -2419,9 +2475,12 @@ function arkuiSnapshotRuntime() {
         image.addEventListener('error', resolve, {once: true});
       }), 1800);
     }));
-    await new Promise(function(resolve) {
+    // Browsers may suspend requestAnimationFrame inside an off-screen,
+    // transparent iframe.  Keep the double-frame settle when available, but
+    // never let it prevent the snapshot response.
+    await boundedWait(new Promise(function(resolve) {
       requestAnimationFrame(function() { requestAnimationFrame(resolve); });
-    });
+    }), 250);
   }
 
   function rounded(value) {
@@ -2469,13 +2528,133 @@ function arkuiSnapshotRuntime() {
     }
   }
 
-  function captureNode(element) {
+  function isTransparentColor(value) {
+    var color = String(value || '').trim().toLowerCase();
+    if (!color || color === 'transparent') return true;
+    var functional = color.match(/^(?:rgba?|hsla?|color)\\(([\\s\\S]*)\\)$/);
+    if (!functional) return false;
+    var alpha = functional[1].match(
+      /(?:,|\\/)\\s*([+-]?(?:\\d+\\.?\\d*|\\.\\d+))(%)?\\s*$/
+    );
+    return Boolean(alpha) && Number(alpha[1]) === 0;
+  }
+
+  function visibleCanvasBackground() {
+    var htmlStyle = getComputedStyle(document.documentElement);
+    var htmlColor = String(htmlStyle.backgroundColor || '');
+    var htmlImage = String(htmlStyle.backgroundImage || 'none');
+    var bodyStyle = document.body ? getComputedStyle(document.body) : null;
+    var bodyColor = bodyStyle
+      ? String(bodyStyle.backgroundColor || '') : '';
+    var bodyImage = bodyStyle
+      ? String(bodyStyle.backgroundImage || 'none') : 'none';
+    if (htmlImage.trim().toLowerCase() !== 'none') {
+      return {backgroundColor: htmlColor, backgroundImage: htmlImage};
+    }
+    // A body image may either propagate to the canvas or paint the body box,
+    // depending on the root background. Both affect the rendered page behind
+    // the annotated tree, so report either case and fail closed downstream.
+    if (bodyImage.trim().toLowerCase() !== 'none') {
+      return {
+        backgroundColor: isTransparentColor(htmlColor) ? bodyColor : htmlColor,
+        backgroundImage: bodyImage
+      };
+    }
+    if (!isTransparentColor(htmlColor)) {
+      return {backgroundColor: htmlColor, backgroundImage: htmlImage};
+    }
+    // When the root canvas is fully transparent and has no image, the body
+    // background propagates to the canvas. Preserve both layers so a gradient
+    // or image can be rejected explicitly instead of becoming a flat color.
+    return {
+      backgroundColor: bodyStyle ? bodyColor : htmlColor,
+      backgroundImage: bodyStyle ? bodyImage : htmlImage
+    };
+  }
+
+  function singleAnnotatedRoot(elements) {
+    var annotated = new Set(elements);
+    var roots = elements.filter(function(element) {
+      var ancestor = element.parentElement;
+      while (ancestor) {
+        if (annotated.has(ancestor)) return false;
+        ancestor = ancestor.parentElement;
+      }
+      return true;
+    });
+    if (roots.length !== 1) return null;
+    var root = roots[0];
+    var rect = root.getBoundingClientRect();
+    // A scrollable page is taller than the viewport, so ask the root to
+    // contain the viewport rather than match it exactly.
+    var coversViewport = rect.x <= 1
+      && rect.y <= 1
+      && rect.x + rect.width >= window.innerWidth - 1
+      && rect.y + rect.height >= window.innerHeight - 1;
+    return coversViewport ? root : null;
+  }
+
+  function isActuallyVisible(element, rect) {
+    if (rect.width <= 0 || rect.height <= 0) return false;
+    if (typeof element.checkVisibility === 'function') {
+      try {
+        return element.checkVisibility({
+          checkOpacity: true,
+          opacityProperty: true,
+          checkVisibilityCSS: true,
+          visibilityProperty: true
+        });
+      } catch (_) {
+        // Older engines may expose checkVisibility without option support.
+      }
+    }
+    var current = element;
+    while (current) {
+      var currentStyle = getComputedStyle(current);
+      var display = String(currentStyle.display || '').toLowerCase();
+      var visibility = String(currentStyle.visibility || '').toLowerCase();
+      var contentVisibility = String(
+        currentStyle.contentVisibility || ''
+      ).toLowerCase();
+      var opacity = Number(currentStyle.opacity || 1);
+      if (display === 'none'
+          || visibility === 'hidden'
+          || visibility === 'collapse'
+          || contentVisibility === 'hidden'
+          || (Number.isFinite(opacity) && opacity <= 0)) {
+        return false;
+      }
+      current = current.parentElement;
+    }
+    return true;
+  }
+
+  function captureNode(element, canvasRoot, canvasBackground) {
     var rect = element.getBoundingClientRect();
     var style = getComputedStyle(element);
+    var elementPosition = String(style.position || '').trim().toLowerCase();
+    var directParent = element.parentElement;
+    var directParentNodeId = directParent
+      ? String(directParent.getAttribute('data-node-id') || '').trim() || null
+      : null;
+    var isFlexItem = false;
+    if (directParent && elementPosition !== 'absolute' && elementPosition !== 'fixed') {
+      var directParentDisplay = String(
+        getComputedStyle(directParent).display || ''
+      ).toLowerCase();
+      isFlexItem = directParentDisplay === 'flex'
+        || directParentDisplay === 'inline-flex';
+    }
     var computed = {};
     styleProperties.forEach(function(property) {
       computed[property] = String(style[property] || '');
     });
+    if (element === canvasRoot
+        && isTransparentColor(computed.backgroundColor)
+        && canvasBackground.backgroundImage.trim().toLowerCase() === 'none'
+        && !isTransparentColor(canvasBackground.backgroundColor)) {
+      computed.backgroundColor = canvasBackground.backgroundColor;
+    }
     if (computed.backgroundImage.length > 1000) {
       computed.backgroundImage = 'url("[uibench-captured-resource]")';
     }
@@ -2488,11 +2667,7 @@ function arkuiSnapshotRuntime() {
     if (!computed.backdropFilter && style.webkitBackdropFilter) {
       computed.backdropFilter = String(style.webkitBackdropFilter);
     }
-    var visible = style.display !== 'none'
-      && style.visibility !== 'hidden'
-      && Number(style.opacity || 1) > 0
-      && rect.width > 0
-      && rect.height > 0;
+    var visible = isActuallyVisible(element, rect);
     var resolvedSrc = null;
     if (element.tagName && element.tagName.toLowerCase() === 'img') {
       resolvedSrc = element.currentSrc || element.src || null;
@@ -2508,6 +2683,8 @@ function arkuiSnapshotRuntime() {
       widthSizing: capturedWidthSizing(element),
       singleLineTextWidth: singleLineTextWidth(element),
       resolvedSrc: resolvedSrc,
+      directParentNodeId: directParentNodeId,
+      isFlexItem: isFlexItem,
       computed: computed
     };
   }
@@ -2614,15 +2791,24 @@ function arkuiSnapshotRuntime() {
   window.addEventListener('message', async function(event) {
     var request = event.data;
     if (!request || request.type !== 'uibench-arkui-snapshot-request') return;
+    if (request.session !== captureSession) return;
     if (typeof request.token !== 'string' || !request.token) return;
     try {
       await settleResources();
-      var nodes = Array.from(document.querySelectorAll('[data-node-id]'))
-        .filter(function(element) { return element.getAttribute('data-node-id'); })
-        .map(captureNode);
+      var annotatedElements = Array.from(document.querySelectorAll('[data-node-id]'))
+        .filter(function(element) { return element.getAttribute('data-node-id'); });
+      var componentElements = annotatedElements.filter(function(element) {
+        return String(element.getAttribute('data-component') || '').trim();
+      });
+      var canvasRoot = singleAnnotatedRoot(componentElements);
+      var canvasBackground = visibleCanvasBackground();
+      var nodes = annotatedElements.map(function(element) {
+        return captureNode(element, canvasRoot, canvasBackground);
+      });
       var assets = await captureAssets();
       window.parent.postMessage({
         type: 'uibench-arkui-snapshot-response',
+        session: captureSession,
         token: request.token,
         snapshot: {
           snapshotVersion: 1,
@@ -2630,6 +2816,10 @@ function arkuiSnapshotRuntime() {
           viewportHeight: window.innerHeight,
           theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
           tokenTheme: document.documentElement.dataset.tokenTheme || 'harmonyos',
+          canvasBackgroundColor: canvasBackground.backgroundColor,
+          canvasBackgroundImage: canvasBackground.backgroundImage.length > 1000
+            ? '[uibench-captured-background-image]'
+            : canvasBackground.backgroundImage,
           nodes: nodes,
           assets: assets
         }
@@ -2637,20 +2827,26 @@ function arkuiSnapshotRuntime() {
     } catch (error) {
       window.parent.postMessage({
         type: 'uibench-arkui-snapshot-error',
+        session: captureSession,
         token: request.token,
         message: error instanceof Error ? error.message : String(error)
       }, '*');
     }
   });
+  window.parent.postMessage({
+    type: 'uibench-arkui-snapshot-ready',
+    session: captureSession
+  }, '*');
 }
 
-function arkuiSnapshotBootstrap() {
+function arkuiSnapshotBootstrap(captureSession) {
   return '<style data-uibench-arkui-snapshot>'
     + '*,*::before,*::after{animation:none!important;transition:none!important;}'
-    + '</style><scr' + 'ipt>(' + arkuiSnapshotRuntime.toString() + ')();<' + '/script>';
+    + '</style><scr' + 'ipt>(' + arkuiSnapshotRuntime.toString() + ')('
+    + JSON.stringify(captureSession) + ');<' + '/script>';
 }
 
-function injectForRender(html, mode, theme, tokenTheme, arkuiCapture) {
+function injectForRender(html, mode, theme, tokenTheme, arkuiCaptureSession) {
   // 1) shared scrollbar css + mobile Design Token contract
   var link = '<link rel="stylesheet" href="/shared.css">';
   if (mode === 'mobile') {
@@ -2688,8 +2884,9 @@ function injectForRender(html, mode, theme, tokenTheme, arkuiCapture) {
       if (at !== -1) html = html.slice(0, at + 1) + '<head>' + link + '</head>' + html.slice(at + 1);
     } else { html = link + html; }
   }
-  if (mode === 'mobile' && arkuiCapture === true) {
-    var snapshotScript = arkuiSnapshotBootstrap();
+  if (mode === 'mobile' && typeof arkuiCaptureSession === 'string'
+      && arkuiCaptureSession) {
+    var snapshotScript = arkuiSnapshotBootstrap(arkuiCaptureSession);
     var bodyEnd = html.toLowerCase().lastIndexOf('</body>');
     html = bodyEnd === -1
       ? html + snapshotScript
@@ -2763,28 +2960,168 @@ function closeLog() {
   document.removeEventListener('keydown', _escClose);
 }
 
+// Human-readable explanations for export diagnostics whose message alone
+// does not say what the deviation looks like on device.
+const ARKUI_DIAG_EXPLANATIONS = {
+  ARKUI_SYMBOL_UNAVAILABLE: '鸿蒙没有对应的系统图标，已替换为等大的空占位：布局不变，但缺一个图标',
+  UIBENCH_BROWSER_SNAPSHOT_NODE_NOT_VISIBLE: '节点在当前主题/视口下不可见，它和它的子树没有导出',
+  ARKUI_IMAGE_SRC_MISSING: 'image 节点缺少图片地址，导出成了空容器',
+  UIBENCH_IMAGE_ASSET_NOT_MATERIALIZED: '图片没能打进工程资源包，设备上不会显示',
+  UIBENCH_ASSET_FORMAT_UNSUPPORTED: '图片格式不支持（仅 PNG/JPEG/GIF/WebP），没有打进资源包',
+  UIBENCH_ASSET_USE_INVALID: '捕获的图片与标注节点对不上，没有打进资源包',
+  UIBENCH_COMPUTED_STYLE_SNAPSHOT_PENDING: '缺少浏览器样式快照，样式与几何没有固化',
+  ARKUI_CONTENT_WRAPPED_FOR_SINGLE_SLOT: '单槽容器有多个子节点，已包进一层生成的容器',
+  ARKUI_LIST_CHILD_WRAPPED_AS_ITEM: 'list 的直接子节点已包进生成的 ListItem，几何不变',
+  ARKUI_LIST_ITEM_PROMOTED_TO_COLUMN: 'list 之外的 list-item 已按 column 导出',
+  ARKUI_SPAN_PROMOTED_TO_TEXT: 'text 之外的 span 已按 text 导出',
+  UIBENCH_ARKUI_LAYOUT_FOLLOWS_BROWSER: '标注方向与浏览器实际布局不同，已按浏览器实际方向导出'
+};
+
+function groupArkUiDiagnostics(items) {
+  // One entry per (code, message): style-lossy repeats per node, and forty
+  // identical box-shadow lines would bury the one icon that went missing.
+  const groups = [];
+  const byKey = {};
+  items.forEach(item => {
+    const key = (item.code || 'UNKNOWN') + ' :: ' + (item.message || '');
+    if (!byKey[key]) {
+      byKey[key] = {
+        code: item.code || 'UNKNOWN',
+        message: item.message || '',
+        nodeIds: []
+      };
+      groups.push(byKey[key]);
+    }
+    if (item.nodeId) byKey[key].nodeIds.push(item.nodeId);
+  });
+  return groups;
+}
+
+function arkUiDiagnosticTitle(group) {
+  if (group.code === 'UIBENCH_BROWSER_STYLE_LOSSY') {
+    const marker = group.message.indexOf(': ');
+    const property = marker === -1 ? group.message : group.message.slice(marker + 2);
+    return '样式无法在 ArkUI 精确表达：' + property;
+  }
+  return ARKUI_DIAG_EXPLANATIONS[group.code] || group.message || group.code;
+}
+
+function renderArkUiDiagnosticGroup(group, severity) {
+  const item = document.createElement('div');
+  item.className = 'diag-item ' + severity;
+  const title = document.createElement('div');
+  title.className = 'diag-title';
+  const badge = document.createElement('span');
+  badge.className = 'diag-badge';
+  badge.textContent = severity === 'warning' ? '有损' : '改写';
+  title.appendChild(badge);
+  const count = group.nodeIds.length;
+  title.appendChild(document.createTextNode(
+    arkUiDiagnosticTitle(group) + (count > 1 ? '（' + count + ' 处）' : '')));
+  const meta = document.createElement('div');
+  meta.className = 'diag-meta';
+  const nodes = group.nodeIds.slice(0, 8).join('、');
+  meta.textContent = group.code + (nodes
+    ? ' · 节点：' + nodes + (count > 8 ? ' 等 ' + count + ' 处' : '')
+    : '');
+  item.append(title, meta);
+  return item;
+}
+
+function openArkUiLossDetails(modelName, diagnostics) {
+  const warnings = diagnostics.filter(item => item && item.severity === 'warning');
+  const notices = diagnostics.filter(item => item && item.severity === 'notice');
+  modalRoot.innerHTML = '';
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.onclick = (e) => { if (e.target === overlay) closeLog(); };
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  const head = document.createElement('div');
+  head.className = 'modal-head';
+  head.innerHTML = '<span class="m-title">' + esc('有损导出明细 · ' + modelName) + '</span>';
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '关闭';
+  closeBtn.onclick = closeLog;
+  head.appendChild(closeBtn);
+  const bodyEl = document.createElement('div');
+  bodyEl.className = 'modal-body';
+  const summary = document.createElement('p');
+  summary.className = 'diag-summary';
+  summary.textContent = '工程 zip 已完整下载。「有损」指下面 ' + warnings.length
+    + ' 条差异让 ArkUI 工程无法 1:1 还原网页渲染效果：';
+  bodyEl.appendChild(summary);
+  groupArkUiDiagnostics(warnings).forEach(group => {
+    bodyEl.appendChild(renderArkUiDiagnosticGroup(group, 'warning'));
+  });
+  if (notices.length) {
+    const noteHead = document.createElement('p');
+    noteHead.className = 'diag-note-head';
+    noteHead.textContent = '另有 ' + notices.length
+      + ' 条结构性改写（notice），不影响渲染结果：';
+    bodyEl.appendChild(noteHead);
+    groupArkUiDiagnostics(notices).forEach(group => {
+      bodyEl.appendChild(renderArkUiDiagnosticGroup(group, 'notice'));
+    });
+  }
+  modal.append(head, bodyEl);
+  overlay.appendChild(modal);
+  modalRoot.appendChild(overlay);
+  document.addEventListener('keydown', _escClose);
+}
+
 function esc(s) {
   return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
 
-function waitForCaptureFrame(frame) {
-  return new Promise(function(resolve) {
+function newArkUiCaptureId(prefix) {
+  return window.crypto && crypto.randomUUID
+    ? prefix + '-' + crypto.randomUUID()
+    : prefix + '-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+}
+
+function waitForCaptureFrame(frame, captureSession) {
+  return new Promise(function(resolve, reject) {
     var settled = false;
-    function done() {
+    var loaded = false;
+    var timer = window.setTimeout(function() {
+      var stage = loaded ? '初始化' : '加载或初始化';
+      finish(reject, new Error('浏览器样式快照' + stage + '超时'));
+    }, 12000);
+    function finish(callback, value) {
       if (settled) return;
       settled = true;
-      resolve();
+      window.clearTimeout(timer);
+      window.removeEventListener('message', onMessage);
+      frame.removeEventListener('load', onLoad);
+      frame.removeEventListener('error', onError);
+      callback(value);
     }
-    frame.addEventListener('load', done, {once: true});
-    window.setTimeout(done, 4000);
+    function onLoad() {
+      loaded = true;
+    }
+    function onError() {
+      finish(reject, new Error('浏览器样式快照 iframe 加载失败'));
+    }
+    function onMessage(event) {
+      if (event.source !== frame.contentWindow) return;
+      var message = event.data;
+      if (!message || message.type !== 'uibench-arkui-snapshot-ready') return;
+      if (message.session !== captureSession) return;
+      // The runtime sends ready only after its request listener is installed.
+      // That handshake is authoritative even in browsers which do not emit a
+      // reliable iframe load event for detached srcdoc assignment.
+      finish(resolve);
+    }
+    window.addEventListener('message', onMessage);
+    frame.addEventListener('load', onLoad);
+    frame.addEventListener('error', onError);
   });
 }
 
-function requestSnapshotFromFrame(frame) {
+function requestSnapshotFromFrame(frame, captureSession) {
   return new Promise(function(resolve, reject) {
-    var token = window.crypto && crypto.randomUUID
-      ? crypto.randomUUID()
-      : 'snapshot-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+    var token = newArkUiCaptureId('snapshot-request');
     var timer = window.setTimeout(function() {
       window.removeEventListener('message', onMessage);
       reject(new Error('浏览器样式快照超时'));
@@ -2797,7 +3134,7 @@ function requestSnapshotFromFrame(frame) {
     function onMessage(event) {
       if (event.source !== frame.contentWindow) return;
       var message = event.data;
-      if (!message || message.token !== token) return;
+      if (!message || message.session !== captureSession || message.token !== token) return;
       if (message.type === 'uibench-arkui-snapshot-response') {
         finish(resolve, message.snapshot);
       } else if (message.type === 'uibench-arkui-snapshot-error') {
@@ -2811,6 +3148,7 @@ function requestSnapshotFromFrame(frame) {
     }
     frame.contentWindow.postMessage({
       type: 'uibench-arkui-snapshot-request',
+      session: captureSession,
       token: token
     }, '*');
   });
@@ -2818,21 +3156,76 @@ function requestSnapshotFromFrame(frame) {
 
 async function captureArkUiSnapshot(result) {
   var frame = document.createElement('iframe');
+  var captureSession = newArkUiCaptureId('snapshot-capture');
+  var captureHtml = injectForRender(
+    result.html, 'mobile', currentTheme, currentTokenTheme, captureSession
+  );
   frame.setAttribute('sandbox', 'allow-scripts allow-forms allow-modals allow-popups');
   frame.setAttribute('aria-hidden', 'true');
-  frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:390px;height:844px;'
+  frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:__UIBENCH_MOBILE_VIEWPORT_WIDTH__px;height:__UIBENCH_MOBILE_VIEWPORT_HEIGHT__px;'
     + 'border:0;opacity:0;pointer-events:none;';
-  document.body.appendChild(frame);
+  var readiness = waitForCaptureFrame(frame, captureSession);
   try {
-    var loaded = waitForCaptureFrame(frame);
-    frame.srcdoc = injectForRender(
-      result.html, 'mobile', currentTheme, currentTokenTheme, true
-    );
-    await loaded;
-    return await requestSnapshotFromFrame(frame);
+    frame.srcdoc = captureHtml;
+    document.body.appendChild(frame);
+    await readiness;
+    return await requestSnapshotFromFrame(frame, captureSession);
   } finally {
     frame.remove();
   }
+}
+
+function formatArkUiBlockReasons(manifest) {
+  // Mirrors ComponentMetadataReport.export_readiness (metadata.py): errors
+  // always block; missing node ids and renderer-unsupported components block
+  // even when they are only warnings (inferred markup); the single-root rule
+  // emits no diagnostic of its own, so it is reconstructed from the summary.
+  const summary = (manifest && manifest.summary) || {};
+  const diagnostics = (manifest && Array.isArray(manifest.diagnostics))
+    ? manifest.diagnostics : [];
+  const blockingWarningCodes = [
+    'ARKUI_NODE_ID_MISSING', 'ARKUI_COMPONENT_NOT_RENDERER_SUPPORTED'
+  ];
+  const reasons = [];
+  if (typeof summary.rootComponents === 'number' && summary.rootComponents !== 1) {
+    reasons.push('页面有 ' + summary.rootComponents
+      + ' 个根组件，导出要求恰好 1 个根组件');
+  }
+  diagnostics.forEach(item => {
+    if (item.severity !== 'error'
+        && blockingWarningCodes.indexOf(item.code) === -1) return;
+    let text = item.message || item.code;
+    const where = item.nodeId || item.component;
+    if (where) text += '（' + where + '）';
+    reasons.push(text);
+  });
+  if (!reasons.length) {
+    return 'ArkUI 不可导出：原因未包含在生成结果里，完整诊断见「查看日志」。';
+  }
+  const shown = reasons.slice(0, 8).map((text, index) => (index + 1) + '. ' + text);
+  if (reasons.length > shown.length) {
+    shown.push('… 以及另外 ' + (reasons.length - shown.length)
+      + ' 条，完整诊断见「查看日志」');
+  }
+  return 'ArkUI 不可导出，原因：\\n\\n' + shown.join('\\n');
+}
+
+function describeExportErrorDetails(details) {
+  // Screen IR blocks report a diagnostic list; snapshot and canvas gates report
+  // a single object whose reason is the only thing that says what to fix.
+  if (Array.isArray(details)) {
+    return details.slice(0, 3).map(item => item.message).filter(Boolean).join('；');
+  }
+  if (!details || typeof details !== 'object') return '';
+  const parts = [];
+  if (details.reason) parts.push(String(details.reason));
+  if (details.nodeId) parts.push('节点 ' + details.nodeId);
+  if (Array.isArray(details.missingFields) && details.missingFields.length) {
+    parts.push('缺少 ' + details.missingFields.slice(0, 5).join('、'));
+  }
+  if (details.backgroundColor) parts.push(String(details.backgroundColor));
+  if (details.backgroundImage) parts.push(String(details.backgroundImage));
+  return parts.join('，');
 }
 
 async function requestArkUiExport(result, snapshot) {
@@ -2843,18 +3236,21 @@ async function requestArkUiExport(result, snapshot) {
       html: result.html,
       page_name: 'Generated_' + result.key,
       mode: 'annotated',
-      viewport_width: 390,
-      viewport_height: 844,
+      viewport_width: __UIBENCH_MOBILE_VIEWPORT_WIDTH__,
+      viewport_height: __UIBENCH_MOBILE_VIEWPORT_HEIGHT__,
       snapshot: snapshot
     })
   });
   const payload = await response.json();
   if (!response.ok) {
     const error = payload.error || {};
-    const details = Array.isArray(error.details)
-      ? error.details.slice(0, 3).map(item => item.message).filter(Boolean).join('；')
-      : '';
+    const details = describeExportErrorDetails(error.details);
     throw new Error((error.message || ('HTTP ' + response.status)) + (details ? '：' + details : ''));
+  }
+  if (!payload.bundle
+      || typeof payload.bundle.contentBase64 !== 'string'
+      || !payload.bundle.contentBase64.trim()) {
+    throw new Error('ArkUI 完整工程响应缺少 bundle.contentBase64');
   }
   return payload;
 }
@@ -2868,6 +3264,20 @@ function downloadText(filename, content, mimeType) {
   link.click();
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function withDownloadTimestamp(filename) {
+  // The bundle name is deterministic on purpose so regression artifacts stay
+  // comparable; the download gets a local timestamp so repeated exports of the
+  // same page land side by side instead of as "(1)", "(2)".
+  const now = new Date();
+  const pad = value => String(value).padStart(2, '0');
+  const stamp = String(now.getFullYear()) + pad(now.getMonth() + 1) + pad(now.getDate())
+    + '_' + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds());
+  const dot = filename.lastIndexOf('.');
+  return dot > 0
+    ? filename.slice(0, dot) + '_' + stamp + filename.slice(dot)
+    : filename + '_' + stamp;
 }
 
 function downloadBase64(filename, contentBase64, mimeType) {
@@ -2889,6 +3299,18 @@ function downloadBase64(filename, contentBase64, mimeType) {
 </body>
 </html>
 """
+
+INDEX_HTML = (
+    INDEX_HTML
+    .replace(
+        "__UIBENCH_MOBILE_VIEWPORT_WIDTH__",
+        str(MOBILE_VIEWPORT_WIDTH),
+    )
+    .replace(
+        "__UIBENCH_MOBILE_VIEWPORT_HEIGHT__",
+        str(MOBILE_VIEWPORT_HEIGHT),
+    )
+)
 
 
 if __name__ == "__main__":

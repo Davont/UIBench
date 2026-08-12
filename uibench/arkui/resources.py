@@ -18,6 +18,12 @@ ResourceBindingKey = tuple[str, str]
 _RESOURCE_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 HARMONY_MODEL_VERSION = "6.0.2"
 HARMONY_SDK_VERSION = "6.0.2(22)"
+# The generated project paints this behind the page root: it seeds
+# start_window_background and matches the ArkUI runtime's default window
+# colour. Export gates compare the captured document canvas against it to
+# decide whether a root that does not span the viewport still reproduces
+# the captured page.
+HARMONY_WINDOW_BACKGROUND = "#FFFFFF"
 
 
 @dataclass(frozen=True)
@@ -414,7 +420,7 @@ def _harmony_project_files(
         "entry/src/main/resources/base/element/color.json": _json_bytes({
             "color": [{
                 "name": "start_window_background",
-                "value": "#FFFFFF",
+                "value": HARMONY_WINDOW_BACKGROUND,
             }]
         }),
         "entry/src/main/resources/base/element/string.json": _json_bytes({
@@ -496,6 +502,7 @@ __all__ = [
     "ResourceRejection",
     "HARMONY_MODEL_VERSION",
     "HARMONY_SDK_VERSION",
+    "HARMONY_WINDOW_BACKGROUND",
     "build_harmony_project",
     "materialize_browser_assets",
     "rewrite_arkts_resources",

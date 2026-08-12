@@ -393,7 +393,9 @@ def test_last_run_restorable(reasoning_client, tmp_path) -> None:
     assert (tmp_path / "logs" / data["run_id"] / "run.json").exists()
 
 
-def test_legacy_last_run_blocks_unapproved_remote_images(monkeypatch, tmp_path) -> None:
+def test_legacy_last_run_warns_without_blocking_unapproved_remote_images(
+    monkeypatch, tmp_path,
+) -> None:
     logs = tmp_path / "logs"
     logs.mkdir()
     (logs / "last_run.json").write_text(json.dumps({
@@ -424,9 +426,11 @@ def test_legacy_last_run_blocks_unapproved_remote_images(monkeypatch, tmp_path) 
         response = client.get("/api/last")
 
     result = response.json()["results"][0]
-    assert result["status"] == "failed"
-    assert result["html"] == ""
-    assert "历史结果包含未经图片工具批准" in result["error"]
+    assert result["status"] == "degraded"
+    assert "photo-invented" in result["html"]
+    assert result["error"] is None
+    assert "历史结果包含未经图片工具批准" in result["image_error"]
+    assert "已继续预览" in result["image_error"]
 
 
 def test_shared_css(client) -> None:
@@ -1124,7 +1128,9 @@ def test_non_openai_provider_preplans_required_images(monkeypatch, tmp_path) -> 
     assert result["error"] is None
 
 
-def test_unapproved_remote_image_is_blocked(monkeypatch, tmp_path) -> None:
+def test_unapproved_remote_image_warns_without_blocking_preview(
+    monkeypatch, tmp_path,
+) -> None:
     from uibench.schemas import ModelConfig
 
     unsafe_html = (
@@ -1151,9 +1157,11 @@ def test_unapproved_remote_image_is_blocked(monkeypatch, tmp_path) -> None:
         ))
 
     result = _first_result(messages)
-    assert result["status"] == "failed"
-    assert result["html"] == ""
-    assert "未经图片工具批准" in result["error"]
+    assert result["status"] == "degraded"
+    assert "photo-invented" in result["html"]
+    assert result["error"] is None
+    assert "未经图片工具批准" in result["image_error"]
+    assert "已继续预览" in result["image_error"]
     assert result["image_used"] == 0
 
 
@@ -1167,7 +1175,7 @@ def test_unapproved_remote_image_is_blocked(monkeypatch, tmp_path) -> None:
         '</script>'
     ),
 ])
-def test_unapproved_image_syntaxes_fail_closed(
+def test_unapproved_image_syntaxes_warn_without_blocking_preview(
     monkeypatch, tmp_path, unsafe_body,
 ) -> None:
     from uibench.schemas import ModelConfig
@@ -1191,12 +1199,14 @@ def test_unapproved_image_syntaxes_fail_closed(
             "/api/generate", json={"prompt": "简单待办清单"}
         )))
 
-    assert result["status"] == "failed"
-    assert result["html"] == ""
-    assert "未经图片工具批准" in result["error"]
+    assert result["status"] == "degraded"
+    assert unsafe_body in result["html"]
+    assert result["error"] is None
+    assert "未经图片工具批准" in result["image_error"]
+    assert "已继续预览" in result["image_error"]
 
 
-def test_used_unsplash_image_without_attribution_is_blocked(
+def test_used_unsplash_image_without_attribution_is_allowed(
     monkeypatch, tmp_path,
 ) -> None:
     from uibench.schemas import ModelConfig
@@ -1209,10 +1219,7 @@ def test_used_unsplash_image_without_attribution_is_blocked(
             arguments=json.dumps({
                 "requests": [{
                     "slot": "hero",
-                    "query": "restaurant interior",
-                }, {
-                    "slot": "dish",
-                    "query": "restaurant dish",
+                    "query": "profile portrait",
                 }],
             }),
         ),
@@ -1240,10 +1247,10 @@ def test_used_unsplash_image_without_attribution_is_blocked(
         return [{
             "id": "no-credit",
             "slot": "hero",
-            "query": "restaurant interior",
+            "query": "profile portrait",
             "urls": {"small": image_url},
-            "photographer": "Example",
-            "photographer_url": "https://unsplash.com/@example",
+            "photographer": "",
+            "photographer_url": "",
             "download_location": "https://api.unsplash.com/photos/no-credit/download",
         }]
 
@@ -1257,12 +1264,88 @@ def test_used_unsplash_image_without_attribution_is_blocked(
 
     with TestClient(app_mod.app) as client:
         result = _first_result(_parse_stream(client.post(
-            "/api/generate", json={"prompt": "餐厅详情页"}
+            "/api/generate", json={"prompt": "用户设置页面"}
         )))
 
-    assert result["status"] == "failed"
-    assert result["html"] == ""
-    assert "缺少可见、可点击的摄影师署名" in result["error"]
+    assert result["status"] == "success"
+    assert result["html"] == (
+        f'<!DOCTYPE html><html><body><img src="{image_url}"></body></html>'
+    )
+    assert result["error"] is None
+
+
+def test_tool_model_invented_image_url_warns_without_blocking_preview(
+    monkeypatch, tmp_path,
+) -> None:
+    """A DeepSeek-style tool call must not make an invented URL fatal."""
+    from uibench.schemas import ModelConfig
+
+    approved_url = "https://images.unsplash.com/photo-approved"
+    invented_url = "https://images.unsplash.com/photo-invented-by-model"
+    tool_call = SimpleNamespace(
+        id="call_image",
+        function=SimpleNamespace(
+            name="search_photos",
+            arguments=json.dumps({
+                "requests": [{
+                    "slot": "profile-avatar",
+                    "query": "user profile portrait avatar",
+                }],
+            }),
+        ),
+    )
+    final_html = (
+        '<!DOCTYPE html><html><body>'
+        f'<img src="{invented_url}"></body></html>'
+    )
+    responses = [
+        _openai_response("", "", "tool_calls", tool_calls=[tool_call]),
+        _openai_response(final_html, "", "stop"),
+    ]
+    calls = 0
+
+    def _factory(*args, **kwargs):
+        def _create(**call_kwargs):
+            nonlocal calls
+            response = responses[calls]
+            calls += 1
+            return response
+        return SimpleNamespace(root_client=SimpleNamespace(
+            chat=SimpleNamespace(completions=SimpleNamespace(create=_create))))
+
+    async def _search(arguments, *, max_requests, progress=None):
+        return [{
+            "id": "approved",
+            "slot": "profile-avatar",
+            "query": "user profile portrait avatar",
+            "urls": {"small": approved_url},
+            "photographer": "Example",
+            "photographer_url": "https://unsplash.com/@example",
+            "download_location": "https://api.unsplash.com/photos/approved/download",
+        }]
+
+    monkeypatch.setattr(app_mod, "image_tool_available", lambda: True)
+    monkeypatch.setattr(app_mod, "call_unsplash_mcp_batch", _search)
+    monkeypatch.setattr(app_mod, "chat_model_for", _factory)
+    monkeypatch.setattr(app_mod, "LOGS_DIR", tmp_path / "logs")
+    monkeypatch.setattr(app_mod, "load_model_registry", lambda: [
+        ModelConfig(id="deepseek-test", provider="openai", api_key="sk-test")
+    ])
+
+    with TestClient(app_mod.app) as client:
+        result = _first_result(_parse_stream(client.post(
+            "/api/generate", json={"prompt": "帮我生成一个用户设置页面"}
+        )))
+
+    assert result["status"] == "degraded"
+    assert result["html"] == final_html
+    assert result["error"] is None
+    assert result["image_tool_used"] is True
+    assert result["image_count"] == 1
+    assert result["image_used"] == 0
+    assert "未经图片工具批准" in result["image_error"]
+    assert "已继续预览" in result["image_error"]
+    assert "图片使用不足" in result["image_error"]
 
 
 def test_image_tool_can_be_declined(monkeypatch, tmp_path) -> None:

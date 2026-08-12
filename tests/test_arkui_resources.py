@@ -13,7 +13,7 @@ from pydantic import ValidationError
 
 import app as app_mod
 from uibench.arkui.exporter import export_annotated_html
-from uibench.arkui.snapshot import BrowserSnapshot
+from uibench.arkui.snapshot import BrowserComputedStyle, BrowserSnapshot
 
 HTML_TO_ARKUI_DIST = (
     Path(__file__).resolve().parents[1]
@@ -34,12 +34,14 @@ PNG_BASE64 = (
 
 
 def _snapshot(content_base64: str = PNG_BASE64) -> BrowserSnapshot:
-    return BrowserSnapshot.model_validate({
+    payload = {
         "snapshotVersion": 1,
         "viewportWidth": 390,
         "viewportHeight": 844,
         "theme": "light",
         "tokenTheme": "harmonyos",
+        "canvasBackgroundColor": "rgb(255, 255, 255)",
+        "canvasBackgroundImage": "none",
         "nodes": [{
             "nodeId": "page",
             "tag": "main",
@@ -54,6 +56,7 @@ def _snapshot(content_base64: str = PNG_BASE64) -> BrowserSnapshot:
                 "rowGap": "0px",
                 "justifyContent": "flex-start",
                 "alignItems": "flex-start",
+                "backgroundColor": "rgb(255, 255, 255)",
                 "backgroundImage": "url(\"https://images.example.test/hero.png\")",
             },
         }, {
@@ -80,7 +83,12 @@ def _snapshot(content_base64: str = PNG_BASE64) -> BrowserSnapshot:
                 "nodeIds": ["page"],
             }],
         }],
-    })
+    }
+    for node in payload["nodes"]:
+        computed = BrowserComputedStyle().model_dump(by_alias=True)
+        computed.update(node["computed"])
+        node["computed"] = computed
+    return BrowserSnapshot.model_validate(payload)
 
 
 def test_snapshot_rejects_invalid_or_ambiguous_asset_references() -> None:

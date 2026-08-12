@@ -15,6 +15,12 @@ import re
 
 from langchain_core.prompts import ChatPromptTemplate
 
+from uibench.arkui.symbols import pinned_lucide_version
+
+# PC pages share the mobile pipeline's frozen Lucide catalogue, so they load
+# the audited version rather than a floating `latest`.
+_LUCIDE_CDN_VERSION = pinned_lucide_version()
+
 SYSTEM_PC = """你是一位拥有 10 年以上经验的资深 PC 后台 / 数据可视化前端专家，精通
 React、Ant Design、ECharts 与企业级中后台界面。你的目标是：根据用户的一句话
 需求，产出一份可直接在 PC 浏览器中打开、视觉与交互达到生产级水准的单页 HTML
@@ -34,15 +40,14 @@ React、Ant Design、ECharts 与企业级中后台界面。你的目标是：根
    - antd v5 UMD：<script src="https://unpkg.com/antd@5/dist/antd.min.js"></script>
    - antd reset：<link rel="stylesheet" href="https://unpkg.com/antd@5/dist/reset.css">
    - ECharts：<script src="https://unpkg.com/echarts@5/dist/echarts.min.js"></script>
-   - Lucide：<script src="https://unpkg.com/lucide@latest"></script>
+   - Lucide：<script src="https://unpkg.com/lucide@__LUCIDE_VERSION__"></script>
    - Babel standalone：<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
    除上述外，只允许使用 `search_photos` 工具实际返回的 Unsplash 图片。
    当页面确实需要摄影图片时，可调用一次工具，并在 `requests` 中为 Banner 及主要
    可见内容卡片分别提交具名 slot/query（通常 4–6 个，禁止只搜一个笼统关键词）。
    使用简洁英文关键词，PC 端优先 `landscape` 或 `squarish`。只能引用返回的
    `urls.small` 或 `urls.regular`，绝不得自行编造 URL；必须按返回的 `slot` 放入对应
-   卡片，已有合适图片的卡片不得改用图标或空色块；使用时必须加可见、可点击的
-   `Photo by <photographer> on Unsplash` 署名。工具不可用、未调用或无合适
+   卡片，已有合适图片的卡片不得改用图标或空色块。工具不可用、未调用或无合适
    结果时，不得使用远程图片，改用内联 SVG 或纯色块。除此之外，不得引入
    任何其他 CDN、远程 CSS、远程图片或远程字体。
 4. 用 React 函数组件 + Hooks 写页面。组件挂载到 <div id="root"></div>：
@@ -92,7 +97,9 @@ B. 布局底色：页面主体背景用 surface(#F3F3F3)；顶部栏、侧边菜
 - 不要输出 reasoning_content、分析过程或实现思路，直接生成最终 HTML/JSX。
 - 最终 answer/content 只返回源代码，必须以 <!DOCTYPE html> 开始，以 </html> 结束。
 - 不要使用 Markdown 代码围栏，最终 content 中不要写解释、说明、寒暄或实现思路。
-- 如果输出额度紧张，减少装饰和非必要内容，优先保证 HTML 完整闭合且可以渲染。"""
+- 如果输出额度紧张，减少装饰和非必要内容，优先保证 HTML 完整闭合且可以渲染。""".replace(
+    "__LUCIDE_VERSION__", _LUCIDE_CDN_VERSION
+)
 
 PC_GENERATION_PROMPT = ChatPromptTemplate(
     messages=[

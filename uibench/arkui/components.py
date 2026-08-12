@@ -97,6 +97,14 @@ class ComponentRegistry:
             if definition.renderer_supported
         )
 
+    def planned_keys(self) -> tuple[str, ...]:
+        """Return keys UIBench reserves but the renderer cannot export yet."""
+        return tuple(
+            key
+            for key, definition in self.components.items()
+            if not definition.renderer_supported
+        )
+
 
 def _string_list(value: object, label: str) -> tuple[str, ...]:
     if value is None:

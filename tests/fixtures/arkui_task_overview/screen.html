@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>任务概览</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/design-tokens.css" />
+</head>
+<body class="dt-bg-canvas dt-text-primary dt-font">
+  <div data-node-id="task-overview" data-component="column" class="min-h-screen flex flex-col">
+    <!-- 顶部标题 -->
+    <header data-node-id="task-overview.header" data-component="column" class="dt-p-page pt-10 pb-4 flex flex-col">
+      <h1 data-node-id="task-overview.header.title" data-component="text" class="text-2xl font-bold">任务概览</h1>
+      <p data-node-id="task-overview.header.subtitle" data-component="text" class="dt-text-secondary mt-1 text-sm">查看今日进度与待办事项</p>
+    </header>
+
+    <main data-node-id="task-overview.main" data-component="column" class="flex flex-col flex-1 dt-p-page">
+      <!-- 统计卡片 -->
+      <section data-node-id="task-overview.stats" data-component="row" data-ui-role="stats-row" class="flex flex-row gap-3">
+        <div data-node-id="task-overview.stats.completed" data-component="column" data-ui-role="stat-card" class="dt-bg-surface dt-rounded-card dt-p-card flex flex-col flex-1">
+          <span data-node-id="task-overview.stats.completed-label" data-component="text" class="dt-text-secondary text-xs">已完成</span>
+          <span data-node-id="task-overview.stats.completed-value" data-component="text" class="text-2xl font-bold mt-1">12</span>
+        </div>
+        <div data-node-id="task-overview.stats.pending" data-component="column" data-ui-role="stat-card" class="dt-bg-surface dt-rounded-card dt-p-card flex flex-col flex-1">
+          <span data-node-id="task-overview.stats.pending-label" data-component="text" class="dt-text-secondary text-xs">待处理</span>
+          <span data-node-id="task-overview.stats.pending-value" data-component="text" class="text-2xl font-bold mt-1">5</span>
+        </div>
+      </section>
+
+      <!-- 任务列表 -->
+      <section data-node-id="task-overview.tasks" data-component="column" data-ui-role="task-list" class="dt-bg-surface dt-rounded-card dt-p-card mt-6 flex flex-col">
+        <h2 data-node-id="task-overview.tasks.title" data-component="text" class="text-base font-semibold">待办任务</h2>
+
+        <div data-node-id="task-overview.tasks.divider-1" data-component="divider" class="border-b dt-border-divider my-3"></div>
+
+        <div data-node-id="task-overview.tasks.item-1" data-component="column" data-ui-role="task-item" data-item-key="task-1" class="py-2 flex flex-col">
+          <div data-node-id="task-overview.tasks.item-1-row" data-component="row" class="flex flex-row items-center justify-between">
+            <span data-node-id="task-overview.tasks.item-1-title" data-component="text" class="font-medium">完成产品需求文档</span>
+            <span data-node-id="task-overview.tasks.item-1-status" data-component="text" class="dt-text-tertiary text-xs">进行中</span>
+          </div>
+          <p data-node-id="task-overview.tasks.item-1-desc" data-component="text" class="dt-text-secondary text-sm mt-1">整理本周迭代的功能说明与交互细节</p>
+        </div>
+
+        <div data-node-id="task-overview.tasks.divider-2" data-component="divider" class="border-b dt-border-divider my-3"></div>
+
+        <div data-node-id="task-overview.tasks.item-2" data-component="column" data-ui-role="task-item" data-item-key="task-2" class="py-2 flex flex-col">
+          <div data-node-id="task-overview.tasks.item-2-row" data-component="row" class="flex flex-row items-center justify-between">
+            <span data-node-id="task-overview.tasks.item-2-title" data-component="text" class="font-medium">设计评审会议</span>
+            <span data-node-id="task-overview.tasks.item-2-status" data-component="text" class="dt-text-tertiary text-xs">今日 15:00</span>
+          </div>
+          <p data-node-id="task-overview.tasks.item-2-desc" data-component="text" class="dt-text-secondary text-sm mt-1">与设计团队对齐新版首页视觉方案</p>
+        </div>
+
+        <div data-node-id="task-overview.tasks.divider-3" data-component="divider" class="border-b dt-border-divider my-3"></div>
+
+        <div data-node-id="task-overview.tasks.item-3" data-component="column" data-ui-role="task-item" data-item-key="task-3" class="py-2 flex flex-col">
+          <div data-node-id="task-overview.tasks.item-3-row" data-component="row" class="flex flex-row items-center justify-between">
+            <span data-node-id="task-overview.tasks.item-3-title" data-component="text" class="font-medium">代码提交与测试</span>
+            <span data-node-id="task-overview.tasks.item-3-status" data-component="text" class="dt-text-tertiary text-xs">待开始</span>
+          </div>
+          <p data-node-id="task-overview.tasks.item-3-desc" data-component="text" class="dt-text-secondary text-sm mt-1">完成登录模块开发并运行单元测试</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- 底部按钮 -->
+    <footer data-node-id="task-overview.footer" data-component="column" class="dt-p-page pb-8 pt-4 flex flex-col">
+      <div data-node-id="task-overview.footer.buttons" data-component="row" class="flex flex-row gap-3">
+        <button data-node-id="task-overview.footer.primary-btn" data-component="button" data-action="task.create" class="dt-bg-primary dt-text-on-primary dt-rounded-control dt-interaction-hover dt-interaction-pressed dt-focus flex-1 h-11 text-sm font-medium">
+          新建任务
+        </button>
+        <button data-node-id="task-overview.footer.secondary-btn" data-component="button" data-action="task.view-all" class="dt-bg-component-subtle dt-text-primary dt-rounded-control dt-interaction-hover dt-interaction-pressed dt-focus flex-1 h-11 text-sm font-medium border dt-border-outline">
+          查看全部
+        </button>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

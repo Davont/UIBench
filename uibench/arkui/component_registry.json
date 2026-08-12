@@ -56,15 +56,15 @@
       "arkuiComponent": "Image",
       "category": "display",
       "phase": "P0",
-      "fallback": null,
+      "fallback": "column",
       "minApiVersion": null
     },
     "symbol": {
       "arkuiComponent": "SymbolGlyph",
       "category": "display",
       "phase": "P0",
-      "fallback": "image",
-      "requiredMetadata": ["data-symbol"],
+      "fallback": "column",
+      "requiredMetadata": [],
       "minApiVersion": null
     },
     "divider": {
@@ -86,7 +86,7 @@
     "list": {
       "arkuiComponent": "List",
       "category": "collection",
-      "phase": "P1",
+      "phase": "P0",
       "fallback": "column",
       "allowedChildren": ["list-item"],
       "minApiVersion": null
@@ -94,24 +94,24 @@
     "list-item": {
       "arkuiComponent": "ListItem",
       "category": "collection-item",
-      "phase": "P1",
+      "phase": "P0",
       "fallback": "column",
       "allowedParents": ["list"],
       "stateProperties": ["selected"],
       "minApiVersion": null
     },
-    "grid": {
-      "arkuiComponent": "Grid",
-      "category": "collection",
-      "phase": "P1",
+ "grid": {
+  "arkuiComponent": "Grid",
+  "category": "collection",
+  "phase": "P0",
       "fallback": "column",
       "allowedChildren": ["grid-item"],
       "minApiVersion": null
     },
-    "grid-item": {
-      "arkuiComponent": "GridItem",
-      "category": "collection-item",
-      "phase": "P1",
+ "grid-item": {
+  "arkuiComponent": "GridItem",
+  "category": "collection-item",
+  "phase": "P0",
       "fallback": "column",
       "allowedParents": ["grid"],
       "stateProperties": ["selected"],

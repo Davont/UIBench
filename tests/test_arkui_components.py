@@ -1,5 +1,7 @@
 """Offline tests for the ArkUI component registry and HTML metadata contract."""
+import itertools
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -35,16 +37,24 @@ def test_checked_in_registry_has_phased_component_families() -> None:
     assert registry.components["grid-item"].allowed_parents == frozenset({"grid"})
     assert registry.components["checkbox"].category == "selection"
     assert "button" in registry.keys_for_phases("P0")
-    assert "grid" in registry.keys_for_phases("P1")
+    # grid ships alongside list: exportable and offered to the model, so the
+    # registry phase matches its real availability.
+    assert "grid" in registry.keys_for_phases("P0")
+    assert "tabs" in registry.keys_for_phases("P1")
     assert "water-flow" in registry.keys_for_phases("P2")
     assert registry.renderer_keys() == (
         "column", "row", "stack", "scroll", "text", "span", "image",
-        "symbol", "divider", "button",
+        "symbol", "divider", "button", "list", "list-item", "grid", "grid-item",
     )
+    assert registry.components["list"].allowed_children == frozenset({"list-item"})
+    assert registry.components["list-item"].max_component_children == 1
     assert registry.components["column"].min_api_version == 7
     assert registry.components["symbol"].min_api_version == 11
     assert registry.components["image"].max_component_children == 0
-    assert registry.components["grid"].renderer_supported is False
+    assert registry.components["grid"].renderer_supported is True
+    assert registry.components["grid"].allowed_children == frozenset({"grid-item"})
+    assert registry.components["grid-item"].max_component_children == 1
+    assert registry.components["swiper"].renderer_supported is False
 
 
 def test_pinned_renderer_contract_matches_vendored_html_to_arkui() -> None:
@@ -154,12 +164,12 @@ def test_valid_metadata_builds_addressable_manifest() -> None:
 
 def test_planned_component_blocks_renderer_export() -> None:
     report = analyze_component_metadata("""
-      <main data-node-id="page" data-component="grid"></main>
+      <main data-node-id="page" data-component="swiper"></main>
     """)
     manifest = report.to_manifest()
 
     assert "ARKUI_COMPONENT_NOT_RENDERER_SUPPORTED" in _codes(report)
-    assert manifest["summary"]["unsupportedComponents"] == {"grid": 1}
+    assert manifest["summary"]["unsupportedComponents"] == {"swiper": 1}
     assert manifest["summary"]["exportReadiness"] == "blocked"
     assert build_screen_ir(report).screen_ir is None
 
@@ -181,13 +191,15 @@ def test_native_html_controls_are_inferred_without_rewriting_html() -> None:
         "text-area", "symbol",
     ]
     assert all(node.source == "html" for node in report.nodes)
-    assert len(report.warnings) == 14
+    assert len(report.warnings) == 13
     assert report.errors == ()
     assert _codes(report) == {
         "ARKUI_COMPONENT_NOT_RENDERER_SUPPORTED",
-        "ARKUI_COMPONENT_METADATA_MISSING",
         "ARKUI_NODE_ID_MISSING",
     }
+    # data-lucide alone is enough; the export resolves the resource itself.
+    symbol = report.nodes[-1]
+    assert dict(symbol.metadata)["data-symbol"] == "sys.symbol.magnifyingglass"
 
 
 def test_metadata_reports_unknown_duplicate_conflicting_and_missing_values() -> None:
@@ -195,7 +207,7 @@ def test_metadata_reports_unknown_duplicate_conflicting_and_missing_values() -> 
       <main data-node-id="Home" data-component="unknown"></main>
       <section data-node-id="shop.same" data-component="column"></section>
       <section data-node-id="shop.same" data-component="row"></section>
-      <button data-node-id="shop.action" data-component="grid">Bad</button>
+      <button data-node-id="shop.action" data-component="swiper">Bad</button>
       <i data-node-id="shop.icon" data-component="symbol"></i>
       <section data-node-id="shop.role" data-component="column"
                data-ui-role="ProductCard"></section>
@@ -205,11 +217,12 @@ def test_metadata_reports_unknown_duplicate_conflicting_and_missing_values() -> 
         "ARKUI_COMPONENT_UNKNOWN",
         "ARKUI_NODE_ID_DUPLICATE",
         "ARKUI_COMPONENT_TAG_CONFLICT",
-        "ARKUI_COMPONENT_METADATA_MISSING",
+        "ARKUI_SYMBOL_UNAVAILABLE",
         "ARKUI_UI_ROLE_INVALID",
     } <= _codes(report)
     assert "ARKUI_COMPONENT_NOT_RENDERER_SUPPORTED" in _codes(report)
-    assert len(report.errors) == 6
+    # The unusable symbol is a placeholder warning now, not a sixth error.
+    assert len(report.errors) == 5
 
 
 def test_collection_parent_child_constraints_are_enforced() -> None:
@@ -218,30 +231,51 @@ def test_collection_parent_child_constraints_are_enforced() -> None:
         <article data-node-id="shop.bad-grid-item" data-component="grid-item">
         </article>
       </section>
-      <article data-node-id="shop.orphan" data-component="list-item"></article>
     """)
 
+    # A grid-item declares its own legal parents, so a list cannot absorb it
+    # into a generated ListItem the way it absorbs plain entries.
     assert "ARKUI_COMPONENT_CHILD_INVALID" in _codes(report)
     assert "ARKUI_COMPONENT_PARENT_INVALID" in _codes(report)
-    assert "ARKUI_COMPONENT_NOT_RENDERER_SUPPORTED" in _codes(report)
-    assert len(report.errors) == 6
+    assert "ARKUI_LIST_CHILD_WRAPPED_AS_ITEM" not in _codes(report)
+    assert len(report.errors) == 2
 
 
-def test_scroll_accepts_one_component_child() -> None:
+def test_single_slot_container_wraps_extra_children_instead_of_failing() -> None:
     valid = analyze_component_metadata("""
       <main data-node-id="page" data-component="scroll">
         <section data-node-id="page.content" data-component="column"></section>
       </main>
     """)
-    invalid = analyze_component_metadata("""
+    crowded = analyze_component_metadata("""
       <main data-node-id="page" data-component="scroll">
         <header data-node-id="page.header" data-component="row"></header>
         <section data-node-id="page.content" data-component="column"></section>
       </main>
     """)
 
-    assert "ARKUI_COMPONENT_CHILD_COUNT_EXCEEDED" not in _codes(valid)
-    assert "ARKUI_COMPONENT_CHILD_COUNT_EXCEEDED" in _codes(invalid)
+    assert _codes(valid) == set()
+    assert not crowded.errors
+    assert not crowded.warnings
+    # Wrapping is structural, not lossy: the rendered result is unchanged.
+    assert crowded.export_readiness == "ready"
+    assert [item.code for item in crowded.notices] == [
+        "ARKUI_CONTENT_WRAPPED_FOR_SINGLE_SLOT",
+    ]
+
+
+def test_leaf_component_holding_children_is_still_an_error() -> None:
+    report = analyze_component_metadata("""
+      <main data-node-id="page" data-component="column">
+        <div data-node-id="page.rule" data-component="divider">
+          <span data-node-id="page.rule.label" data-component="text">或</span>
+        </div>
+      </main>
+    """)
+
+    assert "ARKUI_COMPONENT_CHILD_COUNT_EXCEEDED" in _codes(report)
+    assert "ARKUI_CONTENT_WRAPPED_FOR_SINGLE_SLOT" not in _codes(report)
+    assert report.export_readiness == "blocked"
 
 
 def test_plain_legacy_html_remains_valid_and_empty_of_component_metadata() -> None:
@@ -275,8 +309,14 @@ def test_supported_annotations_build_canonical_screen_ir_v2() -> None:
     assert root["componentName"] == "Scroll"
     content = root["children"][0]
     text = content["children"][0]
-    assert text["content"] == "Hello"
-    assert text["children"][0]["content"] == "ArkUI"
+    # ArkUI's Text renders either its own content or its Span children, so
+    # mixed rich text becomes ordered Spans: the parent fragment must not be
+    # silently dropped in favour of the styled span.
+    assert "content" not in text
+    assert [child["content"] for child in text["children"]] == [
+        "Hello ", "ArkUI",
+    ]
+    assert text["children"][0]["meta"]["nodeId"] == "page.title:run0"
     assert content["children"][1]["src"] == "cover.png"
     assert {
         item.code for item in built.diagnostics
@@ -286,7 +326,8 @@ def test_supported_annotations_build_canonical_screen_ir_v2() -> None:
     }
 
 
-def test_inferred_symbol_without_canonical_resource_blocks_screen_ir() -> None:
+def test_inferred_symbol_resolves_its_resource_from_the_lucide_name() -> None:
+    """A bare Lucide icon carries everything the export needs."""
     report = analyze_component_metadata("""
       <main data-node-id="page" data-component="column">
         <i data-node-id="page.icon" data-lucide="search"></i>
@@ -294,12 +335,29 @@ def test_inferred_symbol_without_canonical_resource_blocks_screen_ir() -> None:
     """)
     built = build_screen_ir(report)
 
-    assert report.export_readiness == "blocked"
-    assert built.screen_ir is None
-    assert any(
-        item.code == "UIBENCH_ARKUI_SYMBOL_REQUIRED"
-        for item in built.diagnostics
+    assert report.export_readiness == "ready"
+    assert built.screen_ir is not None
+    assert built.screen_ir["ui"]["children"][0]["props"] == {
+        "symbol": "sys.symbol.magnifyingglass",
+    }
+
+
+def test_icon_harmonyos_has_no_resource_for_degrades_to_a_placeholder() -> None:
+    """A missing glyph must not cost the page its whole export."""
+    report = analyze_component_metadata("""
+      <main data-node-id="page" data-component="column">
+        <i data-node-id="page.icon" data-component="symbol"
+           data-lucide="air-vent"></i>
+      </main>
+    """)
+    placeholder = next(
+        node for node in report.nodes if node.node_id == "page.icon"
     )
+
+    assert not report.errors
+    assert report.export_readiness == "lossy"
+    assert "ARKUI_SYMBOL_UNAVAILABLE" in _codes(report)
+    assert placeholder.arkui_component == "Column"
 
 
 def test_component_analyzer_rejects_non_string_input() -> None:
@@ -329,12 +387,232 @@ def test_mobile_prompt_includes_arkui_metadata_contract() -> None:
     assert "data-node-id" in SYSTEM_MOBILE
     assert "data-component" in SYSTEM_MOBILE
     assert "data-ui-role" in SYSTEM_MOBILE
-    assert "list、list-item、grid、grid-item" in SYSTEM_MOBILE
-    assert "还不支持" in SYSTEM_MOBILE
+    # The unsupported list is derived from the pinned renderer contract, so a
+    # vendor upgrade can never advertise a component as allowed and unsupported.
+    registry = load_component_registry()
+    unsupported = SYSTEM_MOBILE.split("还不支持这些组件：", 1)[1].split("。", 1)[0]
+    assert unsupported == "、".join(registry.planned_keys())
+    assert not set(registry.renderer_keys()) & set(unsupported.split("、"))
+    assert "list 只能包 list-item，list-item 只能出现在 list 内" in SYSTEM_MOBILE
+    # A horizontal list is exportable, so the prompt must not ask for vertical.
+    assert "纵向列表和横滑列表都适用" in SYSTEM_MOBILE
     assert "data-component=\"symbol\"" in SYSTEM_MOBILE
-    assert "不能直接复制 Lucide 名称" in SYSTEM_MOBILE
-    assert "list, list-item" not in SYSTEM_MOBILE.split("第一版允许值为：", 1)[1].split("。", 1)[0]
+    # The icon mapping lives in the engine, not in the contract.
+    assert "不需要写 `data-symbol`" in SYSTEM_MOBILE
+    assert "sys.symbol." not in SYSTEM_MOBILE.split("Lucide `<i>` 标为", 1)[1]
+    assert "不要因为 HTML 标签恰好叫 `<span>` 就标成" in SYSTEM_MOBILE
+    assert "必须实际使用 `flex flex-col`" in SYSTEM_MOBILE
+    assert "DOM 直接父节点必须就是组件元数据中的父节点" in SYSTEM_MOBILE
+    assert "不要在两个已标注组件之间" in SYSTEM_MOBILE
+    assert "必须实际使用 `flex flex-row`" in SYSTEM_MOBILE
+    assert "标注必须与浏览器最终 computed layout 一致" in SYSTEM_MOBILE
+    assert "column 必须得到 `display: flex`、`flex-direction: column`" in SYSTEM_MOBILE
+    assert "row 必须得到 `display: flex`、" in SYSTEM_MOBILE
+    assert "`flex-direction: row`" in SYSTEM_MOBILE
+    assert "list, list-item" in SYSTEM_MOBILE.split("第一版允许值为：", 1)[1].split("。", 1)[0]
     assert MOBILE_ARKUI_METADATA_INSTRUCTIONS in SYSTEM_MOBILE
+
+
+def test_prompts_pin_the_frozen_lucide_version() -> None:
+    """Pages must load the audited Lucide build, not whatever `latest` is."""
+    from uibench.arkui.symbols import pinned_lucide_version
+    from uibench.pc import SYSTEM_PC
+
+    pinned = f"https://unpkg.com/lucide@{pinned_lucide_version()}"
+    for prompt in (SYSTEM_MOBILE, SYSTEM_PC):
+        assert pinned in prompt
+        assert "lucide@latest" not in prompt
+        assert "__LUCIDE_VERSION__" not in prompt
+
+
+def test_button_example_in_the_prompt_actually_passes_validation() -> None:
+    """The worked example must be copyable; a broken one teaches the failure."""
+    start = MOBILE_ARKUI_METADATA_INSTRUCTIONS.index("  <button data-node-id=")
+    end = MOBILE_ARKUI_METADATA_INSTRUCTIONS.index("  </button>", start)
+    example = "\n".join(
+        line[2:]
+        for line in MOBILE_ARKUI_METADATA_INSTRUCTIONS[start:end].splitlines()
+    ) + "</button>"
+    report = analyze_component_metadata(
+        '<div data-node-id="page" data-component="column" class="flex flex-col">'
+        + example
+        + "</div>"
+    )
+
+    assert not report.errors
+    assert report.export_readiness == "ready"
+    assert report.component_counts == {
+        "button": 1, "column": 1, "row": 1, "symbol": 2, "text": 1,
+    }
+
+
+def test_span_outside_text_is_exported_as_text_with_a_notice() -> None:
+    """Span has no legal form outside Text, so the node is kept as Text."""
+    report = analyze_component_metadata("""
+    <div data-node-id="page" data-component="row" class="flex flex-row">
+      <span data-node-id="page.label" data-component="text">消息通知</span>
+      <span data-node-id="page.badge" data-component="span">已开启</span>
+    </div>
+    """)
+    promoted = next(item for item in report.nodes if item.node_id == "page.badge")
+
+    assert not report.errors
+    assert not report.warnings
+    assert report.export_readiness == "ready"
+    assert [item.code for item in report.notices] == [
+        "ARKUI_SPAN_PROMOTED_TO_TEXT",
+    ]
+    assert promoted.component == "text"
+    assert promoted.arkui_component == "Text"
+    assert promoted.text_content == "已开启"
+
+
+def test_span_inside_text_keeps_its_rich_text_meaning() -> None:
+    report = analyze_component_metadata("""
+    <div data-node-id="page" data-component="column" class="flex flex-col">
+      <p data-node-id="page.line" data-component="text">共 <span
+         data-node-id="page.line.count" data-component="span">3</span> 台设备</p>
+    </div>
+    """)
+
+    assert report.export_readiness == "ready"
+    assert "ARKUI_SPAN_PROMOTED_TO_TEXT" not in _codes(report)
+    assert report.component_counts == {"column": 1, "span": 1, "text": 1}
+
+
+def test_empty_span_inside_text_still_blocks_export() -> None:
+    report = analyze_component_metadata("""
+    <div data-node-id="page" data-component="column" class="flex flex-col">
+      <p data-node-id="page.line" data-component="text"><span
+         data-node-id="page.line.gap" data-component="span"></span></p>
+    </div>
+    """)
+
+    assert "ARKUI_SPAN_CONTENT_MISSING" in _codes(report)
+    assert report.export_readiness == "blocked"
+
+
+def test_promoted_span_reaches_screen_ir_as_a_text_component() -> None:
+    report = analyze_component_metadata("""
+    <div data-node-id="page" data-component="row" class="flex flex-row">
+      <span data-node-id="page.value" data-component="span">128.4 MB</span>
+    </div>
+    """)
+    built = build_screen_ir(report)
+
+    assert built.screen_ir is not None
+    assert built.screen_ir["ui"]["children"][0]["componentName"] == "Text"
+    assert built.screen_ir["ui"]["children"][0]["content"] == "128.4 MB"
+
+
+_LIST_WITH_PLAIN_ENTRIES = """
+  <section data-node-id="page" data-component="list">
+    <div data-node-id="page.header" data-component="row"
+         class="flex flex-row"></div>
+    <button data-node-id="page.help" data-component="button">帮助中心</button>
+    <div data-node-id="page.about" data-component="list-item">
+      <button data-node-id="page.about.btn" data-component="button">关于</button>
+    </div>
+  </section>
+"""
+
+
+def test_plain_list_entries_are_wrapped_into_list_items_with_a_notice() -> None:
+    """A List only holds ListItems, so a plain entry can only mean one item."""
+    report = analyze_component_metadata(_LIST_WITH_PLAIN_ENTRIES)
+
+    assert not report.errors
+    assert not report.warnings
+    # Wrapping is structural, not lossy: the rendered result is unchanged.
+    assert report.export_readiness == "ready"
+    assert [item.code for item in report.notices] == [
+        "ARKUI_LIST_CHILD_WRAPPED_AS_ITEM",
+        "ARKUI_LIST_CHILD_WRAPPED_AS_ITEM",
+    ]
+    assert [item.node_id for item in report.notices] == [
+        "page.header", "page.help",
+    ]
+    # The annotations themselves are kept: the wrapper is a Screen IR affair.
+    assert report.component_counts == {
+        "button": 2, "list": 1, "list-item": 1, "row": 1,
+    }
+
+
+def test_wrapped_list_entries_reach_screen_ir_inside_generated_items() -> None:
+    report = analyze_component_metadata(_LIST_WITH_PLAIN_ENTRIES)
+    built = build_screen_ir(report)
+
+    assert built.screen_ir is not None
+    root = built.screen_ir["ui"]
+    assert root["componentName"] == "List"
+    children = root["children"]
+    assert [child["componentName"] for child in children] == ["ListItem"] * 3
+    generated = children[0]
+    assert generated["meta"]["nodeId"] == "page.header:item"
+    assert generated["styles"] == {"width": "100%"}
+    assert generated["children"][0]["meta"]["nodeId"] == "page.header"
+    assert children[1]["children"][0]["content"] == "帮助中心"
+    # The authored list-item flows through untouched.
+    assert children[2]["meta"]["nodeId"] == "page.about"
+
+
+def test_list_item_outside_a_list_is_exported_as_column_with_a_notice() -> None:
+    """ListItem has no legal form outside List, so the container reading wins."""
+    report = analyze_component_metadata("""
+    <div data-node-id="page" data-component="column" class="flex flex-col">
+      <div data-node-id="page.card" data-component="list-item">
+        <p data-node-id="page.card.text" data-component="text">内容</p>
+      </div>
+    </div>
+    """)
+    demoted = next(node for node in report.nodes if node.node_id == "page.card")
+
+    assert not report.errors
+    assert not report.warnings
+    assert report.export_readiness == "ready"
+    assert [item.code for item in report.notices] == [
+        "ARKUI_LIST_ITEM_PROMOTED_TO_COLUMN",
+    ]
+    assert demoted.component == "column"
+    assert demoted.arkui_component == "Column"
+
+
+def _prompt_fragment(marker: str, occurrence: int = 0) -> str:
+    """Extract one inline example from the metadata contract."""
+    lines = [
+        line.strip()[len(marker):].strip()
+        for line in MOBILE_ARKUI_METADATA_INSTRUCTIONS.splitlines()
+        if line.strip().startswith(marker)
+    ]
+    counter = itertools.count()
+    return re.sub(
+        r"(?=data-component=)",
+        lambda _: f'data-node-id="n{next(counter)}" ',
+        lines[occurrence],
+    )
+
+
+def _analyze_fragment(fragment: str):
+    return analyze_component_metadata(
+        '<div data-node-id="page" data-component="column" class="flex flex-col">'
+        + fragment
+        + "</div>"
+    )
+
+
+def test_span_counter_example_in_the_prompt_really_is_flagged() -> None:
+    report = _analyze_fragment(_prompt_fragment("错误"))
+
+    assert "ARKUI_SPAN_PROMOTED_TO_TEXT" in _codes(report)
+    assert report.export_readiness == "ready"
+
+
+@pytest.mark.parametrize("occurrence", [0, 1])
+def test_span_examples_in_the_prompt_really_are_accepted(occurrence: int) -> None:
+    report = _analyze_fragment(_prompt_fragment("正确", occurrence))
+
+    assert not report.errors
+    assert report.export_readiness == "ready"
 
 
 def test_arkui_metadata_prompt_is_opt_in() -> None:

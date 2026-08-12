@@ -17,6 +17,9 @@ _RGB_RE = re.compile(
 )
 MAX_BROWSER_ASSET_BYTES = 2_000_000
 MAX_BROWSER_ASSET_TOTAL_BYTES = 8_000_000
+_NORMAL_FLOW_DISPLAYS = frozenset({
+    "block", "inline-block", "flow-root", "list-item",
+})
 
 
 class BrowserAssetUse(BaseModel):
@@ -74,6 +77,9 @@ class BrowserComputedStyle(BaseModel):
 
     display: str = Field(default="", max_length=100)
     flex_direction: str = Field(default="", alias="flexDirection", max_length=100)
+    flex_grow: str = Field(default="", alias="flexGrow", max_length=100)
+    flex_shrink: str = Field(default="", alias="flexShrink", max_length=100)
+    flex_basis: str = Field(default="", alias="flexBasis", max_length=100)
     position: str = Field(default="", max_length=100)
     top: str = Field(default="", max_length=100)
     left: str = Field(default="", max_length=100)
@@ -89,6 +95,19 @@ class BrowserComputedStyle(BaseModel):
     margin_left: str = Field(default="", alias="marginLeft", max_length=100)
     row_gap: str = Field(default="", alias="rowGap", max_length=100)
     column_gap: str = Field(default="", alias="columnGap", max_length=100)
+    grid_template_columns: str = Field(
+        default="", alias="gridTemplateColumns", max_length=1000
+    )
+    grid_template_rows: str = Field(
+        default="", alias="gridTemplateRows", max_length=1000
+    )
+    grid_auto_flow: str = Field(default="", alias="gridAutoFlow", max_length=100)
+    grid_row_start: str = Field(default="", alias="gridRowStart", max_length=100)
+    grid_row_end: str = Field(default="", alias="gridRowEnd", max_length=100)
+    grid_column_start: str = Field(
+        default="", alias="gridColumnStart", max_length=100
+    )
+    grid_column_end: str = Field(default="", alias="gridColumnEnd", max_length=100)
     justify_content: str = Field(default="", alias="justifyContent", max_length=100)
     align_items: str = Field(default="", alias="alignItems", max_length=100)
     background_color: str = Field(default="", alias="backgroundColor", max_length=100)
@@ -161,6 +180,13 @@ class BrowserNodeSnapshot(BaseModel):
     resolved_src: str | None = Field(
         default=None, alias="resolvedSrc", max_length=4000
     )
+    direct_parent_node_id: str | None = Field(
+        default=None,
+        alias="directParentNodeId",
+        min_length=1,
+        max_length=200,
+    )
+    is_flex_item: bool | None = Field(default=None, alias="isFlexItem")
     computed: BrowserComputedStyle
 
     @field_validator("bbox")
@@ -192,6 +218,16 @@ class BrowserSnapshot(BaseModel):
     token_theme: Literal["harmonyos", "spotify", "netflix", "notion"] = Field(
         alias="tokenTheme"
     )
+    canvas_background_color: str | None = Field(
+        default=None,
+        alias="canvasBackgroundColor",
+        max_length=100,
+    )
+    canvas_background_image: str | None = Field(
+        default=None,
+        alias="canvasBackgroundImage",
+        max_length=1000,
+    )
     nodes: list[BrowserNodeSnapshot] = Field(max_length=10_000)
     assets: list[BrowserAssetSnapshot] = Field(default_factory=list, max_length=32)
 
@@ -201,6 +237,16 @@ class BrowserSnapshot(BaseModel):
         if len(set(node_ids)) != len(node_ids):
             raise ValueError("browser snapshot nodeId values must be unique")
         known_node_ids = set(node_ids)
+        for node in self.nodes:
+            if node.direct_parent_node_id == node.node_id:
+                raise ValueError("browser snapshot node cannot be its own parent")
+            if (
+                node.direct_parent_node_id is not None
+                and node.direct_parent_node_id not in known_node_ids
+            ):
+                raise ValueError(
+                    "browser snapshot directParentNodeId is absent from snapshot nodes"
+                )
         asset_references: set[tuple[str, str]] = set()
         total_bytes = 0
         for asset in self.assets:
@@ -262,19 +308,65 @@ def _color(value: str) -> str | None:
     return f"#{rgb}" if alpha == 255 else f"#{alpha:02X}{rgb}"
 
 
-def _edges(values: tuple[str, str, str, str]) -> float | dict[str, float] | None:
+def normalize_css_color(value: str) -> str | None:
+    """Return the canonical ArkUI color for currently supported CSS syntax."""
+    return _color(value)
+
+
+TRANSPARENT_COLOR = "#00000000"
+
+
+def is_opaque_css_color(value: str) -> bool:
+    """Whether a captured color fully hides whatever is painted behind it."""
+    normalized = _color(value)
+    # ``_color`` emits #RRGGBB when the alpha channel is fully opaque and
+    # #AARRGGBB otherwise.
+    return normalized is not None and len(normalized) == 7
+
+
+def classify_css_color(
+    value: str,
+) -> Literal["transparent", "supported", "unsupported"]:
+    """Classify a captured CSS color without silently treating new syntax as none.
+
+    ArkUI export currently serializes sRGB hex and legacy ``rgb()/rgba()``
+    values. Browsers may preserve modern computed forms such as ``oklch()``;
+    callers must surface those as unsupported instead of dropping the color.
+    """
+    normalized = value.strip().lower()
+    if normalized in {"", "transparent", "rgba(0, 0, 0, 0)"}:
+        return "transparent"
+    match = _RGB_RE.fullmatch(normalized)
+    if match is not None and match.group(4) is not None:
+        try:
+            if float(match.group(4)) == 0:
+                return "transparent"
+        except ValueError:
+            pass
+    return "supported" if _color(value) is not None else "unsupported"
+
+
+def _edges(
+    values: tuple[str, str, str, str],
+    *,
+    keep_zero: bool = False,
+) -> float | dict[str, float] | None:
     parsed = tuple(_px(value) for value in values)
     if any(value is None for value in parsed):
         return None
     numbers = tuple(value for value in parsed if value is not None)
-    if not any(numbers):
+    if not any(numbers) and not keep_zero:
         return None
     if len(set(numbers)) == 1:
         return numbers[0]
     return dict(zip(("top", "right", "bottom", "left"), numbers, strict=True))
 
 
-def _radii(style: BrowserComputedStyle) -> float | dict[str, float] | None:
+def _radii(
+    style: BrowserComputedStyle,
+    *,
+    keep_zero: bool = False,
+) -> float | dict[str, float] | None:
     values = tuple(_px(value) for value in (
         style.border_top_left_radius,
         style.border_top_right_radius,
@@ -284,7 +376,7 @@ def _radii(style: BrowserComputedStyle) -> float | dict[str, float] | None:
     if any(value is None for value in values):
         return None
     numbers = tuple(value for value in values if value is not None)
-    if not any(numbers):
+    if not any(numbers) and not keep_zero:
         return None
     if len(set(numbers)) == 1:
         return numbers[0]
@@ -295,9 +387,24 @@ def _radii(style: BrowserComputedStyle) -> float | dict[str, float] | None:
     ))
 
 
-def _uniform_border(
+_BORDER_EDGE_NAMES = ("top", "right", "bottom", "left")
+_BORDER_STYLE_NAMES = {
+    "solid": "Solid",
+    "dashed": "Dashed",
+    "dotted": "Dotted",
+}
+
+
+def _screen_ir_border(
     style: BrowserComputedStyle,
-) -> tuple[dict[str, object] | None, bool]:
+) -> tuple[dict[str, object] | None, str | None]:
+    """Reduce the four computed CSS borders to one Screen IR border value.
+
+    Uniform borders keep the scalar form; borders that only paint some edges
+    (hairline row separators, underline accents) use the per-edge objects that
+    mirror ArkUI's EdgeWidths/EdgeColors/EdgeStyles. Only a painted edge whose
+    color or line style ArkUI cannot express is reported as lossy.
+    """
     widths = tuple(_px(value) for value in (
         style.border_top_width,
         style.border_right_width,
@@ -310,28 +417,101 @@ def _uniform_border(
         style.border_bottom_color,
         style.border_left_color,
     ))
-    css_styles = tuple(value.lower() for value in (
+    css_styles = tuple(value.strip().lower() for value in (
         style.border_top_style,
         style.border_right_style,
         style.border_bottom_style,
         style.border_left_style,
     ))
     if any(value is None for value in widths):
-        return None, False
-    if not any(value for value in widths if value is not None):
-        return None, False
-    if len(set(widths)) != 1 or len(set(colors)) != 1 or len(set(css_styles)) != 1:
-        return None, True
-    width = widths[0]
-    color = colors[0]
-    border_style = {
-        "solid": "Solid",
-        "dashed": "Dashed",
-        "dotted": "Dotted",
-    }.get(css_styles[0])
-    if width is None or color is None or border_style is None:
-        return None, True
-    return {"width": width, "color": color, "style": border_style}, False
+        return None, None
+    active = tuple(
+        index for index, width in enumerate(widths)
+        if width is not None and width > 0
+    )
+    if not active:
+        return None, None
+    for index in active:
+        if css_styles[index] not in _BORDER_STYLE_NAMES:
+            return None, f"border-style:{css_styles[index] or 'unknown'}"
+        if colors[index] is None:
+            return None, "border-color"
+    edge_widths = {
+        _BORDER_EDGE_NAMES[index]: widths[index] for index in active
+    }
+    edge_colors = {
+        _BORDER_EDGE_NAMES[index]: colors[index] for index in active
+    }
+    edge_styles = {
+        _BORDER_EDGE_NAMES[index]: _BORDER_STYLE_NAMES[css_styles[index]]
+        for index in active
+    }
+    if len(active) == 4 and all(
+        len(set(values.values())) == 1
+        for values in (edge_widths, edge_colors, edge_styles)
+    ):
+        return {
+            "width": widths[active[0]],
+            "color": colors[active[0]],
+            "style": edge_styles[_BORDER_EDGE_NAMES[active[0]]],
+        }, None
+    # Edges the browser painted identically still collapse to one scalar so
+    # the generated ArkTS stays close to what a developer would write.
+    color_values = set(edge_colors.values())
+    style_values = set(edge_styles.values())
+    return {
+        "width": edge_widths,
+        "color": (
+            color_values.pop() if len(color_values) == 1 else edge_colors
+        ),
+        "style": (
+            style_values.pop() if len(style_values) == 1 else edge_styles
+        ),
+    }, None
+
+
+def _single_solid_border(
+    style: BrowserComputedStyle,
+) -> tuple[float, str, Literal["horizontal", "vertical"]] | None:
+    """Return one active solid CSS border suitable for native Divider styles."""
+    raw_widths = (
+        style.border_top_width,
+        style.border_right_width,
+        style.border_bottom_width,
+        style.border_left_width,
+    )
+    widths = tuple(_px(value) for value in raw_widths)
+    if any(value is None for value in widths):
+        return None
+    active = [
+        index for index, width in enumerate(widths)
+        if width is not None and width > 0
+    ]
+    if len(active) != 1:
+        return None
+    index = active[0]
+    colors = (
+        style.border_top_color,
+        style.border_right_color,
+        style.border_bottom_color,
+        style.border_left_color,
+    )
+    css_styles = (
+        style.border_top_style,
+        style.border_right_style,
+        style.border_bottom_style,
+        style.border_left_style,
+    )
+    color = _color(colors[index])
+    if color is None or css_styles[index].strip().lower() != "solid":
+        return None
+    width = widths[index]
+    if width is None:
+        return None
+    axis: Literal["horizontal", "vertical"] = (
+        "horizontal" if index in {0, 2} else "vertical"
+    )
+    return width, color, axis
 
 
 def _font_weight(value: str) -> int | str | None:
@@ -348,6 +528,131 @@ def _font_weight(value: str) -> int | str | None:
     }.get(normalized)
 
 
+_GENERIC_FONT_FAMILIES = frozenset({
+    "serif",
+    "sans-serif",
+    "monospace",
+    "cursive",
+    "fantasy",
+    "system-ui",
+    "ui-serif",
+    "ui-sans-serif",
+    "ui-monospace",
+    "ui-rounded",
+    "math",
+    "emoji",
+    "fangsong",
+})
+
+# Concrete emoji/symbol faces that stacks such as Tailwind's default append
+# after their generic families. They only exist to rasterize emoji code
+# points; picking one as the ArkUI ``fontFamily`` would typeset body text in
+# an emoji font that HarmonyOS devices do not even ship.
+_EMOJI_FALLBACK_FONT_FAMILIES = frozenset({
+    "apple color emoji",
+    "segoe ui emoji",
+    "segoe ui symbol",
+    "noto color emoji",
+    "noto emoji",
+    "android emoji",
+    "emojione",
+    "emojione color",
+    "twemoji mozilla",
+})
+
+
+def _css_font_families(value: str) -> tuple[str, ...]:
+    """Parse the useful subset of a computed CSS font-family list.
+
+    ArkUI's ``fontFamily`` modifier accepts one family, not a serialized CSS
+    fallback list. Computed values can retain quotes around names containing
+    spaces, so split on unquoted commas and remove the CSS quoting before
+    selecting a concrete family.
+    """
+    families: list[str] = []
+    token: list[str] = []
+    quote: str | None = None
+    escaped = False
+    for character in value.strip():
+        if escaped:
+            token.append(character)
+            escaped = False
+            continue
+        if character == "\\":
+            escaped = True
+            continue
+        if quote is not None:
+            if character == quote:
+                quote = None
+            else:
+                token.append(character)
+            continue
+        if character in {"'", '"'}:
+            quote = character
+        elif character == ",":
+            family = "".join(token).strip()
+            if family:
+                families.append(family)
+            token = []
+        else:
+            token.append(character)
+    if escaped:
+        token.append("\\")
+    # An unterminated quote is malformed and must not become an ArkUI family.
+    if quote is not None:
+        return ()
+    family = "".join(token).strip()
+    if family:
+        families.append(family)
+    return tuple(families)
+
+
+def _font_family(value: str) -> str | None:
+    for family in _css_font_families(value):
+        normalized = family.casefold()
+        if normalized in _GENERIC_FONT_FAMILIES:
+            continue
+        if normalized in _EMOJI_FALLBACK_FONT_FAMILIES:
+            continue
+        if normalized in {"inherit", "initial", "revert", "revert-layer", "unset"}:
+            continue
+        if len(family) <= 200 and not any(ord(character) < 32 for character in family):
+            return family
+    # Let ArkUI use its native default when CSS only supplies generic or
+    # emoji-fallback families.
+    return None
+
+
+def _finite_css_number(value: str) -> float | None:
+    try:
+        parsed = float(value.strip())
+    except ValueError:
+        return None
+    if not math.isfinite(parsed) or abs(parsed) > 100_000:
+        return None
+    if abs(parsed) < 0.0001:
+        return 0.0
+    return round(parsed, 4)
+
+
+def _is_zero_flex_basis(value: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized.endswith("px"):
+        parsed = _px(normalized)
+        return parsed == 0
+    if normalized.endswith("%"):
+        parsed = _finite_css_number(normalized[:-1])
+        return parsed == 0
+    return False
+
+
+def _has_compatible_flex_shrink(value: str) -> bool:
+    parsed = _finite_css_number(value)
+    # CSS flex: 1 uses shrink=1. A zero basis also makes shrink=0 safe because
+    # there is no positive flex base to remove before distributing free space.
+    return parsed in {0, 1}
+
+
 def _alignment(value: str) -> str | None:
     return {
         "flex-start": "Start",
@@ -356,6 +661,14 @@ def _alignment(value: str) -> str | None:
         "flex-end": "End",
         "end": "End",
     }.get(value.strip().lower())
+
+
+# Alignments equivalent to ArkUI List/Grid's only behaviour: entries pack
+# from the main-axis start and the generated ListItem/GridItem stretches
+# across the cross axis. Anything else moves content on device.
+_PACKED_START_ALIGNMENTS = frozenset({
+    "", "normal", "start", "flex-start", "stretch",
+})
 
 
 def _text_alignment(value: str) -> str | None:
@@ -399,11 +712,118 @@ def _has_intrinsic_single_line_width(snapshot: BrowserNodeSnapshot) -> bool:
     )
 
 
+def _track_size(value: float) -> str:
+    rounded = round(value, 4)
+    if rounded == int(rounded):
+        return str(int(rounded))
+    return f"{rounded:.4f}".rstrip("0").rstrip(".")
+
+
+def _grid_track_template(
+    value: str,
+    *,
+    available: float | None,
+    gap: float,
+) -> str | None:
+    """Freeze used grid tracks (``"96px 240px"``) into an ArkUI template.
+
+    ``getComputedStyle`` reports used track sizes, so authored ``fr``
+    fractions are already resolved to pixels. Equal tracks round-trip
+    losslessly through one ``1fr`` per track — but only while they fill the
+    container's content box: ArkUI distributes fractions across the whole
+    axis, so tracks the browser left short (``100px 100px`` in a wider grid)
+    would silently stretch. Those, and unequal tracks, are frozen as the
+    exact vp sizes the browser rendered.
+    """
+    tokens = value.strip().split()
+    if not tokens:
+        return None
+    tracks = []
+    for token in tokens:
+        parsed = _px(token)
+        if parsed is None or parsed < 0:
+            return None
+        tracks.append(parsed)
+    if (
+        available is not None
+        and tracks[0] > 0
+        and all(
+            math.isclose(track, tracks[0], rel_tol=0, abs_tol=0.05)
+            for track in tracks
+        )
+        and math.isclose(
+            sum(tracks) + gap * (len(tracks) - 1),
+            available,
+            rel_tol=0,
+            abs_tol=1,
+        )
+    ):
+        return " ".join(["1fr"] * len(tracks))
+    return " ".join(f"{_track_size(track)}vp" for track in tracks)
+
+
+def _content_box_size(
+    snapshot: BrowserNodeSnapshot,
+) -> tuple[float | None, float | None]:
+    """Return the CSS content-box size behind a captured border-box bbox."""
+    style = snapshot.computed
+    horizontal = tuple(_px(value) for value in (
+        style.padding_left, style.padding_right,
+        style.border_left_width, style.border_right_width,
+    ))
+    vertical = tuple(_px(value) for value in (
+        style.padding_top, style.padding_bottom,
+        style.border_top_width, style.border_bottom_width,
+    ))
+    width = (
+        max(0.0, snapshot.bbox[2] - sum(
+            inset for inset in horizontal if inset is not None
+        ))
+        if all(inset is not None for inset in horizontal) else None
+    )
+    height = (
+        max(0.0, snapshot.bbox[3] - sum(
+            inset for inset in vertical if inset is not None
+        ))
+        if all(inset is not None for inset in vertical) else None
+    )
+    return width, height
+
+
+def browser_main_axis(
+    snapshot: BrowserNodeSnapshot,
+) -> Literal["row", "column"] | None:
+    """Return the axis the browser laid this container's children along.
+
+    Row/Column metadata is the model's claim about a node; the computed layout
+    is the evidence. ``None`` marks a display mode ArkUI's single-axis
+    containers cannot express at all, such as ``row-reverse`` or ``grid``.
+    """
+    display = snapshot.computed.display.strip().lower()
+    if display in {"flex", "inline-flex"}:
+        direction = snapshot.computed.flex_direction.strip().lower()
+        # Reversed and unknown directions are not a plain Row/Column.
+        if direction == "row":
+            return "row"
+        if direction == "column":
+            return "column"
+        return None
+    if display in _NORMAL_FLOW_DISPLAYS:
+        # Normal flow stacks block-level children top to bottom, which is
+        # exactly what a Column or a vertical List does.
+        return "column"
+    return None
+
+
 def screen_ir_styles(
     component_name: str,
     snapshot: BrowserNodeSnapshot,
     *,
     background_image_source: str | None = None,
+    parent_direction: Literal["row", "column"] | None = None,
+    flex_item_parent_verified: bool = False,
+    flex_container_scrolls_main_axis: bool = False,
+    button_renders_direct_label: bool = False,
 ) -> tuple[dict[str, object], tuple[str, ...]]:
     """Map only CSS values with a direct Screen IR v2 representation."""
     style = snapshot.computed
@@ -421,10 +841,47 @@ def screen_ir_styles(
             result["width"] = round(snapshot.bbox[2], 4)
         if snapshot.bbox[3] > 0:
             result["height"] = round(snapshot.bbox[3], 4)
+        flex_grow = _finite_css_number(style.flex_grow)
+        if style.flex_grow.strip() and (flex_grow is None or flex_grow < 0):
+            lossy.append(f"flex-grow:{style.flex_grow}")
+        elif flex_grow is not None and flex_grow > 0:
+            if not _is_zero_flex_basis(style.flex_basis):
+                lossy.append(f"flex-basis:{style.flex_basis or 'unknown'}")
+            elif not _has_compatible_flex_shrink(style.flex_shrink):
+                lossy.append(f"flex-shrink:{style.flex_shrink or 'unknown'}")
+            elif style.position.strip().lower() in {"absolute", "fixed"}:
+                lossy.append(
+                    "flex-grow:out-of-flow-position:"
+                    f"{style.position.strip().lower()}"
+                )
+            elif parent_direction is None or not flex_item_parent_verified:
+                lossy.append("flex-grow:unverified-flex-item")
+            elif flex_container_scrolls_main_axis:
+                # CSS floors a flexed item at its min-content size, so inside
+                # a scroll area tall content still grows the scroll range.
+                # ArkUI layoutWeight has no such floor: against a scroll
+                # container it anchors the child to the viewport, collapsing
+                # the page to exactly one screen and killing the scroll.
+                # constraintSize carries both claims instead: the minimum
+                # still fills a short viewport while taller content keeps
+                # the frozen height and scrolls past it.
+                result["minHeight"] = "100%"
+            else:
+                result["layoutWeight"] = flex_grow
+                # The browser's flexed main-axis bbox is an outcome, not an
+                # authored constraint. Keeping it together with layoutWeight
+                # would make ArkUI add that size before distributing free room.
+                result.pop(
+                    "width" if parent_direction == "row" else "height", None
+                )
+        # ArkUI gives Button its own padding, corner radius and fill, so for
+        # that component alone "zero" and "unspecified" are different claims
+        # and every one of them has to be stated.
+        states_platform_defaults = component_name == "Button"
         padding = _edges((
             style.padding_top, style.padding_right,
             style.padding_bottom, style.padding_left,
-        ))
+        ), keep_zero=states_platform_defaults)
         margin = _edges((
             style.margin_top, style.margin_right,
             style.margin_bottom, style.margin_left,
@@ -436,12 +893,25 @@ def screen_ir_styles(
         background_color = _color(style.background_color)
         if background_color is not None:
             result["backgroundColor"] = background_color
-        border, border_lossy = _uniform_border(style)
-        if border is not None:
-            result["border"] = border
-        if border_lossy:
-            lossy.append("non-uniform-border")
-        radii = _radii(style)
+        elif classify_css_color(style.background_color) == "unsupported":
+            lossy.append(f"background-color:{style.background_color}")
+        elif states_platform_defaults:
+            result["backgroundColor"] = TRANSPARENT_COLOR
+        divider_border = (
+            _single_solid_border(style) if component_name == "Divider" else None
+        )
+        if divider_border is not None:
+            border_width, border_color, border_axis = divider_border
+            result["dividerColor"] = border_color
+            result["dividerStrokeWidth"] = border_width
+            result["dividerVertical"] = border_axis == "vertical"
+        else:
+            border, border_lossy = _screen_ir_border(style)
+            if border is not None:
+                result["border"] = border
+            if border_lossy is not None:
+                lossy.append(border_lossy)
+        radii = _radii(style, keep_zero=states_platform_defaults)
         if radii is not None:
             result["borderRadius"] = radii
         try:
@@ -463,17 +933,76 @@ def screen_ir_styles(
         elif style.position in {"fixed", "sticky"}:
             lossy.append(f"position:{style.position}")
 
-    if component_name in {"Row", "Column"}:
-        gap_value = style.column_gap if component_name == "Row" else style.row_gap
-        gap = _px(gap_value)
+    if component_name == "List":
+        # A Row or Column names its axis; a List carries it in listDirection
+        # and ArkUI defaults that to Vertical. The frozen bbox cannot recover
+        # the axis once the items have been stacked the other way, so the
+        # browser's own main axis has to be exported.
+        # A layout with no ArkUI axis is reported with node context by the
+        # Screen IR adapter, exactly like a Row/Column metadata conflict.
+        main_axis = browser_main_axis(snapshot)
+        if main_axis is not None:
+            result["listDirection"] = (
+                "Horizontal" if main_axis == "row" else "Vertical"
+            )
+
+    if component_name in {"Row", "Column", "List"}:
+        # ArkUI distributes `space` along the container's main axis, which for
+        # a List is whichever axis listDirection selected.
+        main_axis_is_row = (
+            component_name == "Row"
+            or result.get("listDirection") == "Horizontal"
+        )
+        gap = _px(style.column_gap if main_axis_is_row else style.row_gap)
         if gap is not None and gap > 0:
             result["space"] = gap
+
+    if component_name == "Grid":
+        columns_gap = _px(style.column_gap)
+        rows_gap = _px(style.row_gap)
+        content_width, content_height = _content_box_size(snapshot)
+        for css_name, css_value, style_key, available, gap in (
+            (
+                "grid-template-columns", style.grid_template_columns,
+                "columnsTemplate", content_width, columns_gap,
+            ),
+            (
+                "grid-template-rows", style.grid_template_rows,
+                "rowsTemplate", content_height, rows_gap,
+            ),
+        ):
+            if css_value.strip().lower() in {"", "none"}:
+                # No explicit axis template: ArkUI auto-sizes the implicit
+                # tracks the same way the browser did, so nothing to state.
+                continue
+            template = _grid_track_template(
+                css_value, available=available, gap=gap or 0.0,
+            )
+            if template is not None:
+                result[style_key] = template
+            else:
+                lossy.append(f"{css_name}:{css_value}")
+        if columns_gap is not None and columns_gap > 0:
+            result["columnsGap"] = columns_gap
+        if rows_gap is not None and rows_gap > 0:
+            result["rowsGap"] = rows_gap
+
+    if component_name in {"Row", "Column"}:
         justify = {
             "normal": "Start",
             "space-between": "SpaceBetween",
             "space-around": "SpaceAround",
         }.get(style.justify_content, _alignment(style.justify_content))
-        align = _alignment(style.align_items)
+        # Computed ``normal`` behaves as ``stretch`` on a flex container:
+        # auto-sized items fill the cross axis and definite-sized items sit at
+        # its start. Every exported box carries its frozen browser size, so
+        # stretched items already span the container and Start reproduces the
+        # rendered placement exactly (omitting alignItems would not: ArkUI
+        # centers the cross axis by default).
+        align = {
+            "normal": "Start",
+            "stretch": "Start",
+        }.get(style.align_items, _alignment(style.align_items))
         if justify is not None:
             result["justifyContent"] = justify
         if align is not None:
@@ -482,11 +1011,24 @@ def screen_ir_styles(
             lossy.append(f"align-items:{style.align_items}")
         if justify is None and style.justify_content:
             lossy.append(f"justify-content:{style.justify_content}")
-        expected_direction = "row" if component_name == "Row" else "column"
-        if style.display not in {"flex", "inline-flex"}:
-            lossy.append(f"display:{style.display or 'unknown'}")
-        elif style.flex_direction != expected_direction:
-            lossy.append(f"flex-direction:{style.flex_direction or 'unknown'}")
+        # Row/Column metadata conflicts are blocking structural errors. The
+        # Screen IR adapter validates them with node context before rendering;
+        # they are deliberately not downgraded to lossy style warnings here.
+
+    if component_name in {"List", "Grid"}:
+        # ArkUI's List and Grid expose no justifyContent/alignItems modifiers,
+        # so a browser distribution such as ``justify-content: center`` cannot
+        # be reproduced: on device the entries pack from the start. Report the
+        # difference instead of silently repositioning content. This stays
+        # deliberately conservative: a distribution that happens to have no
+        # visible effect (tracks or items already filling the axis) is still
+        # reported, because the frozen geometry cannot prove that.
+        for css_name, css_value in (
+            ("justify-content", style.justify_content),
+            ("align-items", style.align_items),
+        ):
+            if css_value.strip().lower() not in _PACKED_START_ALIGNMENTS:
+                lossy.append(f"{css_name}:{css_value}")
 
     if component_name in {"Text", "Span", "Button", "SymbolGlyph"}:
         font_size = _px(style.font_size)
@@ -496,10 +1038,14 @@ def screen_ir_styles(
             result["fontSize"] = font_size
         if font_color is not None:
             result["fontColor"] = font_color
+        elif classify_css_color(style.color) == "unsupported":
+            lossy.append(f"color:{style.color}")
         if font_weight is not None:
             result["fontWeight"] = font_weight
         if component_name != "SymbolGlyph" and style.font_family:
-            result["fontFamily"] = style.font_family
+            font_family = _font_family(style.font_family)
+            if font_family is not None:
+                result["fontFamily"] = font_family
 
     if component_name == "Text":
         line_height = _px(style.line_height)
@@ -508,10 +1054,13 @@ def screen_ir_styles(
             result["lineHeight"] = line_height
         if text_align is not None:
             result["textAlign"] = text_align
-    elif component_name == "Button":
+    elif component_name == "Button" and button_renders_direct_label:
         # API 22 ButtonAttribute exposes font properties, but not Text's
         # lineHeight/textAlign modifiers. Center is the native Button default;
         # other alignments and explicit CSS line boxes cannot be preserved.
+        # Both properties only affect a label the Button itself renders: on a
+        # button whose content is component children, CSS line-height and
+        # text-align never reached the layout in the browser either.
         if style.line_height not in {"", "normal"}:
             lossy.append("button-line-height")
         if style.text_align not in {"", "center"}:
@@ -542,19 +1091,68 @@ def screen_ir_styles(
         lossy.append("backdrop-filter")
     if style.clip_path and style.clip_path != "none":
         lossy.append("clip-path")
-    if style.letter_spacing not in {"", "normal", "0px"}:
+    letter_spacing = _px(style.letter_spacing)
+    if component_name in {"Text", "Span"}:
+        if letter_spacing is not None and letter_spacing != 0:
+            result["letterSpacing"] = letter_spacing
+        elif letter_spacing is None and style.letter_spacing not in {"", "normal"}:
+            lossy.append("letter-spacing")
+    elif (
+        component_name == "Button"
+        and button_renders_direct_label
+        and style.letter_spacing not in {"", "normal"}
+        and letter_spacing != 0
+    ):
+        # ButtonAttribute has no letterSpacing modifier, so a tracked-out
+        # direct label cannot be reproduced. On every other component the
+        # computed value styles no text of its own: annotated Text/Span
+        # descendants inherit and export it themselves.
         lossy.append("letter-spacing")
     if style.text_decoration_line not in {"", "none"}:
         lossy.append("text-decoration")
-    if style.text_transform not in {"", "none"}:
+    if style.text_transform.strip().lower() not in {
+        "", "none", "uppercase", "lowercase",
+    }:
+        # uppercase/lowercase are baked into the exported text content by the
+        # Screen IR adapter; only transforms plain casing cannot reproduce
+        # (capitalize, full-width, ...) remain lossy.
         lossy.append("text-transform")
     if style.font_style not in {"", "normal"}:
         lossy.append("font-style")
-    if style.white_space not in {"", "normal"}:
+    line_clamp = style.webkit_line_clamp.strip().lower()
+    clamp_lines: int | None = None
+    if line_clamp not in {"", "none", "auto"}:
+        clamp_value = _finite_css_number(line_clamp)
+        if (
+            clamp_value is not None
+            and clamp_value >= 1
+            and clamp_value == int(clamp_value)
+        ):
+            clamp_lines = int(clamp_value)
+    is_nowrap = style.white_space.strip().lower() == "nowrap"
+    is_ellipsis = style.text_overflow.strip().lower() == "ellipsis"
+    if component_name == "Text":
+        max_lines = 1 if is_nowrap else clamp_lines
+        if max_lines is not None:
+            result["maxLines"] = max_lines
+            # -webkit-line-clamp always truncates with an ellipsis in the
+            # browser; bare nowrap clips, which is also ArkUI's default.
+            if clamp_lines is not None or is_ellipsis:
+                result["textOverflow"] = "Ellipsis"
+        # ellipsis without a line limit paints nothing in the browser either,
+        # so it is not a loss.
+    text_maps_line_limits = component_name == "Text"
+    if style.white_space not in {"", "normal"} and not (
+        text_maps_line_limits and is_nowrap
+    ):
         lossy.append(f"white-space:{style.white_space}")
-    if style.text_overflow not in {"", "clip"}:
+    if style.text_overflow not in {"", "clip"} and not (
+        text_maps_line_limits and is_ellipsis
+    ):
         lossy.append(f"text-overflow:{style.text_overflow}")
-    if style.webkit_line_clamp not in {"", "none", "auto"}:
+    if line_clamp not in {"", "none", "auto"} and not (
+        text_maps_line_limits and clamp_lines is not None
+    ):
         lossy.append("line-clamp")
     if style.pseudo_before_content not in {"", "none", "normal", '""'}:
         lossy.append("pseudo-element:before")
@@ -571,5 +1169,8 @@ __all__ = [
     "BrowserSnapshot",
     "MAX_BROWSER_ASSET_BYTES",
     "MAX_BROWSER_ASSET_TOTAL_BYTES",
+    "classify_css_color",
+    "is_opaque_css_color",
+    "normalize_css_color",
     "screen_ir_styles",
 ]

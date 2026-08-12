@@ -9,8 +9,14 @@ from __future__ import annotations
 from langchain_core.prompts import ChatPromptTemplate
 
 from uibench.arkui import MOBILE_ARKUI_METADATA_INSTRUCTIONS
+from uibench.arkui.symbols import pinned_lucide_version
 from uibench.design_tokens import MOBILE_TOKEN_INSTRUCTIONS
 from uibench.pc import PC_GENERATION_PROMPT
+
+# The icon vocabulary is audited against one frozen Lucide catalogue, so the
+# pages must load exactly that version instead of whatever `latest` means on
+# the day the page is rendered.
+_LUCIDE_CDN_VERSION = pinned_lucide_version()
 
 SYSTEM_MOBILE_BASE = """你是一位拥有 10 年以上经验的资深 UI/UX 前端专家，精通移动端界面设计、
 视觉系统、组件库与可访问性。你的目标是：根据用户的一句话需求，产出一份
@@ -22,7 +28,7 @@ SYSTEM_MOBILE_BASE = """你是一位拥有 10 年以上经验的资深 UI/UX 前
    <script src="https://cdn.tailwindcss.com"></script>
    如需自定义颜色/断点，可用 <script>tailwind.config = {{...}}</script>。
 3. 图标全部使用 Lucide。在 <head> 中引入：
-   <script src="https://unpkg.com/lucide@latest"></script>
+   <script src="https://unpkg.com/lucide@__LUCIDE_VERSION__"></script>
    用 <i data-lucide="图标名"></i> 插入图标，用 Tailwind 类控制大小与颜色
    （如 class="w-5 h-5" 放在 <i> 上）。在 </body> 之前加一行：
    <script>lucide.createIcons()</script>
@@ -35,8 +41,7 @@ SYSTEM_MOBILE_BASE = """你是一位拥有 10 年以上经验的资深 UI/UX 前
    Banner 及主要可见卡片分别提交语义明确的 slot/query（通常 4–6 个，禁止只搜一个
    笼统的页面级关键词）。只能使用工具返回的 `urls.small` 或 `urls.regular`，
    绝不得自行编造图片 URL。工具返回的每张图片都带有 `slot`；必须把图片用于对应槽位，已有
-   合适返回图片的商品卡不得再使用图标或空色块代替。使用图片时，在页面中加入
-   可见且可点击的 `Photo by <photographer> on Unsplash` 署名，链接使用工具返回值。
+   合适返回图片的商品卡不得再使用图标或空色块代替。
    如果工具未提供、未调用或没有合适结果，不得使用任何远程图片；改用受
    Design Token 控制的纯色块或内联 SVG（非图标用途，颜色不得写死）。
    除上述资源外，不得引入其他 CDN、远程 CSS、远程图片或远程字体。
@@ -51,7 +56,7 @@ SYSTEM_MOBILE_BASE = """你是一位拥有 10 年以上经验的资深 UI/UX 前
    “更完整”而臆造需求之外的模块。不确定要不要加的，就不加。
 9. 视口按移动端 ~390px 宽设计，用 Tailwind 的响应式类自适应不同手机屏幕。
 10. 字体使用系统字体栈（在 Tailwind 中以 font-sans 配置即可）。
-""" + MOBILE_TOKEN_INSTRUCTIONS
+""".replace("__LUCIDE_VERSION__", _LUCIDE_CDN_VERSION) + MOBILE_TOKEN_INSTRUCTIONS
 
 SYSTEM_MOBILE_DESIGN_REQUIREMENTS = """
 

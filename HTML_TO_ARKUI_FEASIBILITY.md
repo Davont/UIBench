@@ -330,6 +330,11 @@ UIBench 当前移动端生成协议要求：
 - 可选事件语义，例如 `navigate`、`submit`、`select-tab`。
 - 转换置信信息和 fallback 策略。
 
+现状注记：稳定 ID 已由 `data-node-id` 全链路落实；「来源 DOM 路径」尚未实现——
+Screen IR 契约的 `meta.htmlPath` 是可选字段，UIBench 当前只输出 `nodeId`、
+`htmlTag` 与 `bbox`，manifest 记录 `tag` 与 `parentNodeId`。单槽包裹等生成节点
+（`<id>:item`、`<id>:content`）没有 DOM 来源，只有稳定 nodeId。
+
 ### 6.3 ArkUI Mapper
 
 建议提供两种输出策略。
@@ -412,9 +417,14 @@ UIBench 当前移动端生成协议要求：
 可映射的系统/自定义 Symbol 图标
     → SymbolGlyph
 
-摄影图片、商品图片、品牌 Logo 或无 Symbol 映射的图标
+摄影图片、商品图片、品牌 Logo
     → Image
 ```
+
+无鸿蒙对应资源的图标不回退为 `Image`：图标节点没有现成的图片资源，回退到
+`Image` 会因缺少 `src` 阻断导出。实际导出策略是先查经人工核对的近似字形表，
+命中则替换为近似 Symbol 并记 `ARKUI_SYMBOL_APPROXIMATED` 警告；仍无命中则退化
+为等大的空占位（`column`）并记 `ARKUI_SYMBOL_UNAVAILABLE` 警告，布局不变。
 
 `Scroll` 不是 `Column` 的替代品，而是为一个实际布局容器增加滚动能力；
 `SymbolGlyph` 是叶子显示组件，不是布局容器。
@@ -489,6 +499,14 @@ HTML 标签无法覆盖的集合/布局语义，不应覆盖与原生标签明�
 5. DOM 重复模式和布局启发式推断
 6. 无法识别时退化为 Column/Row/Stack，并输出诊断
 ```
+
+第 1 条声明的是组件类型；当浏览器实测布局能唯一确定与声明不同的结果时，导出按
+证据落地并产生 notice 级诊断，而不是把责任推回 Prompt：`row` / `column` 按
+computed `display` 与 `flex-direction` 落成实际方向
+（`UIBENCH_ARKUI_LAYOUT_FOLLOWS_BROWSER`），`list` / `grid` 的裸组件子项被包进
+生成的 `ListItem` / `GridItem`（`ARKUI_LIST_CHILD_WRAPPED_AS_ITEM` /
+`ARKUI_GRID_CHILD_WRAPPED_AS_ITEM`）。完整的偏差与诊断档位表见
+`uibench/arkui/README.md`。
 
 对旧 HTML，缺少元数据只产生覆盖率提示，不影响浏览器预览；对新生成 HTML，以下情况应
 产生确定性诊断：
@@ -665,10 +683,10 @@ Lucide 当前依赖脚本生成 SVG，需要转换为 Symbol、本地 SVG/PNG �
 
 | 工作项 | 状态 | 当前结果 |
 | --- | --- | --- |
-| ArkUI 组件注册表 | 已完成 | UIBench 保留 35 个规划标注 key；另锁定 `html-to-arkui` contract v2，只开放其真实支持的 10 个组件 |
+| ArkUI 组件注册表 | 已完成 | UIBench 保留 35 个规划标注 key；另锁定 `html-to-arkui` contract v2，只开放其真实支持的 14 个组件 |
 | HTML 组件元数据协议 | 已完成 | 支持 `data-node-id`、`data-component`、`data-ui-role`、集合、动作和规范 Symbol 元数据 |
 | 元数据解析与校验 | 已完成 | 可识别显式标注和原生 HTML 控件，诊断重复 ID、未知/未支持组件、标签冲突、必填字段及父子约束 |
-| UIBench 生成提示词接入 | 已完成 | ArkUI 元数据改为显式开关；Prompt 只允许当前渲染器支持的 10 个组件 |
+| UIBench 生成提示词接入 | 已完成 | ArkUI 元数据改为显式开关；Prompt 只允许当前渲染器支持的 14 个组件 |
 | Manifest 持久化 | 已完成 | 使用 `uibench-component-manifest`/`manifestVersion` 与 Screen IR 版本明确分层，并保存覆盖率、就绪状态和诊断 |
 | Screen IR v2 适配器 | 已完成 | UIBench 标注可转换为标准 `schemaVersion: 2` 的组件树、文本、图片和 Symbol props |
 | Node 导出桥与 API | 已完成 | `POST /api/arkui/export` 支持 annotated 结构导出与 generic best-effort 兜底，可输出 ArkTS |
