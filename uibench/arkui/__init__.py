@@ -15,6 +15,7 @@ from uibench.arkui.metadata import (
     ComponentMetadataReport,
     ComponentNode,
     analyze_component_metadata,
+    repair_missing_component_node_ids,
 )
 from uibench.arkui.screen_ir import (
     ScreenIrAdapterDiagnostic,
@@ -83,6 +84,9 @@ MOBILE_ARKUI_METADATA_INSTRUCTIONS = f"""
   错误 <div data-component="row"><span data-component="span">已开启</span></div>
   正确 <div data-component="row"><span data-component="text">已开启</span></div>
   正确 <p data-component="text">共 <span data-component="span">3</span> 台设备</p>
+- `text` 的已标注直接子组件只能是 `span`。图标和文字并排时，外层必须标为 row，并实际
+  使用 `flex flex-row`；`symbol` 和独立的 `text` 作为它的同级子节点，不能把 `symbol`
+  直接放进 `text`。
 - 状态圆点、色块、装饰条这类没有文字的元素一律不要标成 span，改标 column 或 stack。
 - image 只能用在带非空 `src` 的真实 `<img>` 上，并保留 alt。没有真实图片的头像位、占位块
   不要标成 image，改用 column/stack 加背景色表达。
@@ -135,6 +139,7 @@ __all__ = [
     "load_symbol_registry",
     "lucide_symbol_table",
     "normalize_page_name",
+    "repair_missing_component_node_ids",
     "resolve_symbol",
     "validate_component_registry",
     "validate_renderer_contract",

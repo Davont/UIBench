@@ -13,6 +13,7 @@ from uibench.arkui import (
     build_screen_ir,
     load_component_registry,
     load_renderer_contract,
+    repair_missing_component_node_ids,
     validate_component_registry,
 )
 from uibench.prompts import SYSTEM_MOBILE, prompt_for
@@ -400,6 +401,7 @@ def test_mobile_prompt_includes_arkui_metadata_contract() -> None:
     # The icon mapping lives in the engine, not in the contract.
     assert "不需要写 `data-symbol`" in SYSTEM_MOBILE
     assert "sys.symbol." not in SYSTEM_MOBILE.split("Lucide `<i>` 标为", 1)[1]
+    assert "图标和文字并排时，外层必须标为 row" in SYSTEM_MOBILE
     assert "不要因为 HTML 标签恰好叫 `<span>` 就标成" in SYSTEM_MOBILE
     assert "必须实际使用 `flex flex-col`" in SYSTEM_MOBILE
     assert "DOM 直接父节点必须就是组件元数据中的父节点" in SYSTEM_MOBILE
@@ -478,6 +480,101 @@ def test_span_inside_text_keeps_its_rich_text_meaning() -> None:
     assert report.export_readiness == "ready"
     assert "ARKUI_SPAN_PROMOTED_TO_TEXT" not in _codes(report)
     assert report.component_counts == {"column": 1, "span": 1, "text": 1}
+
+
+def test_text_with_symbol_is_deferred_to_the_layout_adapter() -> None:
+    report = analyze_component_metadata("""
+    <div data-node-id="page" data-component="column" class="flex flex-col">
+      <div data-node-id="page.duration" data-component="text"
+           class="flex flex-row items-center gap-1">
+        <i data-node-id="page.duration.icon" data-component="symbol"
+           data-lucide="clock"></i>
+        45 分钟
+      </div>
+    </div>
+    """)
+
+    assert not report.errors
+    assert not report.warnings
+    assert report.export_readiness == "ready"
+    assert "ARKUI_COMPONENT_CHILD_INVALID" not in _codes(report)
+    assert [item.code for item in report.notices] == [
+        "ARKUI_TEXT_SYMBOL_LAYOUT_ADAPTED",
+    ]
+
+
+def test_button_only_text_child_gets_a_stable_generated_node_id() -> None:
+    html = """
+    <div data-node-id="page" data-component="column">
+      <button data-node-id="page.more" data-component="button">
+        <span class="label" data-component="text">查看全部</span>
+      </button>
+    </div>
+    """
+
+    repaired = repair_missing_component_node_ids(html)
+    report = analyze_component_metadata(repaired)
+
+    assert 'data-node-id="page.more.label"' in repaired
+    assert 'data-uibench-generated-node-id="button-label"' in repaired
+    assert not report.errors
+    assert not report.warnings
+    assert report.export_readiness == "ready"
+    assert [item.code for item in report.notices] == [
+        "ARKUI_NODE_ID_GENERATED",
+    ]
+    assert repair_missing_component_node_ids(repaired) == repaired
+
+
+def test_missing_node_id_repair_avoids_collisions() -> None:
+    repaired = repair_missing_component_node_ids("""
+    <div data-node-id="page" data-component="column">
+      <span data-node-id="page.more.label" data-component="text">已占用</span>
+      <button data-node-id="page.more" data-component="button">
+        <span data-component="text">查看全部</span>
+      </button>
+    </div>
+    """)
+
+    assert 'data-node-id="page.more.label-2"' in repaired
+
+
+def test_ambiguous_button_children_keep_missing_node_id_error() -> None:
+    html = """
+    <div data-node-id="page" data-component="column">
+      <button data-node-id="page.more" data-component="button">
+        <i data-node-id="page.more.icon" data-component="symbol"
+           data-lucide="chevron-right"></i>
+        <span data-component="text">查看全部</span>
+      </button>
+    </div>
+    """
+
+    repaired = repair_missing_component_node_ids(html)
+    report = analyze_component_metadata(repaired)
+
+    assert repaired == html
+    assert "ARKUI_NODE_ID_MISSING" in _codes(report)
+    assert "ARKUI_NODE_ID_GENERATED" not in _codes(report)
+    assert report.export_readiness == "blocked"
+
+
+def test_unannotated_button_sibling_keeps_missing_node_id_error() -> None:
+    html = """
+    <div data-node-id="page" data-component="column">
+      <button data-node-id="page.more" data-component="button">
+        <b>NEW</b>
+        <span data-component="text">查看全部</span>
+      </button>
+    </div>
+    """
+
+    repaired = repair_missing_component_node_ids(html)
+
+    assert repaired == html
+    assert "ARKUI_NODE_ID_MISSING" in _codes(
+        analyze_component_metadata(repaired)
+    )
 
 
 def test_empty_span_inside_text_still_blocks_export() -> None:

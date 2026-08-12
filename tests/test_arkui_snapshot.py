@@ -606,6 +606,116 @@ def test_required_full_snapshot_produces_ready_screen_ir_and_arkts() -> None:
     assert ".backgroundColor(\"#0A59F7\")" in result["arkTs"]
 
 
+MIXED_TEXT_HTML = """<main data-node-id="page" data-component="column">
+  <div data-node-id="page.duration" data-component="text">
+    <i data-node-id="page.duration.icon" data-component="symbol"
+       data-lucide="clock"></i>
+    45 分钟
+  </div>
+</main>"""
+
+
+def _mixed_text_snapshot(
+    *, display: str = "flex", flex_direction: str = "row"
+) -> BrowserSnapshot:
+    nodes = [
+        _node("page", "main", [0, 0, 390, 844], {
+            "display": "flex",
+            "flexDirection": "column",
+            "width": "390px",
+            "height": "844px",
+            "backgroundColor": "rgb(255, 255, 255)",
+        }),
+        _node("page.duration", "div", [16, 16, 120, 24], {
+            "display": display,
+            "flexDirection": flex_direction,
+            "width": "120px",
+            "height": "24px",
+            "columnGap": "4px",
+            "alignItems": "center",
+            "color": "rgb(17, 24, 39)",
+            "fontSize": "14px",
+            "fontWeight": "500",
+            "lineHeight": "20px",
+        }),
+        _node("page.duration.icon", "i", [16, 18, 20, 20], {
+            "display": "block",
+            "width": "20px",
+            "height": "20px",
+            "color": "rgb(17, 24, 39)",
+            "fontSize": "20px",
+        }),
+    ]
+    nodes[1]["directParentNodeId"] = "page"
+    nodes[1]["isFlexItem"] = True
+    nodes[2]["directParentNodeId"] = "page.duration"
+    nodes[2]["isFlexItem"] = True
+    return BrowserSnapshot.model_validate({
+        "snapshotVersion": 1,
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "theme": "light",
+        "tokenTheme": "harmonyos",
+        "canvasBackgroundColor": "rgb(255, 255, 255)",
+        "canvasBackgroundImage": "none",
+        "nodes": nodes,
+    })
+
+
+def test_text_with_symbol_uses_verified_flex_row_and_generated_text() -> None:
+    built = build_screen_ir(
+        analyze_component_metadata(MIXED_TEXT_HTML),
+        snapshot=_mixed_text_snapshot(),
+    )
+
+    assert built.readiness == "ready"
+    assert built.screen_ir is not None
+    duration = built.screen_ir["ui"]["children"][0]
+    assert duration["componentName"] == "Row"
+    assert "content" not in duration
+    assert [child["componentName"] for child in duration["children"]] == [
+        "SymbolGlyph", "Text",
+    ]
+    label = duration["children"][1]
+    assert label["content"] == "45 分钟"
+    assert label["styles"] == {
+        "fontSize": 14,
+        "fontColor": "#111827",
+        "fontWeight": 500,
+        "lineHeight": 20,
+    }
+
+
+def test_text_with_symbol_blocks_when_layout_is_not_flex() -> None:
+    built = build_screen_ir(
+        analyze_component_metadata(MIXED_TEXT_HTML),
+        snapshot=_mixed_text_snapshot(display="block", flex_direction=""),
+    )
+
+    assert built.readiness == "blocked"
+    assert built.screen_ir is None
+    assert "UIBENCH_TEXT_SYMBOL_LAYOUT_CONFLICT" in {
+        item.code for item in built.diagnostics
+    }
+
+
+def test_text_with_symbol_repair_passes_renderer_contract() -> None:
+    result = export_annotated_html(
+        MIXED_TEXT_HTML,
+        page_name="MixedTextPage",
+        snapshot=_mixed_text_snapshot(),
+    )
+
+    assert result["quality"]["readiness"] == "ready"
+    assert result["quality"]["notices"] == 1
+    duration = result["screenIr"]["ui"]["children"][0]
+    assert duration["componentName"] == "Row"
+    assert [child["componentName"] for child in duration["children"]] == [
+        "SymbolGlyph", "Text",
+    ]
+    assert 'Text("45 分钟")' in result["arkTs"]
+
+
 LIST_HTML = """<!doctype html><html><body>
 <main data-node-id="feed" data-component="list">
   <article data-node-id="feed.first" data-component="list-item">

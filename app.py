@@ -23,7 +23,10 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Str
 from langchain_core.messages import HumanMessage
 
 from config import settings
-from uibench.arkui import analyze_component_metadata
+from uibench.arkui import (
+    analyze_component_metadata,
+    repair_missing_component_node_ids,
+)
 from uibench.arkui.exporter import (
     ArkUiExporterError,
     export_annotated_html,
@@ -1146,6 +1149,11 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
         if not reasoning:
             reasoning = _extract_reasoning(None, content)
         error = None
+        if mode == "mobile" and arkui_export_enabled and html:
+            # Repair before the HTML reaches either the preview iframe or the
+            # manifest. The later browser snapshot and backend export then see
+            # the exact same deterministic node IDs.
+            html = repair_missing_component_node_ids(html)
         image_used = _used_photo_count(image_photos, html)
         unapproved_images = _unapproved_remote_image_urls(image_photos, html)
         if html and unapproved_images:
@@ -1411,11 +1419,27 @@ def last_run():
     # remote image URLs. Keep their preview available and surface the condition
     # as a non-blocking image warning on restore.
     for raw_result in payload.get("results", []):
-        if not isinstance(raw_result, dict) or raw_result.get("status"):
+        if not isinstance(raw_result, dict):
+            continue
+        restored_html = str(raw_result.get("html") or "")
+        result_mode = str(
+            raw_result.get("mode") or payload.get("mode") or "mobile"
+        )
+        arkui_enabled = bool(
+            raw_result.get("arkui_export_enabled")
+            or payload.get("arkui_export_enabled")
+            or raw_result.get("arkui_manifest")
+        )
+        if result_mode == "mobile" and arkui_enabled and restored_html:
+            restored_html = repair_missing_component_node_ids(restored_html)
+            raw_result["html"] = restored_html
+            raw_result["arkui_manifest"] = analyze_component_metadata(
+                restored_html
+            ).to_manifest()
+        if raw_result.get("status"):
             continue
         raw_result.setdefault("image_required", 0)
         raw_result.setdefault("image_used", raw_result.get("image_tracked", 0))
-        restored_html = str(raw_result.get("html") or "")
         remote_images = image_resource_urls(restored_html)
         unresolved_images = unresolved_image_bindings(restored_html)
         has_no_approved_batch = (

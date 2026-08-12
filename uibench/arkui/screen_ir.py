@@ -32,6 +32,17 @@ _PAGE_NAME_RE = re.compile(r"[^A-Za-z0-9_]+")
 _VIEWPORT_ROOT_COMPONENTS = frozenset({
     "Column", "Row", "Stack", "Scroll", "List", "Grid",
 })
+_GENERATED_TEXT_STYLE_KEYS = frozenset({
+    "fontColor",
+    "fontFamily",
+    "fontSize",
+    "fontWeight",
+    "letterSpacing",
+    "lineHeight",
+    "maxLines",
+    "textAlign",
+    "textOverflow",
+})
 # Shared with the exporter's canvas gate: both sides must agree on what
 # "covers the viewport" means, or a root the gate waves through can still
 # fail the promotion below and leave the document canvas unreproduced.
@@ -121,6 +132,21 @@ def _browser_container_component(browser_node: BrowserNodeSnapshot) -> str | Non
     if axis is None:
         return None
     return "Row" if axis == "row" else "Column"
+
+
+def _browser_flex_container_component(
+    browser_node: BrowserNodeSnapshot,
+) -> str | None:
+    """Return a container only when mixed inline content is explicitly flex.
+
+    Normal block flow stacks element children, but text and inline icons still
+    share a line. Treating that display mode as a Column would therefore move
+    the label below the icon. Flex evidence is required for this repair.
+    """
+    display = browser_node.computed.display.strip().lower()
+    if display not in {"flex", "inline-flex"}:
+        return None
+    return _browser_container_component(browser_node)
 
 
 def root_covers_viewport(
@@ -265,14 +291,20 @@ def _text_children_with_runs(
     browser_node: BrowserNodeSnapshot | None,
     positioned_children: list[tuple[int, dict[str, object]]],
     total_child_count: int,
+    *,
+    run_component: Literal["Span", "Text"] = "Span",
+    run_styles: dict[str, object] | None = None,
+    trim_runs: bool = False,
 ) -> list[dict[str, object]]:
-    """Interleave a Text node's own fragments with its Span children.
+    """Interleave a node's own text fragments with its component children.
 
     ArkUI's Text renders either its own content or its Span children, never
     both, so rich text such as ``共 <span>3</span> 台`` must become one
     ordered Span per fragment; the parent's fragments keep their document
-    position around the styled spans. Positions still count children hidden
-    from the export, so pruning a span cannot shift the remaining text.
+    position around the styled spans. A model-authored Text that also contains
+    a SymbolGlyph is instead adapted to a layout container, whose anonymous
+    browser text runs become generated Text children. Positions still count
+    children hidden from the export, so pruning one cannot shift the rest.
     """
     assert node.node_id is not None
     runs = list(node.text_runs)
@@ -283,13 +315,21 @@ def _text_children_with_runs(
         nonlocal synthetic
         while runs and runs[0][0] <= position:
             _, text = runs.pop(0)
-            merged.append({
-                "componentName": "Span",
+            content = _bake_text_transform(text, browser_node)
+            if trim_runs:
+                content = content.strip()
+            if not content:
+                continue
+            generated: dict[str, object] = {
+                "componentName": run_component,
                 # Screen IR node ids allow ':', UIBench data-node-id does
                 # not, so this can never collide with an authored id.
                 "meta": {"nodeId": f"{node.node_id}:run{synthetic}"},
-                "content": _bake_text_transform(text, browser_node),
-            })
+                "content": content,
+            }
+            if run_styles:
+                generated["styles"] = run_styles
+            merged.append(generated)
             synthetic += 1
 
     for position, child in positioned_children:
@@ -308,6 +348,7 @@ def _to_ir_node(
     resource_bindings: dict[tuple[str, str], str],
     included_indices: frozenset[int],
     component_overrides: dict[int, str],
+    generated_text_styles_by_id: dict[str, dict[str, object]],
 ) -> dict[str, object]:
     node = report.nodes[node_index]
     if node.node_id is None:  # guarded before tree construction
@@ -356,19 +397,35 @@ def _to_ir_node(
                 resource_bindings,
                 included_indices,
                 component_overrides,
+                generated_text_styles_by_id,
             ),
         )
         for position, child_index in enumerate(child_indices)
         if child_index in included_indices
     ]
     children = [child for _, child in positioned_children]
-    if node.arkui_component == "Text" and children and node.text_runs:
+    component_name = str(result["componentName"])
+    if (
+        node.arkui_component == "Text"
+        and node.text_runs
+        and (children or node.mixed_symbol_content)
+    ):
         result.pop("content", None)
-        children = _text_children_with_runs(
-            node, browser_node, positioned_children, len(child_indices),
-        )
+        if node.mixed_symbol_content and component_name in {"Row", "Column"}:
+            children = _text_children_with_runs(
+                node,
+                browser_node,
+                positioned_children,
+                len(child_indices),
+                run_component="Text",
+                run_styles=generated_text_styles_by_id.get(node.node_id),
+                trim_runs=True,
+            )
+        else:
+            children = _text_children_with_runs(
+                node, browser_node, positioned_children, len(child_indices),
+            )
     if children:
-        component_name = str(result["componentName"])
         if component_name == "List":
             result["children"] = _list_entry_children(
                 children,
@@ -522,9 +579,29 @@ def build_screen_ir(
 
     snapshot_by_id: dict[str, BrowserNodeSnapshot] = {}
     styles_by_id: dict[str, dict[str, object]] = {}
+    generated_text_styles_by_id: dict[str, dict[str, object]] = {}
     component_overrides: dict[int, str] = {}
     included_indices = frozenset(range(len(report.nodes)))
+    for parent_index, parent in enumerate(report.nodes):
+        if not parent.mixed_symbol_content:
+            continue
+        for child_index in children_by_parent.get(parent_index, []):
+            child = report.nodes[child_index]
+            if child.arkui_component == "Span":
+                component_overrides[child_index] = "Text"
+                diagnostics.append(ScreenIrAdapterDiagnostic(
+                    code="UIBENCH_MIXED_TEXT_SPAN_PROMOTED",
+                    severity="notice",
+                    message=(
+                        "A Span beside a symbol was exported as Text inside "
+                        "the generated layout container"
+                    ),
+                    node_id=child.node_id,
+                ))
     if snapshot is None:
+        for index, node in enumerate(report.nodes):
+            if node.mixed_symbol_content:
+                component_overrides[index] = "Row"
         diagnostics.append(ScreenIrAdapterDiagnostic(
             code="UIBENCH_COMPUTED_STYLE_SNAPSHOT_PENDING",
             severity="warning",
@@ -572,7 +649,24 @@ def build_screen_ir(
                 ))
             if index in hidden_indices:
                 continue
-            effective_component = node.arkui_component
+            effective_component = component_overrides.get(
+                index, node.arkui_component
+            )
+            if node.mixed_symbol_content:
+                resolved = _browser_flex_container_component(browser_node)
+                if resolved is None:
+                    diagnostics.append(ScreenIrAdapterDiagnostic(
+                        code="UIBENCH_TEXT_SYMBOL_LAYOUT_CONFLICT",
+                        severity="error",
+                        message=(
+                            "Text containing a symbol can only be adapted when "
+                            "the browser computed an ordinary flex row or column"
+                        ),
+                        node_id=node.node_id,
+                    ))
+                else:
+                    effective_component = resolved
+                    component_overrides[index] = resolved
             # Row and Column name their axis, a List carries it in
             # listDirection; either way the browser has to have laid the node
             # out along an axis ArkUI can express. Only the name can be wrong
@@ -744,6 +838,28 @@ def build_screen_ir(
                 flex_container_scrolls_main_axis=flex_container_scrolls_main_axis,
                 button_renders_direct_label=bool(node.text_content),
             )
+            if node.mixed_symbol_content:
+                text_styles, text_lossy_properties = screen_ir_styles(
+                    "Text",
+                    browser_node,
+                    background_image_source=resource_bindings.get(
+                        (node.node_id, "background-image")
+                    ),
+                    parent_direction=parent_direction,
+                    flex_item_parent_verified=flex_item_parent_verified,
+                    flex_container_scrolls_main_axis=(
+                        flex_container_scrolls_main_axis
+                    ),
+                )
+                generated_text_styles_by_id[node.node_id] = {
+                    key: value
+                    for key, value in text_styles.items()
+                    if key in _GENERATED_TEXT_STYLE_KEYS
+                }
+                lossy_properties = tuple(dict.fromkeys((
+                    *lossy_properties,
+                    *text_lossy_properties,
+                )))
             styles_by_id[node.node_id] = styles
             for property_name in lossy_properties:
                 diagnostics.append(ScreenIrAdapterDiagnostic(
@@ -848,6 +964,7 @@ def build_screen_ir(
             resource_bindings,
             included_indices,
             component_overrides,
+            generated_text_styles_by_id,
         ),
     }
     readiness: AdapterReadiness = (

@@ -26,6 +26,8 @@ ExportReadiness = Literal["ready", "lossy", "blocked", "unavailable"]
 
 _NODE_ID_RE = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
 _ROLE_RE = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
+_GENERATED_NODE_ID_ATTR = "data-uibench-generated-node-id"
+_BUTTON_LABEL_REPAIR = "button-label"
 _VOID_TAGS = frozenset({
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
     "meta", "param", "source", "track", "wbr",
@@ -220,6 +222,10 @@ class ComponentNode:
     # positioned around the styled spans instead of collapsing into one
     # order-less string.
     text_runs: tuple[tuple[int, str], ...] = ()
+    # A SymbolGlyph cannot be a child of ArkUI Text. This marker preserves the
+    # model's intent until the browser snapshot can prove which layout
+    # container (Row or Column) rendered the mixed icon/text content.
+    mixed_symbol_content: bool = False
 
 
 @dataclass(frozen=True)
@@ -443,12 +449,190 @@ def _native_component(tag: str, attrs: dict[str, str]) -> str | None:
     }.get(input_type, "text-input")
 
 
+@dataclass(frozen=True)
+class _NodeIdRepairCandidate:
+    insertion_offset: int
+
+
+@dataclass
+class _NodeIdRepairFrame:
+    tag: str
+    component: str | None
+    node_id: str | None
+    direct_element_children: int = 0
+    direct_component_children: int = 0
+    has_direct_text: bool = False
+    missing_button_label: _NodeIdRepairCandidate | None = None
+
+
+class _MissingNodeIdRepairParser(HTMLParser):
+    """Locate button labels whose stable ID has one unambiguous derivation."""
+
+    def __init__(self, html: str) -> None:
+        super().__init__(convert_charrefs=True)
+        self.frames: list[_NodeIdRepairFrame] = []
+        self.buttons: list[_NodeIdRepairFrame] = []
+        self.node_id_counts: Counter[str] = Counter()
+        self.document = _DocumentStructureState()
+        self.line_offsets: list[int] = []
+        offset = 0
+        for line in html.splitlines(keepends=True):
+            self.line_offsets.append(offset)
+            offset += len(line)
+        if not self.line_offsets:
+            self.line_offsets.append(0)
+
+    def _close_implied_frames(self, incoming: str) -> None:
+        cut = _implied_end_cut(
+            [frame.tag for frame in self.frames], incoming,
+        )
+        if cut is not None:
+            del self.frames[cut:]
+
+    def _start_offset(self) -> int:
+        line, column = self.getpos()
+        return self.line_offsets[line - 1] + column
+
+    def _attribute_insertion_offset(self) -> int:
+        raw_tag = self.get_starttag_text()
+        if not raw_tag or not raw_tag.endswith(">"):
+            raise ValueError("HTML start tag is unavailable for node-id repair")
+        relative = len(raw_tag) - 1
+        while relative > 0 and raw_tag[relative - 1].isspace():
+            relative -= 1
+        if relative > 0 and raw_tag[relative - 1] == "/":
+            relative -= 1
+        return self._start_offset() + relative
+
+    def handle_starttag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
+        normalized_tag = tag.lower()
+        process, head_cut = self.document.prepare_start(
+            normalized_tag, [frame.tag for frame in self.frames],
+        )
+        if not process:
+            return
+        if head_cut is not None:
+            del self.frames[head_cut:]
+        self._close_implied_frames(normalized_tag)
+
+        attributes = {name.lower(): value or "" for name, value in attrs}
+        explicit_component = attributes.get("data-component", "").strip().lower()
+        component = explicit_component or _native_component(
+            normalized_tag, attributes
+        )
+        node_id = attributes.get("data-node-id", "").strip() or None
+        if node_id is not None:
+            self.node_id_counts[node_id] += 1
+
+        parent = self.frames[-1] if self.frames else None
+        if parent is not None:
+            parent.direct_element_children += 1
+        if parent is not None and component is not None:
+            parent.direct_component_children += 1
+            if (
+                parent.component == "button"
+                and explicit_component == "text"
+                and "data-node-id" not in attributes
+                and _GENERATED_NODE_ID_ATTR not in attributes
+            ):
+                parent.missing_button_label = _NodeIdRepairCandidate(
+                    insertion_offset=self._attribute_insertion_offset(),
+                )
+
+        if normalized_tag in _VOID_TAGS:
+            return
+        frame = _NodeIdRepairFrame(
+            tag=normalized_tag,
+            component=component,
+            node_id=node_id,
+        )
+        self.frames.append(frame)
+        if component == "button":
+            self.buttons.append(frame)
+
+    def handle_startendtag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
+        self.handle_starttag(tag, attrs)
+        normalized = tag.lower()
+        if normalized not in _VOID_TAGS:
+            _set_text_mode_for_slash_start(self, normalized)
+
+    def handle_endtag(self, tag: str) -> None:
+        normalized = tag.lower()
+        self.document.observe_end(
+            normalized, [frame.tag for frame in self.frames],
+        )
+        for index in range(len(self.frames) - 1, -1, -1):
+            if self.frames[index].tag == normalized:
+                del self.frames[index:]
+                return
+
+    def handle_data(self, data: str) -> None:
+        if self.frames and data.strip(" \t\r\n\f"):
+            self.frames[-1].has_direct_text = True
+
+    def repaired_html(self, html: str) -> str:
+        used_ids = set(self.node_id_counts)
+        insertions: list[tuple[int, str]] = []
+        for button in self.buttons:
+            parent_id = button.node_id
+            candidate = button.missing_button_label
+            if (
+                parent_id is None
+                or candidate is None
+                or button.direct_element_children != 1
+                or button.direct_component_children != 1
+                or button.has_direct_text
+                or not _NODE_ID_RE.fullmatch(parent_id)
+                or self.node_id_counts[parent_id] != 1
+            ):
+                continue
+            base = f"{parent_id}.label"
+            generated_id = base
+            suffix = 2
+            while generated_id in used_ids:
+                generated_id = f"{base}-{suffix}"
+                suffix += 1
+            used_ids.add(generated_id)
+            insertions.append((
+                candidate.insertion_offset,
+                f' data-node-id="{generated_id}" '
+                f'{_GENERATED_NODE_ID_ATTR}="{_BUTTON_LABEL_REPAIR}"',
+            ))
+
+        repaired = html
+        for offset, attributes in sorted(insertions, reverse=True):
+            repaired = repaired[:offset] + attributes + repaired[offset:]
+        return repaired
+
+
+def repair_missing_component_node_ids(html: str) -> str:
+    """Add deterministic IDs only where component structure proves the name.
+
+    A Button with exactly one direct component child can only be presenting
+    that Text as its label. Other missing IDs remain untouched so ambiguous
+    component trees continue to fail closed during metadata validation.
+    """
+    if not isinstance(html, str):
+        raise TypeError("html must be a string")
+    parser = _MissingNodeIdRepairParser(html)
+    parser.feed(html)
+    parser.close()
+    return parser.repaired_html(html)
+
+
 def _metadata(attrs: dict[str, str]) -> tuple[tuple[str, str], ...]:
     return tuple(sorted(
         (name, value)
         for name, value in attrs.items()
         if name.startswith("data-") and name not in {
-            "data-component", "data-node-id", "data-ui-role"
+            "data-component",
+            "data-node-id",
+            "data-ui-role",
+            _GENERATED_NODE_ID_ATTR,
         }
     ))
 
@@ -509,6 +693,7 @@ class _ComponentMetadataParser(HTMLParser):
         self.node_text: list[list[tuple[int, str]]] = []
         self.node_child_counts: list[int] = []
         self.node_depths: list[int] = []
+        self.mixed_symbol_parents: set[int] = set()
         self.component_depth_exceeded = False
         self.document = _DocumentStructureState()
 
@@ -723,6 +908,7 @@ class _ComponentMetadataParser(HTMLParser):
         definition: ComponentDefinition,
         parent_index: int | None,
         node_id: str | None,
+        authored_component: str,
     ) -> None:
         parent = self.nodes[parent_index] if parent_index is not None else None
         parent_invalid = definition.allowed_parents is not None and (
@@ -746,6 +932,23 @@ class _ComponentMetadataParser(HTMLParser):
             parent_definition.allowed_children is not None
             and definition.key not in parent_definition.allowed_children
         ):
+            if (
+                parent.component == "text"
+                and authored_component == "symbol"
+                and not parent_invalid
+            ):
+                if parent_index not in self.mixed_symbol_parents:
+                    self._diagnostic(
+                        "ARKUI_TEXT_SYMBOL_LAYOUT_ADAPTED",
+                        "notice",
+                        "text directly contains a symbol; the browser layout "
+                        "will be exported as a Row or Column with generated "
+                        "Text children",
+                        node_id=parent.node_id,
+                        component=parent.component,
+                    )
+                self.mixed_symbol_parents.add(parent_index)
+                return
             if parent.component in {"list", "grid"} and not parent_invalid:
                 # ArkUI's List holds nothing but ListItems and its Grid
                 # nothing but GridItems, so a component that may legally sit
@@ -810,6 +1013,7 @@ class _ComponentMetadataParser(HTMLParser):
 
         if component is not None:
             definition = self.registry.components[component]
+            authored_component = component
             node_id = attributes.get("data-node-id", "").strip() or None
             ui_role = attributes.get("data-ui-role", "").strip() or None
             parent_index = self._parent_index()
@@ -827,6 +1031,15 @@ class _ComponentMetadataParser(HTMLParser):
                     component=component,
                 )
             self._validate_id(node_id, component, bool(explicit_value))
+            if attributes.get(_GENERATED_NODE_ID_ATTR) == _BUTTON_LABEL_REPAIR:
+                self._diagnostic(
+                    "ARKUI_NODE_ID_GENERATED",
+                    "notice",
+                    "button's only text child had no data-node-id; generated "
+                    f"the stable id {node_id!r} from its parent",
+                    node_id=node_id,
+                    component=component,
+                )
             if not definition.renderer_supported:
                 self._diagnostic(
                     "ARKUI_COMPONENT_NOT_RENDERER_SUPPORTED",
@@ -861,7 +1074,9 @@ class _ComponentMetadataParser(HTMLParser):
                     definition.fallback or "column"
                 ]
                 component = definition.key
-            self._validate_structure(definition, parent_index, node_id)
+            self._validate_structure(
+                definition, parent_index, node_id, authored_component
+            )
             component_depth = (
                 1 if parent_index is None else self.node_depths[parent_index] + 1
             )
@@ -937,6 +1152,7 @@ class _ComponentMetadataParser(HTMLParser):
                 text_runs=_normalized_text_runs(
                     self.node_text[index], self.node_child_counts[index]
                 ),
+                mixed_symbol_content=index in self.mixed_symbol_parents,
             )
             for index, node in enumerate(self.nodes)
         ]

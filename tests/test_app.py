@@ -268,6 +268,54 @@ def test_generate_stream_extracts_annotated_arkui_manifest(
     assert '"arkuiComponent": "Button"' in log_text
 
 
+def test_generate_repairs_button_label_id_before_preview_and_manifest(
+    monkeypatch, tmp_path,
+) -> None:
+    from uibench.schemas import ModelConfig
+
+    annotated_html = (
+        '<!DOCTYPE html><html lang="zh-CN"><head><title>ArkUI</title></head>'
+        '<body><main data-node-id="page" data-component="column">'
+        '<button data-node-id="page.more" data-component="button">'
+        '<span data-component="text">查看全部</span>'
+        '</button></main></body></html>'
+    )
+    monkeypatch.setattr(
+        app_mod,
+        "chat_model_for",
+        lambda *args, **kwargs: FakeListChatModel(
+            responses=[annotated_html] * 10
+        ),
+    )
+    monkeypatch.setattr(app_mod, "LOGS_DIR", tmp_path / "logs")
+    monkeypatch.setattr(app_mod, "load_model_registry", lambda: [
+        ModelConfig(
+            id="arkui-id-repair-test",
+            provider="openai",
+            name="ArkUI ID Repair Test",
+        )
+    ])
+
+    with TestClient(app_mod.app) as test_client:
+        response = test_client.post(
+            "/api/generate",
+            json={
+                "prompt": "生成一个更多按钮",
+                "arkui_export_enabled": True,
+            },
+        )
+
+    result = _first_result(_parse_stream(response))
+    manifest = result["arkui_manifest"]
+    assert 'data-node-id="page.more.label"' in result["html"]
+    assert manifest["summary"]["exportReadiness"] == "ready"
+    assert manifest["summary"]["errors"] == 0
+    assert manifest["summary"]["notices"] == 1
+    assert [item["code"] for item in manifest["diagnostics"]] == [
+        "ARKUI_NODE_ID_GENERATED",
+    ]
+
+
 def test_reasoning_effort_passed_when_set(monkeypatch, tmp_path) -> None:
     """A model with reasoning_effort set must forward it to the API."""
     from uibench.schemas import ModelConfig
@@ -391,6 +439,51 @@ def test_last_run_restorable(reasoning_client, tmp_path) -> None:
     # both last_run.json and per-run run.json are persisted
     assert (tmp_path / "logs" / "last_run.json").exists()
     assert (tmp_path / "logs" / data["run_id"] / "run.json").exists()
+
+
+def test_last_run_repairs_button_label_id_before_restored_preview(
+    monkeypatch, tmp_path,
+) -> None:
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    html = (
+        '<!DOCTYPE html><html><body>'
+        '<main data-node-id="page" data-component="column">'
+        '<button data-node-id="page.more" data-component="button">'
+        '<span data-component="text">查看全部</span>'
+        '</button></main></body></html>'
+    )
+    (logs / "last_run.json").write_text(json.dumps({
+        "run_id": "arkui-repair",
+        "prompt": "更多按钮",
+        "mode": "mobile",
+        "arkui_export_enabled": True,
+        "total_seconds": 1,
+        "models": [],
+        "results": [{
+            "key": "0",
+            "model_id": "model",
+            "name": "Model",
+            "provider": "openai",
+            "mode": "mobile",
+            "html": html,
+            "status": "success",
+            "arkui_export_enabled": True,
+            "arkui_manifest": {},
+            "error": None,
+        }],
+    }), encoding="utf-8")
+    monkeypatch.setattr(app_mod, "LOGS_DIR", logs)
+
+    with TestClient(app_mod.app) as client:
+        response = client.get("/api/last")
+
+    result = response.json()["results"][0]
+    assert 'data-node-id="page.more.label"' in result["html"]
+    assert result["arkui_manifest"]["summary"]["exportReadiness"] == "ready"
+    assert [item["code"] for item in result["arkui_manifest"]["diagnostics"]] == [
+        "ARKUI_NODE_ID_GENERATED",
+    ]
 
 
 def test_legacy_last_run_warns_without_blocking_unapproved_remote_images(

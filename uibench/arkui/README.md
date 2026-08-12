@@ -105,6 +105,9 @@ ArkUI 的 `List` 默认纵向排列，所以导出会按 computed layout 把 `li
 | `list-item` 不在 `list` 内 | 按 `column` 导出 | `ARKUI_LIST_ITEM_PROMOTED_TO_COLUMN` | notice |
 | `Row`/`Column` 与 computed 方向不符 | 按浏览器实际方向导出 | `UIBENCH_ARKUI_LAYOUT_FOLLOWS_BROWSER` | notice |
 | `span` 不在 `text` 内 | 按 `text` 导出 | `ARKUI_SPAN_PROMOTED_TO_TEXT` | notice |
+| `text` 直接包含 `symbol`，且 computed layout 是普通 flex 行/列 | 父节点按实际方向改为 `Row`/`Column`，原始文字片段生成独立 `Text` | `ARKUI_TEXT_SYMBOL_LAYOUT_ADAPTED` | notice |
+| `text` 直接包含 `symbol`，但没有普通 flex 行/列证据 | 不猜测 inline、grid 或 reverse 布局 | `UIBENCH_TEXT_SYMBOL_LAYOUT_CONFLICT` | error |
+| `button` 唯一的直接 `text` 子组件漏写 `data-node-id` | 预览和快照前按父 ID 生成 `.label`，冲突时追加序号 | `ARKUI_NODE_ID_GENERATED` | notice |
 | 鸿蒙只有近似字形 | 按人工核对的近似表替换，字形相似但非原图标 | `ARKUI_SYMBOL_APPROXIMATED` | warning |
 | 鸿蒙没有该图标 | 退化成等大空占位，布局不变但少一个图标 | `ARKUI_SYMBOL_UNAVAILABLE` | warning |
 | `image` 没有 `src` | 按 `column` 导出，图片位置变成空容器 | `ARKUI_IMAGE_SRC_MISSING` | warning |
@@ -160,6 +163,34 @@ ArkUI 的 `Span` 在 `Text` 之外没有任何合法形式，因此父节点不�
 在 `List` 之外没有合法形式，按 `column` 导出并记 `ARKUI_LIST_ITEM_PROMOTED_TO_COLUMN`。
 除这两条外，其余 `fallback` 仍然不参与自动降级——它们会改变页面语义。
 `text` 内部没有文本的 span 依旧按 `ARKUI_SPAN_CONTENT_MISSING` 阻断。
+
+## text + symbol 的兼容读法
+
+ArkUI `Text` 只能容纳 `Span`，不能容纳 `SymbolGlyph`。模型偶尔会把一个实际使用
+`display:flex` 的「图标 + 文字」容器误标成 `text`。元数据分析器会先保留这项可修复意图，
+不再立即报 `ARKUI_COMPONENT_CHILD_INVALID`；浏览器快照确认它是普通 `flex` /
+`inline-flex` 且方向为 `row` 或 `column` 后，Screen IR 才把父节点改成对应的
+`Row` / `Column`。
+
+父节点自己的 DOM 文字片段按原顺序生成独立 `Text`，并复制字体、字号、颜色、行高、字距、
+对齐和截断属性；原 `SymbolGlyph` 仍处于同一位置。若同时存在富文本 `Span`，它会成为同级
+`Text` 并保留自己的 computed style。普通 block/inline 流、grid、`row-reverse` 和
+`column-reverse` 没有唯一等价读法，仍以 `UIBENCH_TEXT_SYMBOL_LAYOUT_CONFLICT` 阻断，
+避免把同行内容错误堆成上下两行。
+
+## 缺失节点 ID 的安全修复
+
+`data-node-id` 同时是 HTML、浏览器快照和 Screen IR 的跨层主键，只在后端补值会导致快照找
+不到同一节点。因此 UIBench 在生成结果进入预览 iframe 之前执行一次确定性修复。目前只处理
+一种没有歧义的结构：拥有合法且全局唯一 ID 的 `button`，恰好只有一个直接元素、没有额外
+直接文本，且该元素是漏写 ID 的唯一 `text` 组件子节点。生成值为 `<button-id>.label`；
+若该值已被占用，则依次使用
+`.label-2`、`.label-3`。命名不读取文案，所以翻译或改字不会改变 ID。
+
+修复后的 HTML 会带 `data-uibench-generated-node-id="button-label"`，元数据报告据此记录
+`ARKUI_NODE_ID_GENERATED` notice；预览、快照与导出都使用同一份 HTML。父 ID 缺失、非法或
+重复，Text 已写空/非法 ID，Button 有多个直接组件子节点，以及其他无法唯一命名的情况都不
+自动猜测，仍由 `ARKUI_NODE_ID_MISSING` / `ARKUI_NODE_ID_INVALID` 阻断。
 
 ## 系统 Symbol 资源
 
