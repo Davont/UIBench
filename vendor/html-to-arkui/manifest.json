@@ -1,11 +1,11 @@
 {
   "manifestVersion": 1,
   "packageName": "@local/html-to-arkui",
-  "packageVersion": "0.6.5",
-  "archive": "local-html-to-arkui-0.6.5.tgz",
-  "byteLength": 766639,
-  "sha256": "e53db28249a37e79bc55d58aaef71d70b035aa92cd91854bc14234eb5211d004",
-  "npmIntegrity": "sha512-h6ev5xKdkBcqNzRor/WWN+2beMPDSl5+KHHJVy3wPRXuv8jprS+kTURpVjCa0FuPfvy/MhpIPgb7t0P4rr71Tw==",
+  "packageVersion": "0.6.6",
+  "archive": "local-html-to-arkui-0.6.6.tgz",
+  "byteLength": 770341,
+  "sha256": "1daa4b92fbaf345711f15f2f831744552a5b5d1253430295836ece30626e78c6",
+  "npmIntegrity": "sha512-HISxbgEdpUoPJUTM8GA2JIXL5dxZnaDDJCyaU1Eet9vGSoNS29WhUQUeTOOWVukbteKGek5KJ8QgybtI6uh59w==",
   "bundledRuntimeDependencies": [
     "css-tree",
     "entities",
@@ -13,7 +13,7 @@
     "parse5",
     "source-map-js"
   ],
-  "sourceCommit": "3ff0808d9358cd7c81c4b6f0ac47bedb544d2b21",
+  "sourceCommit": "22c98ea11f9461cea499447d901e8f26198d3ea1",
   "sourceTreeState": "clean",
   "builtWith": {
     "node": "v24.14.1",
