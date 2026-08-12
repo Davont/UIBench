@@ -13,6 +13,11 @@
 # max_tokens / request_timeout 留空即不限制（用模型自身默认）
 options:
   temperature: 0.0
+  # 可选：安装本地 Unsplash MCP 并设置 UNSPLASH_ACCESS_KEY 后启用图片工具。
+  image_tools_enabled: true
+  image_tool_timeout: 90
+  # 单次工具调用可按语义槽位获取的图片数（1-8）。
+  image_tool_max_assets: 6
 
 # --- 默认端点：阿里百炼 DashScope（OpenAI 兼容），下面 8 个模型共享 ---
 defaults:

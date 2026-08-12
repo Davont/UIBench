@@ -1,0 +1,785 @@
+"""Extract and validate ArkUI-oriented metadata from generated HTML."""
+from __future__ import annotations
+
+import re
+from collections import Counter
+from dataclasses import dataclass, replace
+from html.parser import HTMLParser
+from typing import Literal
+
+from uibench.arkui.components import ComponentDefinition, load_component_registry
+
+DiagnosticSeverity = Literal["warning", "error"]
+ComponentSource = Literal["explicit", "html"]
+ExportReadiness = Literal["ready", "lossy", "blocked", "unavailable"]
+
+_NODE_ID_RE = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
+_ROLE_RE = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
+_SYMBOL_RE = re.compile(r"^(?:app|sys)\.symbol\.[A-Za-z0-9_]+$")
+_VOID_TAGS = frozenset({
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
+    "meta", "param", "source", "track", "wbr",
+})
+_P_IMPLIED_END_START_TAGS = frozenset({
+    "address", "article", "aside", "blockquote", "details", "dialog", "div",
+    "dl", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2",
+    "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "main", "menu",
+    "nav", "ol", "p", "pre", "search", "section", "table", "ul",
+})
+_BUTTON_SCOPE_BOUNDARIES = frozenset({
+    "applet", "caption", "html", "marquee", "object", "table", "td", "th",
+    "template", "button",
+})
+_HEADING_TAGS = frozenset({"h1", "h2", "h3", "h4", "h5", "h6"})
+_HEAD_CONTENT_TAGS = frozenset({
+    "base", "basefont", "bgsound", "link", "meta", "noframes", "noscript",
+    "script", "style", "template", "title",
+})
+MAX_HTML_TREE_DEPTH = 256
+MAX_COMPONENT_TREE_DEPTH = 128
+
+
+def _implied_end_cut(open_tags: list[str], incoming: str) -> int | None:
+    """Approximate the common HTML tree-builder implied-end-tag rules.
+
+    ``HTMLParser`` tokenizes HTML but does not build an HTML tree. Applying the
+    common list, paragraph, select, and table rules here avoids treating normal
+    optional-end-tag markup as deeper than the browser DOM.
+    """
+    working = list(open_tags)
+    changed = False
+
+    def close_in_scope(
+        targets: frozenset[str], boundaries: frozenset[str],
+    ) -> None:
+        nonlocal working, changed
+        for index in range(len(working) - 1, -1, -1):
+            current = working[index]
+            if current in targets:
+                working = working[:index]
+                changed = True
+                return
+            if current in boundaries:
+                return
+
+    if incoming == "li":
+        close_in_scope(frozenset({"li"}), frozenset({"menu", "ol", "ul"}))
+    elif incoming in {"dt", "dd"}:
+        close_in_scope(frozenset({"dt", "dd"}), frozenset({"dl"}))
+    elif incoming in {"rt", "rp"}:
+        close_in_scope(frozenset({"rt", "rp"}), frozenset({"ruby"}))
+
+    if incoming in _P_IMPLIED_END_START_TAGS:
+        close_in_scope(frozenset({"p"}), _BUTTON_SCOPE_BOUNDARIES)
+
+    if incoming in _HEADING_TAGS:
+        close_in_scope(_HEADING_TAGS, frozenset({"body", "html"}))
+    elif incoming == "button":
+        close_in_scope(frozenset({"button"}), _BUTTON_SCOPE_BOUNDARIES - {"button"})
+
+    if incoming == "option":
+        close_in_scope(frozenset({"option"}), frozenset({"datalist", "select"}))
+    elif incoming == "optgroup":
+        close_in_scope(frozenset({"option"}), frozenset({"datalist", "select"}))
+        close_in_scope(frozenset({"optgroup"}), frozenset({"select"}))
+
+    if incoming in {"thead", "tbody", "tfoot"}:
+        close_in_scope(
+            frozenset({"thead", "tbody", "tfoot"}),
+            frozenset({"html", "table", "template"}),
+        )
+    elif incoming == "tr":
+        close_in_scope(
+            frozenset({"tr"}),
+            frozenset({"html", "table", "tbody", "tfoot", "thead", "template"}),
+        )
+    elif incoming in {"td", "th"}:
+        close_in_scope(
+            frozenset({"td", "th"}),
+            frozenset({"html", "table", "tr", "template"}),
+        )
+
+    return len(working) if changed else None
+
+
+def _set_text_mode_for_slash_start(parser: HTMLParser, tag: str) -> None:
+    """Make ``<script/>`` and other non-void slash tags behave like HTML starts."""
+    if tag in parser.CDATA_CONTENT_ELEMENTS or (
+        getattr(parser, "scripting", False) and tag == "noscript"
+    ) or tag == "plaintext":
+        parser.set_cdata_mode(tag, escapable=False)
+    elif tag in parser.RCDATA_CONTENT_ELEMENTS:
+        parser.set_cdata_mode(tag, escapable=True)
+
+
+@dataclass
+class _DocumentStructureState:
+    """Track singleton document elements omitted by ``HTMLParser``'s tokenizer."""
+
+    html_started: bool = False
+    head_started: bool = False
+    head_closed: bool = False
+    body_started: bool = False
+
+    def prepare_start(
+        self, tag: str, open_tags: list[str],
+    ) -> tuple[bool, int | None]:
+        """Return whether to process the token and an open-head cut, if any."""
+        if tag == "html":
+            if self.html_started or self.head_started or self.body_started:
+                return False, None
+            self.html_started = True
+            return True, None
+
+        if tag == "head":
+            if self.head_started or self.head_closed or self.body_started:
+                return False, None
+            self.head_started = True
+            return True, None
+
+        if tag == "body":
+            if self.body_started:
+                # The tree builder merges missing attributes into the existing
+                # body, but never creates or pushes another body element.
+                return False, None
+            self.body_started = True
+            self.head_closed = True
+            return True, self._open_head_cut(open_tags)
+
+        open_head_cut = self._open_head_cut(open_tags)
+        if open_head_cut is not None and tag not in _HEAD_CONTENT_TAGS:
+            self.head_closed = True
+            self.body_started = True
+            return True, open_head_cut
+
+        if not self.head_started and not self.body_started:
+            if tag in _HEAD_CONTENT_TAGS:
+                # parse5 creates an implicit head for these tokens.
+                self.head_started = True
+            else:
+                # Any ordinary content creates an implicit body. A later body
+                # start tag may merge attributes but must not increase depth.
+                self.head_closed = True
+                self.body_started = True
+        elif self.head_closed and not self.body_started and tag not in _HEAD_CONTENT_TAGS:
+            self.body_started = True
+        return True, None
+
+    def observe_end(self, tag: str, open_tags: list[str]) -> None:
+        if tag == "head" and "head" in open_tags:
+            self.head_started = True
+            self.head_closed = True
+
+    @staticmethod
+    def _open_head_cut(open_tags: list[str]) -> int | None:
+        for index in range(len(open_tags) - 1, -1, -1):
+            if open_tags[index] == "head":
+                return index
+        return None
+
+
+@dataclass(frozen=True)
+class ComponentDiagnostic:
+    code: str
+    severity: DiagnosticSeverity
+    message: str
+    line: int
+    column: int
+    node_id: str | None = None
+    component: str | None = None
+
+
+@dataclass(frozen=True)
+class ComponentNode:
+    node_id: str | None
+    component: str
+    arkui_component: str
+    source: ComponentSource
+    tag: str
+    ui_role: str | None
+    parent_index: int | None
+    line: int
+    column: int
+    metadata: tuple[tuple[str, str], ...]
+    attributes: tuple[tuple[str, str], ...]
+    text_content: str
+    renderer_supported: bool
+
+
+@dataclass(frozen=True)
+class ComponentMetadataReport:
+    nodes: tuple[ComponentNode, ...]
+    diagnostics: tuple[ComponentDiagnostic, ...]
+
+    @property
+    def errors(self) -> tuple[ComponentDiagnostic, ...]:
+        return tuple(item for item in self.diagnostics if item.severity == "error")
+
+    @property
+    def warnings(self) -> tuple[ComponentDiagnostic, ...]:
+        return tuple(item for item in self.diagnostics if item.severity == "warning")
+
+    @property
+    def component_counts(self) -> dict[str, int]:
+        return dict(sorted(Counter(node.component for node in self.nodes).items()))
+
+    @property
+    def explicit_components(self) -> int:
+        return sum(node.source == "explicit" for node in self.nodes)
+
+    @property
+    def inferred_components(self) -> int:
+        return sum(node.source == "html" for node in self.nodes)
+
+    @property
+    def unsupported_components(self) -> dict[str, int]:
+        return dict(sorted(Counter(
+            node.component for node in self.nodes if not node.renderer_supported
+        ).items()))
+
+    @property
+    def root_components(self) -> int:
+        return sum(node.parent_index is None for node in self.nodes)
+
+    @property
+    def addressable_coverage(self) -> float:
+        if not self.nodes:
+            return 0.0
+        addressable = sum(node.node_id is not None for node in self.nodes)
+        return round(addressable / len(self.nodes), 4)
+
+    @property
+    def export_readiness(self) -> ExportReadiness:
+        if self.explicit_components == 0:
+            return "unavailable"
+        screen_ir_blocking_codes = {
+            "ARKUI_COMPONENT_METADATA_MISSING",
+            "ARKUI_IMAGE_SRC_MISSING",
+            "ARKUI_NODE_ID_MISSING",
+            "ARKUI_SPAN_CONTENT_MISSING",
+        }
+        if (
+            self.errors
+            or self.unsupported_components
+            or any(node.node_id is None for node in self.nodes)
+            or self.root_components != 1
+            or any(
+                item.code in screen_ir_blocking_codes
+                for item in self.diagnostics
+            )
+        ):
+            return "blocked"
+        if self.warnings:
+            return "lossy"
+        return "ready"
+
+    def to_manifest(self) -> dict[str, object]:
+        registry = load_component_registry()
+        return {
+            "kind": "uibench-component-manifest",
+            "manifestVersion": 1,
+            # Retained for clients written against the first UIBench manifest.
+            "schemaVersion": 1,
+            "screenIrSchemaVersion": registry.screen_ir_schema_version,
+            "rendererContractVersion": registry.renderer_contract_version,
+            "components": [
+                {
+                    "nodeId": node.node_id,
+                    "component": node.component,
+                    "arkuiComponent": node.arkui_component,
+                    "source": node.source,
+                    "tag": node.tag,
+                    "uiRole": node.ui_role,
+                    "rendererSupported": node.renderer_supported,
+                    "parentNodeId": (
+                        self.nodes[node.parent_index].node_id
+                        if node.parent_index is not None else None
+                    ),
+                    "content": node.text_content or None,
+                    "attributes": dict(node.attributes),
+                    "metadata": dict(node.metadata),
+                }
+                for node in self.nodes
+            ],
+            "summary": {
+                "componentCounts": self.component_counts,
+                "explicitComponents": self.explicit_components,
+                "inferredComponents": self.inferred_components,
+                "metadataPresent": self.explicit_components > 0,
+                "addressableCoverage": self.addressable_coverage,
+                "rendererSupportedComponents": sum(
+                    node.renderer_supported for node in self.nodes
+                ),
+                "rootComponents": self.root_components,
+                "unsupportedComponents": self.unsupported_components,
+                "exportReadiness": self.export_readiness,
+                "exportable": self.export_readiness in {"ready", "lossy"},
+                "errors": len(self.errors),
+                "warnings": len(self.warnings),
+            },
+            "diagnostics": [
+                {
+                    "code": item.code,
+                    "severity": item.severity,
+                    "message": item.message,
+                    "line": item.line,
+                    "column": item.column,
+                    "nodeId": item.node_id,
+                    "component": item.component,
+                }
+                for item in self.diagnostics
+            ],
+        }
+
+
+@dataclass
+class _Frame:
+    tag: str
+    node_index: int | None
+
+
+class _HtmlDepthParser(HTMLParser):
+    """Find excessive authored nesting without constructing an HTML tree."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.frames: list[str] = []
+        self.violation: tuple[int, int] | None = None
+        self.document = _DocumentStructureState()
+
+    def _record_depth(self) -> None:
+        if self.violation is None and len(self.frames) + 1 > MAX_HTML_TREE_DEPTH:
+            self.violation = self.getpos()
+
+    def _close_implied_frames(self, incoming: str) -> None:
+        cut = _implied_end_cut(self.frames, incoming)
+        if cut is not None:
+            del self.frames[cut:]
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        del attrs
+        normalized = tag.lower()
+        process, head_cut = self.document.prepare_start(normalized, self.frames)
+        if not process:
+            return
+        if head_cut is not None:
+            del self.frames[head_cut:]
+        self._close_implied_frames(normalized)
+        if normalized in _VOID_TAGS:
+            return
+        self._record_depth()
+        self.frames.append(normalized)
+
+    def handle_startendtag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
+        normalized = tag.lower()
+        self.handle_starttag(tag, attrs)
+        if normalized not in _VOID_TAGS:
+            # In HTML (unlike XML), a slash does not close a non-void element.
+            # HTMLParser skips its usual raw-text transition for this callback,
+            # so reproduce that part of normal start-tag handling as well.
+            _set_text_mode_for_slash_start(self, normalized)
+
+    def handle_endtag(self, tag: str) -> None:
+        normalized = tag.lower()
+        self.document.observe_end(normalized, self.frames)
+        for index in range(len(self.frames) - 1, -1, -1):
+            if self.frames[index] == normalized:
+                del self.frames[index:]
+                return
+
+
+def find_html_tree_depth_violation(html: str) -> tuple[int, int] | None:
+    """Return the first source location deeper than the supported HTML bound."""
+    if not isinstance(html, str):
+        raise TypeError("html must be a string")
+    parser = _HtmlDepthParser()
+    parser.feed(html)
+    parser.close()
+    return parser.violation
+
+
+def _native_component(tag: str, attrs: dict[str, str]) -> str | None:
+    if tag == "button":
+        return "button"
+    if tag == "img":
+        return "image"
+    if tag == "textarea":
+        return "text-area"
+    if tag == "select":
+        return "select"
+    if tag == "progress":
+        return "progress"
+    if tag == "hr":
+        return "divider"
+    if tag == "i" and attrs.get("data-lucide"):
+        return "symbol"
+    if tag != "input":
+        return None
+
+    input_type = attrs.get("type", "text").strip().lower()
+    return {
+        "button": "button",
+        "checkbox": "checkbox",
+        "radio": "radio",
+        "range": "slider",
+        "reset": "button",
+        "search": "search",
+        "submit": "button",
+    }.get(input_type, "text-input")
+
+
+def _metadata(attrs: dict[str, str]) -> tuple[tuple[str, str], ...]:
+    return tuple(sorted(
+        (name, value)
+        for name, value in attrs.items()
+        if name.startswith("data-") and name not in {
+            "data-component", "data-node-id", "data-ui-role"
+        }
+    ))
+
+
+def _relevant_attributes(attrs: dict[str, str]) -> tuple[tuple[str, str], ...]:
+    names = {
+        "alt", "aria-label", "checked", "disabled", "name", "src",
+        "title", "type", "value",
+    }
+    return tuple(sorted(
+        (name, value) for name, value in attrs.items() if name in names
+    ))
+
+
+class _ComponentMetadataParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.registry = load_component_registry()
+        self.nodes: list[ComponentNode] = []
+        self.diagnostics: list[ComponentDiagnostic] = []
+        self.frames: list[_Frame] = []
+        self.seen_ids: dict[str, tuple[int, int]] = {}
+        self.node_text: list[list[str]] = []
+        self.node_depths: list[int] = []
+        self.component_depth_exceeded = False
+        self.document = _DocumentStructureState()
+
+    def _diagnostic(
+        self,
+        code: str,
+        severity: DiagnosticSeverity,
+        message: str,
+        *,
+        node_id: str | None = None,
+        component: str | None = None,
+        line: int | None = None,
+        column: int | None = None,
+    ) -> None:
+        current_line, current_column = self.getpos()
+        self.diagnostics.append(ComponentDiagnostic(
+            code=code,
+            severity=severity,
+            message=message,
+            line=current_line if line is None else line,
+            column=current_column if column is None else column,
+            node_id=node_id,
+            component=component,
+        ))
+
+    def _parent_index(self) -> int | None:
+        for frame in reversed(self.frames):
+            if frame.node_index is not None:
+                return frame.node_index
+        return None
+
+    def _close_implied_frames(self, incoming: str) -> None:
+        cut = _implied_end_cut(
+            [frame.tag for frame in self.frames], incoming,
+        )
+        if cut is not None:
+            del self.frames[cut:]
+
+    def _validate_id(self, node_id: str | None, component: str, explicit: bool) -> None:
+        if node_id is None:
+            self._diagnostic(
+                "ARKUI_NODE_ID_MISSING",
+                "error" if explicit else "warning",
+                f"{component!r} component has no stable data-node-id",
+                component=component,
+            )
+            return
+        if not _NODE_ID_RE.fullmatch(node_id):
+            self._diagnostic(
+                "ARKUI_NODE_ID_INVALID",
+                "error",
+                f"data-node-id {node_id!r} must be a lower-case stable path",
+                node_id=node_id,
+                component=component,
+            )
+        previous = self.seen_ids.get(node_id)
+        if previous is not None:
+            self._diagnostic(
+                "ARKUI_NODE_ID_DUPLICATE",
+                "error",
+                f"data-node-id {node_id!r} is already used at {previous[0]}:{previous[1]}",
+                node_id=node_id,
+                component=component,
+            )
+        else:
+            self.seen_ids[node_id] = self.getpos()
+
+    def _validate_structure(
+        self,
+        definition: ComponentDefinition,
+        parent_index: int | None,
+        node_id: str | None,
+    ) -> None:
+        parent = self.nodes[parent_index] if parent_index is not None else None
+        if definition.allowed_parents is not None and (
+            parent is None or parent.component not in definition.allowed_parents
+        ):
+            expected = ", ".join(sorted(definition.allowed_parents))
+            actual = parent.component if parent is not None else "document root"
+            self._diagnostic(
+                "ARKUI_COMPONENT_PARENT_INVALID",
+                "error",
+                f"{definition.key!r} requires parent {expected}; found {actual}",
+                node_id=node_id,
+                component=definition.key,
+            )
+        if parent is None:
+            return
+        parent_definition = self.registry.components[parent.component]
+        if (
+            parent_definition.allowed_children is not None
+            and definition.key not in parent_definition.allowed_children
+        ):
+            expected = ", ".join(sorted(parent_definition.allowed_children))
+            self._diagnostic(
+                "ARKUI_COMPONENT_CHILD_INVALID",
+                "error",
+                f"{parent.component!r} accepts {expected}; found {definition.key!r}",
+                node_id=node_id,
+                component=definition.key,
+            )
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        normalized_tag = tag.lower()
+        process, head_cut = self.document.prepare_start(
+            normalized_tag, [frame.tag for frame in self.frames],
+        )
+        if not process:
+            return
+        if head_cut is not None:
+            del self.frames[head_cut:]
+        self._close_implied_frames(normalized_tag)
+        attributes = {name.lower(): value or "" for name, value in attrs}
+        explicit_value = attributes.get("data-component", "").strip().lower()
+        native_value = _native_component(normalized_tag, attributes)
+        component = explicit_value or native_value
+        node_index: int | None = None
+
+        if explicit_value and explicit_value not in self.registry.components:
+            self._diagnostic(
+                "ARKUI_COMPONENT_UNKNOWN",
+                "error",
+                f"data-component {explicit_value!r} is not in the ArkUI registry",
+                node_id=attributes.get("data-node-id") or None,
+                component=explicit_value,
+            )
+            component = None
+        elif explicit_value and native_value and explicit_value != native_value:
+            self._diagnostic(
+                "ARKUI_COMPONENT_TAG_CONFLICT",
+                "error",
+                f"<{normalized_tag}> implies {native_value!r}, not {explicit_value!r}",
+                node_id=attributes.get("data-node-id") or None,
+                component=explicit_value,
+            )
+
+        if component is not None:
+            definition = self.registry.components[component]
+            node_id = attributes.get("data-node-id", "").strip() or None
+            ui_role = attributes.get("data-ui-role", "").strip() or None
+            if ui_role is not None and not _ROLE_RE.fullmatch(ui_role):
+                self._diagnostic(
+                    "ARKUI_UI_ROLE_INVALID",
+                    "error",
+                    f"data-ui-role {ui_role!r} must be lower-case kebab-case",
+                    node_id=node_id,
+                    component=component,
+                )
+            self._validate_id(node_id, component, bool(explicit_value))
+            if not definition.renderer_supported:
+                self._diagnostic(
+                    "ARKUI_COMPONENT_NOT_RENDERER_SUPPORTED",
+                    "error" if explicit_value else "warning",
+                    f"{component!r} is planned but not supported by html-to-arkui",
+                    node_id=node_id,
+                    component=component,
+                )
+            for attribute in definition.required_metadata:
+                if not attributes.get(attribute, "").strip():
+                    self._diagnostic(
+                        "ARKUI_COMPONENT_METADATA_MISSING",
+                        "error" if explicit_value else "warning",
+                        f"{component!r} requires {attribute}",
+                        node_id=node_id,
+                        component=component,
+                    )
+            if component == "symbol":
+                symbol = attributes.get("data-symbol", "").strip()
+                if symbol and not _SYMBOL_RE.fullmatch(symbol):
+                    self._diagnostic(
+                        "ARKUI_SYMBOL_INVALID",
+                        "error",
+                        "data-symbol must be a canonical app.symbol.* or sys.symbol.* resource",
+                        node_id=node_id,
+                        component=component,
+                    )
+            if component == "image" and not attributes.get("src", "").strip():
+                self._diagnostic(
+                    "ARKUI_IMAGE_SRC_MISSING",
+                    "error" if explicit_value else "warning",
+                    "image requires a non-empty src attribute",
+                    node_id=node_id,
+                    component=component,
+                )
+            parent_index = self._parent_index()
+            self._validate_structure(definition, parent_index, node_id)
+            component_depth = (
+                1 if parent_index is None else self.node_depths[parent_index] + 1
+            )
+            if (
+                component_depth > MAX_COMPONENT_TREE_DEPTH
+                and not self.component_depth_exceeded
+            ):
+                self.component_depth_exceeded = True
+                self._diagnostic(
+                    "ARKUI_COMPONENT_TREE_DEPTH_EXCEEDED",
+                    "error",
+                    "ArkUI component nesting exceeds the supported "
+                    f"depth of {MAX_COMPONENT_TREE_DEPTH}",
+                    node_id=node_id,
+                    component=component,
+                )
+            node_index = len(self.nodes)
+            self.nodes.append(ComponentNode(
+                node_id=node_id,
+                component=component,
+                arkui_component=definition.arkui_component,
+                source="explicit" if explicit_value else "html",
+                tag=normalized_tag,
+                ui_role=ui_role,
+                parent_index=parent_index,
+                line=self.getpos()[0],
+                column=self.getpos()[1],
+                metadata=_metadata(attributes),
+                attributes=_relevant_attributes(attributes),
+                text_content="",
+                renderer_supported=definition.renderer_supported,
+            ))
+            self.node_text.append([])
+            self.node_depths.append(component_depth)
+
+        if normalized_tag not in _VOID_TAGS:
+            self.frames.append(_Frame(tag=normalized_tag, node_index=node_index))
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.handle_starttag(tag, attrs)
+        normalized = tag.lower()
+        if normalized not in _VOID_TAGS:
+            _set_text_mode_for_slash_start(self, normalized)
+
+    def handle_endtag(self, tag: str) -> None:
+        normalized = tag.lower()
+        self.document.observe_end(
+            normalized, [frame.tag for frame in self.frames],
+        )
+        for index in range(len(self.frames) - 1, -1, -1):
+            if self.frames[index].tag == normalized:
+                del self.frames[index:]
+                return
+
+    def handle_data(self, data: str) -> None:
+        for frame in reversed(self.frames):
+            if frame.node_index is not None:
+                self.node_text[frame.node_index].append(data)
+                return
+
+    def finish(self) -> ComponentMetadataReport:
+        self.nodes = [
+            replace(node, text_content=" ".join(
+                " ".join(self.node_text[index]).split()
+            ))
+            for index, node in enumerate(self.nodes)
+        ]
+        child_counts = Counter(
+            node.parent_index
+            for node in self.nodes
+            if node.parent_index is not None
+        )
+        for index, node in enumerate(self.nodes):
+            maximum = self.registry.components[node.component].max_component_children
+            actual = child_counts.get(index, 0)
+            if maximum is not None and actual > maximum:
+                self._diagnostic(
+                    "ARKUI_COMPONENT_CHILD_COUNT_EXCEEDED",
+                    "error",
+                    f"{node.component!r} accepts at most {maximum} component child; found {actual}",
+                    node_id=node.node_id,
+                    component=node.component,
+                    line=node.line,
+                    column=node.column,
+                )
+            if node.component == "span" and not node.text_content:
+                self._diagnostic(
+                    "ARKUI_SPAN_CONTENT_MISSING",
+                    "error",
+                    "span requires non-empty text content",
+                    node_id=node.node_id,
+                    component=node.component,
+                    line=node.line,
+                    column=node.column,
+                )
+        return ComponentMetadataReport(
+            nodes=tuple(self.nodes),
+            diagnostics=tuple(sorted(
+                self.diagnostics,
+                key=lambda item: (
+                    item.line, item.column, item.code, item.node_id or ""
+                ),
+            )),
+        )
+
+
+def analyze_component_metadata(html: str) -> ComponentMetadataReport:
+    """Extract component metadata without executing or rewriting the HTML."""
+    if not isinstance(html, str):
+        raise TypeError("html must be a string")
+    depth_violation = find_html_tree_depth_violation(html)
+    parser = _ComponentMetadataParser()
+    parser.feed(html)
+    parser.close()
+    report = parser.finish()
+    if depth_violation is None:
+        return report
+    line, column = depth_violation
+    diagnostics = (*report.diagnostics, ComponentDiagnostic(
+        code="ARKUI_HTML_TREE_DEPTH_EXCEEDED",
+        severity="error",
+        message=(
+            "HTML nesting exceeds the supported "
+            f"depth of {MAX_HTML_TREE_DEPTH}"
+        ),
+        line=line,
+        column=column,
+    ))
+    return ComponentMetadataReport(
+        nodes=report.nodes,
+        diagnostics=tuple(sorted(
+            diagnostics,
+            key=lambda item: (
+                item.line, item.column, item.code, item.node_id or ""
+            ),
+        )),
+    )

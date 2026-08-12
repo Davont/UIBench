@@ -5,47 +5,69 @@ from uibench.models import _resolve_credentials, load_model_registry
 from uibench.schemas import ModelConfig
 
 
-def test_defaults_merged_into_models():
-    models = load_model_registry()
-    assert len(models) == 15
+def test_defaults_merged_into_models(tmp_path):
+    registry = tmp_path / "models.yaml"
+    registry.write_text(
+        """
+defaults:
+  provider: openai
+  base_url: https://example.test/v1
+  api_key_env: TEST_PROVIDER_API_KEY
+models:
+  - id: model-a
+    name: Model A
+  - id: model-b
+    name: Model B disabled
+    enabled: false
+  - id: model-c
+    name: Model C
+    reasoning_effort: low
+""".strip(),
+        encoding="utf-8",
+    )
+    models = load_model_registry(registry)
+    assert len(models) == 2
     by_name = {m.name: m for m in models}
 
-    # GLM (DashScope-inherited) expanded into 4 effort cards, still inherits defaults
-    glm_cards = [m for m in models if m.id == "glm-5.2"]
-    assert len(glm_cards) == 4
-    assert {m.reasoning_effort for m in glm_cards} == {"none", "low", "medium", "high"}
-    glm_none = by_name["GLM 5.2 · 无思考"]
-    assert glm_none.provider == "openai"
-    assert glm_none.base_url == "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    assert glm_none.api_key == "sk-2ab9f98663e7471aaaef953d21f5b1e4"
-    assert glm_none.reasoning_effort == "none"
-
-    # Qwen3.7 Max (DashScope-inherited) expanded into 4 effort cards
-    qwen_cards = [m for m in models if m.id == "qwen3.7-max"]
-    assert len(qwen_cards) == 4
-    assert {m.reasoning_effort for m in qwen_cards} == {"none", "low", "medium", "high"}
-    qwen_none = by_name["Qwen3.7 Max · 无思考"]
-    assert qwen_none.provider == "openai"
-    assert qwen_none.base_url == "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    assert qwen_none.api_key == "sk-2ab9f98663e7471aaaef953d21f5b1e4"
-    assert qwen_none.reasoning_effort == "none"
-
-    # DeepSeek-official: one model expanded into 4 effort cards
-    flash_cards = [m for m in models if m.id == "deepseek-v4-flash"]
-    assert len(flash_cards) == 4
-    assert {m.reasoning_effort for m in flash_cards} == {"none", "low", "high", "max"}
-    none_card = by_name["DeepSeek v4 Flash · 无思考"]
-    assert none_card.base_url == "https://api.deepseek.com/v1"
-    assert none_card.api_key == "sk-a1d2a065cc2e431fbbb6c914f986018b"
-    assert none_card.reasoning_effort == "none"
+    model_a = by_name["Model A"]
+    assert model_a.provider == "openai"
+    assert model_a.base_url == "https://example.test/v1"
+    assert model_a.api_key_env == "TEST_PROVIDER_API_KEY"
+    assert model_a.api_key is None
+    assert model_a.reasoning_effort is None
+    assert by_name["Model C"].reasoning_effort == "low"
 
 
-def test_run_options_loaded_from_yaml():
-    from config import settings
-    assert settings.temperature == 0.0
-    # max_tokens / request_timeout are not configured -> no limit applied
-    assert settings.max_tokens is None
-    assert settings.request_timeout is None
+def test_run_options_loaded_from_yaml(monkeypatch, tmp_path):
+    import importlib
+
+    settings_mod = importlib.import_module("config.settings")
+
+    registry = tmp_path / "models.yaml"
+    registry.write_text(
+        """
+options:
+  temperature: 0.25
+  max_tokens: 8192
+  request_timeout: 180
+  recover_incomplete_html: false
+  recovery_context_chars: 1234
+  image_tools_enabled: false
+  image_tool_timeout: 12
+  image_tool_max_assets: 7
+""".strip(),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(settings_mod, "MODELS_FILE", registry)
+    configured = settings_mod.Settings()
+    assert configured.temperature == 0.25
+    assert configured.max_tokens == 8192
+    assert configured.request_timeout == 180
+    assert configured.recover_incomplete_html is False
+    assert configured.recovery_context_chars == 1234
+    assert configured.image_tools_enabled is False
+    assert configured.image_tool_timeout == 12
+    assert configured.image_tool_max_assets == 7
 
 
 def test_resolve_credentials_from_env(monkeypatch):

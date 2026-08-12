@@ -1,0 +1,296 @@
+{
+  "schemaVersion": 1,
+  "annotationVersion": 1,
+  "target": {
+    "framework": "ArkUI",
+    "language": "ArkTS",
+    "profile": "uibench-mobile-v1"
+  },
+  "components": {
+    "column": {
+      "arkuiComponent": "Column",
+      "category": "layout",
+      "phase": "P0",
+      "fallback": null,
+      "minApiVersion": null
+    },
+    "row": {
+      "arkuiComponent": "Row",
+      "category": "layout",
+      "phase": "P0",
+      "fallback": "column",
+      "minApiVersion": null
+    },
+    "stack": {
+      "arkuiComponent": "Stack",
+      "category": "layout",
+      "phase": "P0",
+      "fallback": "column",
+      "minApiVersion": null
+    },
+    "scroll": {
+      "arkuiComponent": "Scroll",
+      "category": "scroll",
+      "phase": "P0",
+      "fallback": "column",
+      "maxComponentChildren": 1,
+      "minApiVersion": null
+    },
+    "text": {
+      "arkuiComponent": "Text",
+      "category": "display",
+      "phase": "P0",
+      "fallback": null,
+      "allowedChildren": ["span"],
+      "minApiVersion": null
+    },
+    "span": {
+      "arkuiComponent": "Span",
+      "category": "display",
+      "phase": "P0",
+      "fallback": "text",
+      "allowedParents": ["text"],
+      "minApiVersion": null
+    },
+    "image": {
+      "arkuiComponent": "Image",
+      "category": "display",
+      "phase": "P0",
+      "fallback": null,
+      "minApiVersion": null
+    },
+    "symbol": {
+      "arkuiComponent": "SymbolGlyph",
+      "category": "display",
+      "phase": "P0",
+      "fallback": "image",
+      "requiredMetadata": ["data-symbol"],
+      "minApiVersion": null
+    },
+    "divider": {
+      "arkuiComponent": "Divider",
+      "category": "display",
+      "phase": "P0",
+      "fallback": "column",
+      "minApiVersion": null
+    },
+    "button": {
+      "arkuiComponent": "Button",
+      "category": "action",
+      "phase": "P0",
+      "fallback": "text",
+      "stateProperties": ["disabled"],
+      "actions": ["click"],
+      "minApiVersion": null
+    },
+    "list": {
+      "arkuiComponent": "List",
+      "category": "collection",
+      "phase": "P1",
+      "fallback": "column",
+      "allowedChildren": ["list-item"],
+      "minApiVersion": null
+    },
+    "list-item": {
+      "arkuiComponent": "ListItem",
+      "category": "collection-item",
+      "phase": "P1",
+      "fallback": "column",
+      "allowedParents": ["list"],
+      "stateProperties": ["selected"],
+      "minApiVersion": null
+    },
+    "grid": {
+      "arkuiComponent": "Grid",
+      "category": "collection",
+      "phase": "P1",
+      "fallback": "column",
+      "allowedChildren": ["grid-item"],
+      "minApiVersion": null
+    },
+    "grid-item": {
+      "arkuiComponent": "GridItem",
+      "category": "collection-item",
+      "phase": "P1",
+      "fallback": "column",
+      "allowedParents": ["grid"],
+      "stateProperties": ["selected"],
+      "minApiVersion": null
+    },
+    "swiper": {
+      "arkuiComponent": "Swiper",
+      "category": "collection",
+      "phase": "P1",
+      "fallback": "row",
+      "actions": ["change"],
+      "minApiVersion": null
+    },
+    "search": {
+      "arkuiComponent": "Search",
+      "category": "input",
+      "phase": "P1",
+      "fallback": "text-input",
+      "stateProperties": ["value", "disabled"],
+      "actions": ["change", "submit"],
+      "minApiVersion": null
+    },
+    "text-input": {
+      "arkuiComponent": "TextInput",
+      "category": "input",
+      "phase": "P1",
+      "fallback": "text",
+      "stateProperties": ["value", "disabled", "readonly"],
+      "actions": ["change", "submit"],
+      "minApiVersion": null
+    },
+    "text-area": {
+      "arkuiComponent": "TextArea",
+      "category": "input",
+      "phase": "P1",
+      "fallback": "text-input",
+      "stateProperties": ["value", "disabled", "readonly"],
+      "actions": ["change"],
+      "minApiVersion": null
+    },
+    "checkbox": {
+      "arkuiComponent": "Checkbox",
+      "category": "selection",
+      "phase": "P1",
+      "fallback": "button",
+      "stateProperties": ["checked", "disabled", "name", "value"],
+      "actions": ["change"],
+      "minApiVersion": null
+    },
+    "checkbox-group": {
+      "arkuiComponent": "CheckboxGroup",
+      "category": "selection-group",
+      "phase": "P1",
+      "fallback": "column",
+      "allowedChildren": ["checkbox"],
+      "stateProperties": ["disabled"],
+      "actions": ["change"],
+      "minApiVersion": null
+    },
+    "radio": {
+      "arkuiComponent": "Radio",
+      "category": "selection",
+      "phase": "P1",
+      "fallback": "button",
+      "stateProperties": ["checked", "disabled", "name", "value"],
+      "actions": ["change"],
+      "minApiVersion": null
+    },
+    "toggle": {
+      "arkuiComponent": "Toggle",
+      "category": "selection",
+      "phase": "P1",
+      "fallback": "button",
+      "stateProperties": ["checked", "disabled"],
+      "actions": ["change"],
+      "minApiVersion": null
+    },
+    "tabs": {
+      "arkuiComponent": "Tabs",
+      "category": "navigation",
+      "phase": "P1",
+      "fallback": "column",
+      "allowedChildren": ["tab-content"],
+      "actions": ["change"],
+      "minApiVersion": null
+    },
+    "tab-content": {
+      "arkuiComponent": "TabContent",
+      "category": "navigation-item",
+      "phase": "P1",
+      "fallback": "column",
+      "allowedParents": ["tabs"],
+      "minApiVersion": null
+    },
+    "flex": {
+      "arkuiComponent": "Flex",
+      "category": "layout",
+      "phase": "P2",
+      "fallback": "column",
+      "minApiVersion": null
+    },
+    "relative-container": {
+      "arkuiComponent": "RelativeContainer",
+      "category": "layout",
+      "phase": "P2",
+      "fallback": "stack",
+      "minApiVersion": null
+    },
+    "water-flow": {
+      "arkuiComponent": "WaterFlow",
+      "category": "collection",
+      "phase": "P2",
+      "fallback": "grid",
+      "allowedChildren": ["flow-item"],
+      "minApiVersion": null
+    },
+    "flow-item": {
+      "arkuiComponent": "FlowItem",
+      "category": "collection-item",
+      "phase": "P2",
+      "fallback": "grid-item",
+      "allowedParents": ["water-flow"],
+      "minApiVersion": null
+    },
+    "navigation": {
+      "arkuiComponent": "Navigation",
+      "category": "navigation",
+      "phase": "P2",
+      "fallback": "column",
+      "allowedChildren": ["nav-destination"],
+      "minApiVersion": null
+    },
+    "nav-destination": {
+      "arkuiComponent": "NavDestination",
+      "category": "navigation-item",
+      "phase": "P2",
+      "fallback": "column",
+      "allowedParents": ["navigation"],
+      "minApiVersion": null
+    },
+    "select": {
+      "arkuiComponent": "Select",
+      "category": "input",
+      "phase": "P2",
+      "fallback": "button",
+      "stateProperties": ["value", "disabled"],
+      "actions": ["select"],
+      "minApiVersion": null
+    },
+    "slider": {
+      "arkuiComponent": "Slider",
+      "category": "input",
+      "phase": "P2",
+      "fallback": "row",
+      "stateProperties": ["value", "disabled", "min", "max", "step"],
+      "actions": ["change"],
+      "minApiVersion": null
+    },
+    "progress": {
+      "arkuiComponent": "Progress",
+      "category": "display",
+      "phase": "P2",
+      "fallback": "row",
+      "stateProperties": ["value", "max"],
+      "minApiVersion": null
+    },
+    "loading-progress": {
+      "arkuiComponent": "LoadingProgress",
+      "category": "display",
+      "phase": "P2",
+      "fallback": "progress",
+      "minApiVersion": null
+    },
+    "menu": {
+      "arkuiComponent": "Menu",
+      "category": "overlay",
+      "phase": "P2",
+      "fallback": "column",
+      "minApiVersion": null
+    }
+  }
+}

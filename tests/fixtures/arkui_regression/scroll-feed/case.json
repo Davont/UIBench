@@ -1,0 +1,14 @@
+{
+  "caseVersion": 1,
+  "id": "scroll-feed",
+  "title": "Scrollable rows and image resources",
+  "pageName": "ScrollFeedPage",
+  "html": "screen.html",
+  "snapshot": "browser-snapshot.json",
+  "browserScreenshot": "browser.png",
+  "viewport": {"width": 390, "height": 844},
+  "theme": "light",
+  "tokenTheme": "harmonyos",
+  "coverage": ["Scroll", "Column", "Row", "Image", "Text"],
+  "thresholds": {}
+}

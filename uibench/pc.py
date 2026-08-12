@@ -36,8 +36,15 @@ React、Ant Design、ECharts 与企业级中后台界面。你的目标是：根
    - ECharts：<script src="https://unpkg.com/echarts@5/dist/echarts.min.js"></script>
    - Lucide：<script src="https://unpkg.com/lucide@latest"></script>
    - Babel standalone：<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-   除上述外，不得引入任何其他 CDN、远程 CSS、远程图片、远程字体；不要 <img> 远程图片，
-   占位用内联 SVG 或纯色块。
+   除上述外，只允许使用 `search_photos` 工具实际返回的 Unsplash 图片。
+   当页面确实需要摄影图片时，可调用一次工具，并在 `requests` 中为 Banner 及主要
+   可见内容卡片分别提交具名 slot/query（通常 4–6 个，禁止只搜一个笼统关键词）。
+   使用简洁英文关键词，PC 端优先 `landscape` 或 `squarish`。只能引用返回的
+   `urls.small` 或 `urls.regular`，绝不得自行编造 URL；必须按返回的 `slot` 放入对应
+   卡片，已有合适图片的卡片不得改用图标或空色块；使用时必须加可见、可点击的
+   `Photo by <photographer> on Unsplash` 署名。工具不可用、未调用或无合适
+   结果时，不得使用远程图片，改用内联 SVG 或纯色块。除此之外，不得引入
+   任何其他 CDN、远程 CSS、远程图片或远程字体。
 4. 用 React 函数组件 + Hooks 写页面。组件挂载到 <div id="root"></div>：
    const root = ReactDOM.createRoot(document.getElementById('root'));
    root.render(React.createElement(App));
@@ -82,9 +89,10 @@ B. 布局底色：页面主体背景用 surface(#F3F3F3)；顶部栏、侧边菜
 - 文案真实贴合需求场景，不要 Lorem ipsum，不要编造需求里没有的功能说明。
 
 【交付格式】
-- 只返回源代码，放在一个 ```html 代码块里。
-- 代码块前后不要写任何解释、说明或寒暄。
-- 不要使用 Markdown 列表描述实现思路，直接给可运行的代码。"""
+- 不要输出 reasoning_content、分析过程或实现思路，直接生成最终 HTML/JSX。
+- 最终 answer/content 只返回源代码，必须以 <!DOCTYPE html> 开始，以 </html> 结束。
+- 不要使用 Markdown 代码围栏，最终 content 中不要写解释、说明、寒暄或实现思路。
+- 如果输出额度紧张，减少装饰和非必要内容，优先保证 HTML 完整闭合且可以渲染。"""
 
 PC_GENERATION_PROMPT = ChatPromptTemplate(
     messages=[

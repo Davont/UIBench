@@ -1,0 +1,14 @@
+{
+  "caseVersion": 1,
+  "id": "stack-card",
+  "title": "Row, Column and Stack card",
+  "pageName": "StackCardPage",
+  "html": "screen.html",
+  "snapshot": "browser-snapshot.json",
+  "browserScreenshot": "browser.png",
+  "viewport": {"width": 390, "height": 844},
+  "theme": "light",
+  "tokenTheme": "harmonyos",
+  "coverage": ["Column", "Row", "Stack", "Text", "Button"],
+  "thresholds": {}
+}

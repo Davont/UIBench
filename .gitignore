@@ -8,6 +8,7 @@ __pycache__/
 *.egg
 build/
 dist/
+node_modules/
 
 # Virtual environments
 .venv/
@@ -16,6 +17,7 @@ env/
 
 # Environment
 .env
+.mcp/
 
 # Real model config (contains API keys) - use models.example.yaml as template
 config/models.yaml
@@ -33,3 +35,6 @@ backup_*/
 
 # pytest cache
 .pytest_cache/
+
+# Generated visual-regression projects, reports, and device captures
+.artifacts/

@@ -5,8 +5,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from uibench.arkui.snapshot import BrowserSnapshot
+
 Provider = Literal["openai", "anthropic", "google", "deepseek"]
 Mode = Literal["mobile", "pc"]
+ResultStatus = Literal["success", "degraded", "failed"]
+ArkUiExportMode = Literal["annotated", "generic"]
 
 
 class ModelConfig(BaseModel):
@@ -47,6 +51,24 @@ class GenerationResult(BaseModel):
     mode: Mode = "mobile"
     html: str = ""
     reasoning: str = ""
+    html_source: str = ""
+    finish_reason: str = ""
+    recovery_finish_reason: str = ""
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    reasoning_tokens: int = 0
+    recovered: bool = False
+    status: ResultStatus = "success"
+    image_tool_used: bool = False
+    image_required: int = 0
+    image_count: int = 0
+    image_used: int = 0
+    image_queries: list[str] = Field(default_factory=list)
+    image_tracked: int = 0
+    image_repaired: bool = False
+    image_error: str = ""
+    arkui_export_enabled: bool = False
+    arkui_manifest: dict[str, object] = Field(default_factory=dict)
     log_url: str = ""
     elapsed_seconds: float = 0.0
     error: str | None = None
@@ -57,3 +79,16 @@ class GenerateRequest(BaseModel):
 
     prompt: str = Field(min_length=1)
     mode: Mode = "mobile"
+    arkui_export_enabled: bool = False
+
+
+class ArkUiExportRequest(BaseModel):
+    """One bounded HTML-to-ArkUI export request."""
+
+    html: str = Field(min_length=1, max_length=2_000_000)
+    page_name: str = Field(default="GeneratedPage", min_length=1, max_length=100)
+    page_description: str | None = Field(default=None, max_length=500)
+    mode: ArkUiExportMode = "annotated"
+    viewport_width: int = Field(default=390, ge=240, le=3840)
+    viewport_height: int = Field(default=844, ge=240, le=3840)
+    snapshot: BrowserSnapshot | None = None

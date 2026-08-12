@@ -1,0 +1,117 @@
+{
+  "$id": "https://github.com/Davont/html-to-arkui/contracts/arkui-component-registry.json",
+  "contractVersion": 2,
+  "screenIrSchemaVersion": 2,
+  "components": [
+    {
+      "name": "Row",
+      "kind": "container",
+      "acceptsChildren": true,
+      "minChildren": 0,
+      "maxChildren": null,
+      "allowedParents": null,
+      "allowedChildren": null,
+      "requiredFields": [],
+      "minApiVersion": 7
+    },
+    {
+      "name": "Column",
+      "kind": "container",
+      "acceptsChildren": true,
+      "minChildren": 0,
+      "maxChildren": null,
+      "allowedParents": null,
+      "allowedChildren": null,
+      "requiredFields": [],
+      "minApiVersion": 7
+    },
+    {
+      "name": "Stack",
+      "kind": "container",
+      "acceptsChildren": true,
+      "minChildren": 0,
+      "maxChildren": null,
+      "allowedParents": null,
+      "allowedChildren": null,
+      "requiredFields": [],
+      "minApiVersion": 7
+    },
+    {
+      "name": "Scroll",
+      "kind": "container",
+      "acceptsChildren": true,
+      "minChildren": 0,
+      "maxChildren": 1,
+      "allowedParents": null,
+      "allowedChildren": null,
+      "requiredFields": [],
+      "minApiVersion": 7
+    },
+    {
+      "name": "Text",
+      "kind": "text-container",
+      "acceptsChildren": true,
+      "minChildren": 0,
+      "maxChildren": null,
+      "allowedParents": null,
+      "allowedChildren": ["Span"],
+      "requiredFields": [],
+      "minApiVersion": 7
+    },
+    {
+      "name": "Span",
+      "kind": "leaf",
+      "acceptsChildren": false,
+      "minChildren": 0,
+      "maxChildren": 0,
+      "allowedParents": ["Text"],
+      "allowedChildren": [],
+      "requiredFields": ["content"],
+      "minApiVersion": 7
+    },
+    {
+      "name": "Image",
+      "kind": "leaf",
+      "acceptsChildren": false,
+      "minChildren": 0,
+      "maxChildren": 0,
+      "allowedParents": null,
+      "allowedChildren": [],
+      "requiredFields": ["src"],
+      "minApiVersion": 7
+    },
+    {
+      "name": "SymbolGlyph",
+      "kind": "leaf",
+      "acceptsChildren": false,
+      "minChildren": 0,
+      "maxChildren": 0,
+      "allowedParents": null,
+      "allowedChildren": [],
+      "requiredFields": ["props.symbol"],
+      "minApiVersion": 11
+    },
+    {
+      "name": "Divider",
+      "kind": "leaf",
+      "acceptsChildren": false,
+      "minChildren": 0,
+      "maxChildren": 0,
+      "allowedParents": null,
+      "allowedChildren": [],
+      "requiredFields": [],
+      "minApiVersion": 7
+    },
+    {
+      "name": "Button",
+      "kind": "container",
+      "acceptsChildren": true,
+      "minChildren": 0,
+      "maxChildren": 1,
+      "allowedParents": null,
+      "allowedChildren": null,
+      "requiredFields": [],
+      "minApiVersion": 7
+    }
+  ]
+}

@@ -10,9 +10,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
+from dotenv import load_dotenv
 
 PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
 MODELS_FILE: Path = PROJECT_ROOT / "config" / "models.yaml"
+load_dotenv(PROJECT_ROOT / ".env")
 
 _DEFAULTS = {"temperature": 0.0}
 
@@ -29,6 +31,21 @@ class Settings:
         # i.e. no output-token limit and no request timeout.
         self.max_tokens: int | None = options.get("max_tokens")
         self.request_timeout: int | None = options.get("request_timeout")
+        self.recover_incomplete_html: bool = bool(
+            options.get("recover_incomplete_html", True)
+        )
+        self.recovery_context_chars: int = int(
+            options.get("recovery_context_chars", 6000)
+        )
+        self.image_tools_enabled: bool = bool(
+            options.get("image_tools_enabled", True)
+        )
+        self.image_tool_timeout: float = float(
+            options.get("image_tool_timeout", 90)
+        )
+        self.image_tool_max_assets: int = max(
+            1, min(8, int(options.get("image_tool_max_assets", 6)))
+        )
         if self.max_tokens is not None:
             self.max_tokens = int(self.max_tokens)
         if self.request_timeout is not None:

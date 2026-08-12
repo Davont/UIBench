@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-token-theme="harmonyos">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Typography and wrapping</title>
+  <style>
+    * { box-sizing: border-box; animation: none !important; transition: none !important; }
+    html, body { margin: 0; width: 100%; height: 100%; background: #f4f6f8; }
+    body { font-family: Arial, "PingFang SC", sans-serif; color: #182431; }
+    .screen { width: 390px; height: 844px; overflow-y: auto; background: #f4f6f8; }
+    .content { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 18px; width: 390px; min-height: 844px; padding: 36px 20px; }
+    .eyebrow { width: 350px; color: #0a59f7; font-size: 13px; font-weight: 700; line-height: 20px; }
+    .title { width: 350px; color: #182431; font-size: 30px; font-weight: 700; line-height: 39px; }
+    .body { width: 350px; color: #53616f; font-size: 16px; font-weight: 400; line-height: 25px; }
+    .quote { width: 350px; padding: 16px; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; color: #334155; font-size: 15px; line-height: 24px; }
+    .divider { width: 350px; height: 1px; background: #d9e0e8; }
+    .caption { width: 350px; color: #82909f; font-size: 12px; line-height: 18px; text-align: center; }
+    .action { width: 350px; height: 48px; border: 0; border-radius: 12px; background: #0a59f7; color: #ffffff; font-family: inherit; font-size: 16px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <main class="screen" data-node-id="page" data-component="scroll">
+    <section class="content" data-node-id="page.content" data-component="column">
+      <div class="eyebrow" data-node-id="page.eyebrow" data-component="text">UIBENCH · ARKUI</div>
+      <div class="title" data-node-id="page.title" data-component="text">让 HTML 设计稿稳定转换为 ArkUI 页面</div>
+      <div class="body" data-node-id="page.body" data-component="text">这段正文专门验证中文与英文混排时的字号、行高和自动换行。The same content must remain readable after conversion.</div>
+      <div class="quote" data-node-id="page.quote" data-component="text">先固定浏览器的布局结果，再生成平台组件；视觉差异必须通过截图来验证。</div>
+      <div class="divider" data-node-id="page.divider" data-component="divider"></div>
+      <div class="caption" data-node-id="page.caption" data-component="text">固定视口 390 × 844</div>
+      <button class="action" data-node-id="page.action" data-component="button" data-action="baseline.confirm">开始验证</button>
+    </section>
+  </main>
+</body>
+</html>

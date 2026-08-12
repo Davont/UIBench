@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-token-theme="harmonyos">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Scrollable rows and image resources</title>
+  <style>
+    * { box-sizing: border-box; animation: none !important; transition: none !important; }
+    html, body { margin: 0; width: 100%; height: 100%; background: #f7f8fa; }
+    body { font-family: Arial, "PingFang SC", sans-serif; color: #1f2937; }
+    .screen { width: 390px; height: 844px; overflow-y: auto; background: #f7f8fa; }
+    .feed { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 14px; width: 390px; padding: 28px 18px 60px; }
+    .title { width: 354px; color: #111827; font-size: 25px; font-weight: 700; line-height: 33px; }
+    .subtitle { width: 354px; color: #64748b; font-size: 14px; line-height: 21px; }
+    .item { display: flex; flex-direction: row; align-items: center; gap: 14px; width: 354px; height: 112px; padding: 14px; border: 1px solid #dbe2ea; border-radius: 18px; background: #ffffff; }
+    .thumb { width: 80px; height: 80px; border-radius: 14px; object-fit: cover; background: #2563eb; }
+    .copy { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; width: 228px; height: 80px; }
+    .item-title { width: 228px; color: #1f2937; font-size: 16px; font-weight: 700; line-height: 22px; }
+    .item-body { width: 228px; color: #64748b; font-size: 13px; line-height: 19px; }
+    .tag { width: 228px; color: #2563eb; font-size: 12px; font-weight: 700; line-height: 17px; }
+  </style>
+</head>
+<body>
+  <main class="screen" data-node-id="page" data-component="scroll">
+    <section class="feed" data-node-id="page.feed" data-component="column">
+      <div class="title" data-node-id="page.title" data-component="text">转换检查清单</div>
+      <div class="subtitle" data-node-id="page.subtitle" data-component="text">重复内容暂时用 Row 与 Column 表达，并保留稳定节点 ID。</div>
+      <article class="item" data-node-id="page.item-one" data-component="row" data-ui-role="feed-item">
+        <img class="thumb" data-node-id="page.item-one.image" data-component="image" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" alt="蓝色占位图">
+        <div class="copy" data-node-id="page.item-one.copy" data-component="column">
+          <div class="item-title" data-node-id="page.item-one.title" data-component="text">字体与自动换行</div>
+          <div class="item-body" data-node-id="page.item-one.body" data-component="text">核对字号、行高、字重与中英文混排。</div>
+          <div class="tag" data-node-id="page.item-one.tag" data-component="text">TYPOGRAPHY</div>
+        </div>
+      </article>
+      <article class="item" data-node-id="page.item-two" data-component="row" data-ui-role="feed-item">
+        <img class="thumb" data-node-id="page.item-two.image" data-component="image" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" alt="蓝色占位图">
+        <div class="copy" data-node-id="page.item-two.copy" data-component="column">
+          <div class="item-title" data-node-id="page.item-two.title" data-component="text">图片资源与裁剪</div>
+          <div class="item-body" data-node-id="page.item-two.body" data-component="text">验证资源去重、圆角尺寸和 Cover 模式。</div>
+          <div class="tag" data-node-id="page.item-two.tag" data-component="text">IMAGE</div>
+        </div>
+      </article>
+      <article class="item" data-node-id="page.item-three" data-component="row" data-ui-role="feed-item">
+        <img class="thumb" data-node-id="page.item-three.image" data-component="image" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" alt="蓝色占位图">
+        <div class="copy" data-node-id="page.item-three.copy" data-component="column">
+          <div class="item-title" data-node-id="page.item-three.title" data-component="text">Row 对齐与间距</div>
+          <div class="item-body" data-node-id="page.item-three.body" data-component="text">对比横向布局、居中对齐与组件间距。</div>
+          <div class="tag" data-node-id="page.item-three.tag" data-component="text">LAYOUT</div>
+        </div>
+      </article>
+      <article class="item" data-node-id="page.item-four" data-component="row" data-ui-role="feed-item">
+        <img class="thumb" data-node-id="page.item-four.image" data-component="image" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" alt="蓝色占位图">
+        <div class="copy" data-node-id="page.item-four.copy" data-component="column">
+          <div class="item-title" data-node-id="page.item-four.title" data-component="text">长内容与滚动</div>
+          <div class="item-body" data-node-id="page.item-four.body" data-component="text">首轮只比较 scrollTop 为零时的固定首屏。</div>
+          <div class="tag" data-node-id="page.item-four.tag" data-component="text">SCROLL</div>
+        </div>
+      </article>
+      <article class="item" data-node-id="page.item-five" data-component="row" data-ui-role="feed-item">
+        <img class="thumb" data-node-id="page.item-five.image" data-component="image" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" alt="蓝色占位图">
+        <div class="copy" data-node-id="page.item-five.copy" data-component="column">
+          <div class="item-title" data-node-id="page.item-five.title" data-component="text">编译与诊断</div>
+          <div class="item-body" data-node-id="page.item-five.body" data-component="text">每个样本都需要保存工程与构建日志。</div>
+          <div class="tag" data-node-id="page.item-five.tag" data-component="text">BUILD</div>
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
