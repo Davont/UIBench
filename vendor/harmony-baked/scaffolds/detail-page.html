@@ -1,0 +1,23 @@
+<!-- 页面模板：详情页（内容主体 + 主操作；TitleBar 用二级返回变体） -->
+<div class="flex flex-col h-screen" style="background:#F1F3F5">
+  <header class="shrink-0">
+    <!-- 槽位：TitleBar 组件（secondary-page 变体，带返回） -->
+  </header>
+  <main class="flex-1 overflow-y-auto pb-4">
+    <!-- 头图/主视觉区：通栏无边距；纯色块或图片，高度 180-240px -->
+    <section class="w-full">
+      <!-- 槽位：头图 / 大卡片 -->
+    </section>
+    <!-- 信息区：白底圆角卡片，页面边距 16px，卡片内边距 16px -->
+    <section class="mx-4 mt-3 rounded-2xl bg-white p-4 flex flex-col gap-2">
+      <!-- 标题 17px 加粗、正文 14px、辅助文字 12px 灰色（rgba(0,0,0,0.6)） -->
+    </section>
+    <section class="mx-4 mt-3 rounded-2xl bg-white p-4">
+      <!-- 槽位：更多信息分组 / ListPhone / RatingPhone 等 -->
+    </section>
+  </main>
+  <!-- 底部主操作：白底、上分割线，主按钮通栏 -->
+  <footer class="shrink-0 px-4 py-3 bg-white" style="border-top:0.5px solid rgba(0,0,0,0.1)">
+    <!-- 槽位：Button 组件（Emphasize 主按钮，宽度撑满） -->
+  </footer>
+</div>

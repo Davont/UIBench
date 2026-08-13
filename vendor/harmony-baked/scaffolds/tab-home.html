@@ -1,0 +1,19 @@
+<!-- 页面模板：Tab 首页（顶部搜索 + 分类 Tab + 内容流 + 底部导航） -->
+<div class="flex flex-col h-screen" style="background:#F1F3F5">
+  <!-- 顶部固定区：状态栏高度已由壳处理，从搜索框开始 -->
+  <header class="shrink-0 px-4 pt-3 pb-2" style="background:#F1F3F5">
+    <!-- 槽位：Search 组件（328 宽度自动适配，居中） -->
+  </header>
+  <!-- 分类 Tab：横向滚动，紧贴搜索框 -->
+  <nav class="shrink-0 pb-1">
+    <!-- 槽位：ChipsTab 组件 -->
+  </nav>
+  <!-- 内容滚动区：卡片间距 12px，页面左右边距 16px -->
+  <main class="flex-1 overflow-y-auto px-4 pt-2 pb-4 flex flex-col gap-3">
+    <!-- 槽位：Card / 内容卡片若干；分组之间用 SubHeader 分隔，组间距 24px（mt-6） -->
+  </main>
+  <!-- 底部导航：吸底，自带毛玻璃背景 -->
+  <footer class="shrink-0">
+    <!-- 槽位：BottomTab 组件（3-5 个 Tab） -->
+  </footer>
+</div>
