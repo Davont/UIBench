@@ -1,0 +1,835 @@
+{
+  "$schema": "./schemas/assets.schema.json",
+  "version": "1.0.0",
+  "description": "Design asset registry for Harmony React UI assets",
+  "assets": [
+    {
+      "id": "hm-symbol-font",
+      "name": "HM Symbol Font",
+      "description": "Harmony HM Symbol variable font used for runtime icon rendering",
+      "type": "font",
+      "path": "src/assets/hmsymbol/HMSymbolVF.ttf",
+      "ossUrl": "",
+      "usage": "runtime icon font for Harmony components such as BottomTab and TitleBar"
+    },
+    {
+      "id": "hm-symbol-map",
+      "name": "HM Symbol Map",
+      "description": "Glyph mapping table for HMSymbol icon names and unicode values",
+      "type": "data",
+      "path": "src/assets/hmsymbol/hmsymbol-map.json",
+      "ossUrl": "",
+      "usage": "source-of-truth mapping from semantic icon names to HMSymbol glyph codes"
+    },
+    {
+      "id": "featured-guide-bg",
+      "name": "Featured Guide Background",
+      "description": "Background image for the featured guide card (BigImageCard) from Pixso 探索页-上滑半模态框",
+      "type": "image",
+      "path": "src/assets/image/food/featured-guide-bg.png",
+      "ossUrl": "",
+      "usage": "精选指南卡片背景图"
+    },
+    {
+      "id": "food1",
+      "name": "Food 1",
+      "description": "美食图片 1 from Pixso 探索页-上滑半模态框",
+      "type": "image",
+      "path": "src/assets/image/food/food1.png",
+      "ossUrl": "",
+      "usage": "美食探店 / 普通指南卡片配图"
+    },
+    {
+      "id": "food2",
+      "name": "Food 2",
+      "description": "美食图片 2 from Pixso 探索页-上滑半模态框",
+      "type": "image",
+      "path": "src/assets/image/food/food2.png",
+      "ossUrl": "",
+      "usage": "美食探店 / 普通指南卡片配图"
+    },
+    {
+      "id": "place01",
+      "name": "Place 01",
+      "description": "地点图片 01 from Pixso 探索页-上滑半模态框",
+      "type": "image",
+      "path": "src/assets/image/food/place01.png",
+      "ossUrl": "",
+      "usage": "漫步 / 宝藏去处卡片配图"
+    },
+    {
+      "id": "place02",
+      "name": "Place 02",
+      "description": "地点图片 02 from Pixso 探索页-上滑半模态框",
+      "type": "image",
+      "path": "src/assets/image/food/place02.png",
+      "ossUrl": "",
+      "usage": "漫步 / 宝藏去处卡片配图"
+    },
+    {
+      "id": "place03",
+      "name": "Place 03",
+      "description": "地点图片 03 from Pixso 探索页-上滑半模态框",
+      "type": "image",
+      "path": "src/assets/image/food/place03.png",
+      "ossUrl": "",
+      "usage": "漫步 / 宝藏去处卡片配图"
+    },
+    {
+      "id": "book2",
+      "name": "Book 2",
+      "description": "Service book cover 2",
+      "type": "image",
+      "path": "src/blocks/top-banner/assets/book2.png",
+      "ossUrl": "",
+      "usage": "新书推荐 / 书封3:4"
+    },
+    {
+      "id": "book3",
+      "name": "Book 3",
+      "description": "Service book cover 3",
+      "type": "image",
+      "path": "src/blocks/top-banner/assets/book3.png",
+      "ossUrl": "",
+      "usage": "新书推荐 / 书封3:4"
+    },
+    {
+      "id": "book4",
+      "name": "Book 4",
+      "description": "Service book cover 4",
+      "type": "image",
+      "path": "src/blocks/top-banner/assets/book4.png",
+      "ossUrl": "",
+      "usage": "新书推荐 / 书封3:4"
+    },
+    {
+      "id": "book5",
+      "name": "Book 5",
+      "description": "Service book cover 5 from Pixso Recommended New Books",
+      "type": "image",
+      "path": "src/blocks/top-banner/assets/book5.png",
+      "ossUrl": "",
+      "usage": "Recommended New Books / 书封3:4"
+    },
+    {
+      "id": "book6",
+      "name": "Book 6",
+      "description": "Service book cover 6 from Pixso Recommended New Books",
+      "type": "image",
+      "path": "src/blocks/top-banner/assets/book6.png",
+      "ossUrl": "",
+      "usage": "Recommended New Books / 书封3:4"
+    },
+    {
+      "id": "book7",
+      "name": "Book 7",
+      "description": "Service book cover 7 from Pixso Recommended New Books",
+      "type": "image",
+      "path": "src/blocks/top-banner/assets/book7.png",
+      "ossUrl": "",
+      "usage": "Recommended New Books / 书封3:4"
+    },
+    {
+      "id": "background-floating",
+      "name": "Floating Map Background",
+      "description": "Pixso map background used for draggable map explore pages (511×845)",
+      "type": "image",
+      "path": "src/assets/background-floating.png",
+      "ossUrl": "",
+      "usage": "pannable map layer background for Render pages"
+    },
+    {
+      "id": "电影封面01",
+      "name": "电影封面 01",
+      "description": "宫格式列表 Block 封面图 01",
+      "type": "image",
+      "path": "src/blocks/recently-watching-grid-card/电影封面01.png",
+      "ossUrl": "",
+      "usage": "最近在看宫格式列表封面图"
+    },
+    {
+      "id": "电影封面02",
+      "name": "电影封面 02",
+      "description": "宫格式列表 Block 封面图 02",
+      "type": "image",
+      "path": "src/blocks/recently-watching-grid-card/电影封面02.png",
+      "ossUrl": "",
+      "usage": "最近在看宫格式列表封面图"
+    },
+    {
+      "id": "电影封面03",
+      "name": "电影封面 03",
+      "description": "宫格式列表 Block 封面图 03",
+      "type": "image",
+      "path": "src/blocks/recently-watching-grid-card/电影封面03.png",
+      "ossUrl": "",
+      "usage": "最近在看宫格式列表封面图"
+    },
+    {
+      "id": "电影封面04",
+      "name": "电影封面 04",
+      "description": "宫格式列表 Block 封面图 04",
+      "type": "image",
+      "path": "src/blocks/recently-watching-grid-card/电影封面04.png",
+      "ossUrl": "",
+      "usage": "最近在看宫格式列表封面图"
+    },
+    {
+      "id": "电影封面05",
+      "name": "电影封面 05",
+      "description": "宫格式列表 Block 封面图 05",
+      "type": "image",
+      "path": "src/blocks/recently-watching-grid-card/电影封面05.png",
+      "ossUrl": "",
+      "usage": "最近在看宫格式列表封面图"
+    },
+    {
+      "id": "电影封面06",
+      "name": "电影封面 06",
+      "description": "宫格式列表 Block 封面图 06",
+      "type": "image",
+      "path": "src/blocks/recently-watching-grid-card/电影封面06.png",
+      "ossUrl": "",
+      "usage": "最近在看宫格式列表封面图"
+    },
+    {
+      "id": "game-background",
+      "name": "Game Background",
+      "description": "游戏背景图 from Pixso 游戏评价场景 (1320×1209)",
+      "type": "image",
+      "path": "src/blocks/top-banner-2/assets/game-background.png",
+      "ossUrl": "",
+      "usage": "top-banner-2 游戏背景图"
+    },
+    {
+      "id": "game-foreground",
+      "name": "Game Foreground",
+      "description": "游戏前景/Logo 图片 from Pixso 游戏评价场景 (816×448)",
+      "type": "image",
+      "path": "src/blocks/top-banner-2/assets/game-foreground.png",
+      "ossUrl": "",
+      "usage": "my-game-review Block 游戏封面/Logo"
+    },
+    {
+      "id": "game-prop1",
+      "name": "Game Prop 1",
+      "description": "游戏道具图 1 from Pixso 游戏评价场景 (123×123)",
+      "type": "image",
+      "path": "src/blocks/my-game-review/assets/game-prop1.png",
+      "ossUrl": "",
+      "usage": "my-game-review Block 道具截图"
+    },
+    {
+      "id": "game-prop2",
+      "name": "Game Prop 2",
+      "description": "游戏道具图 2 from Pixso 游戏评价场景 (123×123)",
+      "type": "image",
+      "path": "src/blocks/my-game-review/assets/game-prop2.png",
+      "ossUrl": "",
+      "usage": "my-game-review Block 道具截图"
+    },
+    {
+      "id": "game-prop3",
+      "name": "Game Prop 3",
+      "description": "游戏道具图 3 from Pixso 游戏评价场景 (123×123)",
+      "type": "image",
+      "path": "src/blocks/my-game-review/assets/game-prop3.png",
+      "ossUrl": "",
+      "usage": "my-game-review Block 道具截图"
+    },
+    {
+      "id": "game1",
+      "name": "Game 1",
+      "description": "游戏封面图 1 from Pixso 游戏评价场景 (160×160)",
+      "type": "image",
+      "path": "src/blocks/my-game-review/assets/game1.png",
+      "ossUrl": "",
+      "usage": "my-game-review Block 游戏封面图"
+    },
+    {
+      "id": "game2",
+      "name": "Game 2",
+      "description": "游戏封面图 2 from Pixso 游戏评价场景 (160×160)",
+      "type": "image",
+      "path": "src/blocks/my-game-review/assets/game2.png",
+      "ossUrl": "",
+      "usage": "my-game-review Block 游戏封面图"
+    },
+    {
+      "id": "game3",
+      "name": "Game 3",
+      "description": "游戏封面图 3 from Pixso 游戏评价场景 (160×160)",
+      "type": "image",
+      "path": "src/blocks/my-game-review/assets/game3.png",
+      "ossUrl": "",
+      "usage": "my-game-review Block 游戏封面图"
+    },
+    {
+      "id": "game4",
+      "name": "Game 4",
+      "description": "游戏封面图 4 from Pixso 游戏评价场景 (160×160)",
+      "type": "image",
+      "path": "src/blocks/my-game-review/assets/game4.png",
+      "ossUrl": "",
+      "usage": "my-game-review Block 游戏封面图"
+    },
+    {
+      "id": "book8",
+      "name": "Book 8",
+      "description": "Service book cover 8, used in top-banner default cover",
+      "type": "image",
+      "path": "src/blocks/top-banner/assets/book8.png",
+      "ossUrl": "",
+      "usage": "top-banner 书封默认图"
+    },
+    {
+      "id": "forest-background",
+      "name": "Forest Background",
+      "description": "Forest background image for top-banner (1.18MB)",
+      "type": "image",
+      "path": "src/blocks/top-banner/assets/forest-background.png",
+      "ossUrl": "",
+      "usage": "top-banner / top-banner-2 背景图"
+    },
+    {
+      "id": "samolioti3-background",
+      "name": "Samolioti 3 Background",
+      "description": "Samolioti 3 游戏背景图 from Pixso 推荐新游场景 (664×1176)",
+      "type": "image",
+      "path": "src/blocks/recommended-new-games/assets/Samolioti3-background.png",
+      "ossUrl": "",
+      "usage": "recommended-new-games Block 大特色卡片背景图"
+    },
+    {
+      "id": "samolioti3-logo",
+      "name": "Samolioti 3 Logo",
+      "description": "Samolioti 3 游戏Logo图 from Pixso 推荐新游场景 (160×160)",
+      "type": "image",
+      "path": "src/blocks/recommended-new-games/assets/Samolioti3-logo.png",
+      "ossUrl": "",
+      "usage": "recommended-new-games Block 大特色卡片Logo"
+    },
+    {
+      "id": "starwar-background",
+      "name": "Star War Background",
+      "description": "星战游戏背景图 from Pixso 推荐新游场景 (2280×1620)",
+      "type": "image",
+      "path": "src/blocks/recommended-new-games/assets/星战-background.png",
+      "ossUrl": "",
+      "usage": "recommended-new-games Block 小卡片背景图"
+    },
+    {
+      "id": "starwar-logo",
+      "name": "Star War Logo",
+      "description": "星战游戏Logo图 from Pixso 推荐新游场景 (160×160)",
+      "type": "image",
+      "path": "src/blocks/recommended-new-games/assets/星战-logo.png",
+      "ossUrl": "",
+      "usage": "recommended-new-games Block 小卡片Logo"
+    },
+    {
+      "id": "forza-background",
+      "name": "Forza Background",
+      "description": "极限竞速游戏背景图 from Pixso 推荐新游场景 (664×1176)",
+      "type": "image",
+      "path": "src/blocks/recommended-new-games/assets/极限竞速-background.png",
+      "ossUrl": "",
+      "usage": "recommended-new-games Block 小卡片背景图"
+    },
+    {
+      "id": "forza-logo",
+      "name": "Forza Logo",
+      "description": "极限竞速游戏Logo图 from Pixso 推荐新游场景 (160×160)",
+      "type": "image",
+      "path": "src/blocks/recommended-new-games/assets/极限竞速-logo.png",
+      "ossUrl": "",
+      "usage": "recommended-new-games Block 小卡片Logo"
+    },
+    {
+      "id": "music-background",
+      "name": "Music Background",
+      "description": "Top Banner 2 音乐场景背景图。",
+      "type": "image",
+      "path": "src/blocks/top-banner-2/assets/music-background.png",
+      "ossUrl": "",
+      "usage": "top-banner-2 music scenario background"
+    },
+    {
+      "id": "music-foreground",
+      "name": "Music Foreground",
+      "description": "Top Banner 2 音乐场景前景图。",
+      "type": "image",
+      "path": "src/blocks/top-banner-2/assets/music-foreground.png",
+      "ossUrl": "",
+      "usage": "top-banner-2 music scenario foreground"
+    },
+    {
+      "id": "movie-background",
+      "name": "Movie Background",
+      "description": "Top Banner 2 电影场景背景图。",
+      "type": "image",
+      "path": "src/blocks/top-banner-2/assets/movie- background.png",
+      "ossUrl": "",
+      "usage": "top-banner-2 movie scenario background"
+    },
+    {
+      "id": "movie-foreground",
+      "name": "Movie Foreground",
+      "description": "Top Banner 2 电影场景前景图。",
+      "type": "image",
+      "path": "src/blocks/top-banner-2/assets/movie-foreground.png",
+      "ossUrl": "",
+      "usage": "top-banner-2 movie scenario foreground"
+    },
+    {
+      "id": "mine-zhibanji-covers",
+      "name": "Mine Zhibanji Covers",
+      "description": "我的页直板机歌单封面资源集合。",
+      "type": "image-set",
+      "path": "src/assets/pages/mine-zhibanji-page",
+      "ossUrl": "",
+      "usage": "playlist-section-card cover image collection"
+    },
+    {
+      "id": "feedback-card-nps-illustration",
+      "name": "Feedback Card NPS Illustration",
+      "description": "产品体验反馈卡片右侧 NPS 插图。",
+      "type": "image",
+      "path": "src/blocks/feedback-card/assets/nps-illustration.png",
+      "ossUrl": "",
+      "usage": "feedback-card illustration"
+    },
+    {
+      "id": "my-movie-review-movie1",
+      "name": "My Movie Review Movie 1",
+      "description": "欢迎回来续看卡片封面图 1。",
+      "type": "image",
+      "path": "src/blocks/my-movie-review/assets/movie1.png",
+      "ossUrl": "",
+      "usage": "my-movie-review card cover"
+    },
+    {
+      "id": "my-movie-review-movie2",
+      "name": "My Movie Review Movie 2",
+      "description": "欢迎回来续看卡片封面图 2。",
+      "type": "image",
+      "path": "src/blocks/my-movie-review/assets/movie2.png",
+      "ossUrl": "",
+      "usage": "my-movie-review card cover"
+    },
+    {
+      "id": "my-movie-review-movie3",
+      "name": "My Movie Review Movie 3",
+      "description": "欢迎回来续看卡片封面图 3。",
+      "type": "image",
+      "path": "src/blocks/my-movie-review/assets/movie3.png",
+      "ossUrl": "",
+      "usage": "my-movie-review card cover"
+    },
+    {
+      "id": "music-recommended-music1",
+      "name": "Music Recommended Cover 1",
+      "description": "音乐推荐卡片封面图 1。",
+      "type": "image",
+      "path": "src/blocks/music-recommended/assets/music1.png",
+      "ossUrl": "",
+      "usage": "music-recommended album cover"
+    },
+    {
+      "id": "music-recommended-music2",
+      "name": "Music Recommended Cover 2",
+      "description": "音乐推荐卡片封面图 2。",
+      "type": "image",
+      "path": "src/blocks/music-recommended/assets/music2.png",
+      "ossUrl": "",
+      "usage": "music-recommended album cover"
+    },
+    {
+      "id": "music-recommended-music3",
+      "name": "Music Recommended Cover 3",
+      "description": "音乐推荐卡片封面图 3。",
+      "type": "image",
+      "path": "src/blocks/music-recommended/assets/music3.png",
+      "ossUrl": "",
+      "usage": "music-recommended album cover"
+    },
+    {
+      "id": "music-recommended-play-icon",
+      "name": "Music Recommended Play Icon",
+      "description": "音乐推荐卡片播放图标。",
+      "type": "image",
+      "path": "src/blocks/music-recommended/assets/ic_play_24.png",
+      "ossUrl": "",
+      "usage": "music-recommended play icon overlay"
+    },
+    {
+      "id": "services-category-mask-1",
+      "name": "Services Category Mask 1",
+      "description": "服务分类影片宫格封面图 1。",
+      "type": "image",
+      "path": "src/pages/services-categories/assets/蒙版-1.png",
+      "ossUrl": "",
+      "usage": "movie-grid-card poster image"
+    },
+    {
+      "id": "services-category-mask-2",
+      "name": "Services Category Mask 2",
+      "description": "服务分类影片宫格封面图 2。",
+      "type": "image",
+      "path": "src/pages/services-categories/assets/蒙版-2.png",
+      "ossUrl": "",
+      "usage": "movie-grid-card poster image"
+    },
+    {
+      "id": "services-category-mask-3",
+      "name": "Services Category Mask 3",
+      "description": "服务分类影片宫格封面图 3。",
+      "type": "image",
+      "path": "src/pages/services-categories/assets/蒙版-3.png",
+      "ossUrl": "",
+      "usage": "movie-grid-card poster image"
+    },
+    {
+      "id": "services-category-mask-4",
+      "name": "Services Category Mask 4",
+      "description": "服务分类影片宫格封面图 4。",
+      "type": "image",
+      "path": "src/pages/services-categories/assets/蒙版-4.png",
+      "ossUrl": "",
+      "usage": "movie-grid-card poster image"
+    },
+    {
+      "id": "services-category-mask-5",
+      "name": "Services Category Mask 5",
+      "description": "服务分类影片宫格封面图 5。",
+      "type": "image",
+      "path": "src/pages/services-categories/assets/蒙版-5.png",
+      "ossUrl": "",
+      "usage": "movie-grid-card poster image"
+    },
+    {
+      "id": "services-category-mask-6",
+      "name": "Services Category Mask 6",
+      "description": "服务分类影片宫格封面图 6。",
+      "type": "image",
+      "path": "src/pages/services-categories/assets/蒙版-6.png",
+      "ossUrl": "",
+      "usage": "movie-grid-card poster image"
+    },
+    {
+      "id": "services-category-mask-7",
+      "name": "Services Category Mask 7",
+      "description": "服务分类影片宫格封面图 7。",
+      "type": "image",
+      "path": "src/pages/services-categories/assets/蒙版-7.png",
+      "ossUrl": "",
+      "usage": "movie-grid-card poster image"
+    },
+    {
+      "id": "services-category-mask-8",
+      "name": "Services Category Mask 8",
+      "description": "服务分类影片宫格封面图 8。",
+      "type": "image",
+      "path": "src/pages/services-categories/assets/蒙版-8.png",
+      "ossUrl": "",
+      "usage": "movie-grid-card poster image"
+    },
+    {
+      "id": "services-category-mask-9",
+      "name": "Services Category Mask 9",
+      "description": "服务分类影片宫格封面图 9。",
+      "type": "image",
+      "path": "src/pages/services-categories/assets/蒙版-9.png",
+      "ossUrl": "",
+      "usage": "movie-grid-card poster image"
+    },
+    {
+      "id": "illustration-default",
+      "name": "Default Illustration",
+      "description": "通用插图，Pattern 组件默认插图。",
+      "type": "image",
+      "path": "src/assets/illustration.png",
+      "ossUrl": "",
+      "usage": "Pattern 组件默认插图"
+    },
+    {
+      "id": "app-icon-360",
+      "name": "App Icon 360",
+      "description": "360px 应用图标默认图，ProgressBarEclipse 组件使用。",
+      "type": "image",
+      "path": "src/assets/image/360.png",
+      "ossUrl": "",
+      "usage": "ProgressBarEclipse 默认 app icon"
+    },
+    {
+      "id": "app-icon-default",
+      "name": "App Icon Default",
+      "description": "默认应用图标，QRCode 和 three-column-layout 使用。",
+      "type": "image",
+      "path": "src/assets/image/appicon.png",
+      "ossUrl": "",
+      "usage": "QRCode default icon / three-column-layout 来源图标"
+    },
+    {
+      "id": "avatar-default",
+      "name": "Avatar Default",
+      "description": "默认头像图，QRCode 和 three-column-layout 使用。",
+      "type": "image",
+      "path": "src/assets/image/avatar.png",
+      "ossUrl": "",
+      "usage": "QRCode default avatar / three-column-layout 来源头像"
+    },
+    {
+      "id": "qr-code-default",
+      "name": "QR Code Default",
+      "description": "默认二维码图，QRCode 组件使用。",
+      "type": "image",
+      "path": "src/assets/image/qr-code.png",
+      "ossUrl": "",
+      "usage": "QRCode 默认二维码"
+    },
+    {
+      "id": "chart-gradient-bg",
+      "name": "Chart Gradient Background",
+      "description": "榜单渐变背景图，ranking-hotlist-topbanner 使用。",
+      "type": "image",
+      "path": "src/assets/image/chart-gradient.png",
+      "ossUrl": "",
+      "usage": "ranking-hotlist-topbanner 渐变背景"
+    },
+    {
+      "id": "chart-hot-song",
+      "name": "Chart Hot Song",
+      "description": "榜单热歌封面图，ranking-hotlist-topbanner 使用。",
+      "type": "image",
+      "path": "src/assets/image/chart-hot-song.png",
+      "ossUrl": "",
+      "usage": "ranking-hotlist-topbanner 热歌封面"
+    },
+    {
+      "id": "chart-mask",
+      "name": "Chart Mask",
+      "description": "榜单弧形蒙版 SVG，ranking-hotlist-topbanner 使用。",
+      "type": "image",
+      "path": "src/assets/image/chart-mask.svg",
+      "ossUrl": "",
+      "usage": "ranking-hotlist-topbanner 弧形蒙版"
+    },
+    {
+      "id": "light-png",
+      "name": "Light",
+      "description": "亮度调节插图，FloatingSwiperDotPhone 使用。",
+      "type": "image",
+      "path": "src/assets/image/light.png",
+      "ossUrl": "",
+      "usage": "FloatingSwiperDotPhone 亮度插图"
+    },
+    {
+      "id": "xiaohongshu-icon",
+      "name": "Xiaohongshu Icon",
+      "description": "小红书来源图标，three-column-layout stories 使用。",
+      "type": "image",
+      "path": "src/assets/image/xiaohongshu.png",
+      "ossUrl": "",
+      "usage": "three-column-layout 来源图标"
+    },
+    {
+      "id": "artist-album-1",
+      "name": "Artist Album 1",
+      "description": "艺人搜索结果专辑封面 1。",
+      "type": "image",
+      "path": "src/blocks/artist-search-result-card/assets/album1.png",
+      "ossUrl": "",
+      "usage": "artist-search-result-card 专辑封面"
+    },
+    {
+      "id": "artist-album-2",
+      "name": "Artist Album 2",
+      "description": "艺人搜索结果专辑封面 2。",
+      "type": "image",
+      "path": "src/blocks/artist-search-result-card/assets/album2.png",
+      "ossUrl": "",
+      "usage": "artist-search-result-card 专辑封面"
+    },
+    {
+      "id": "artist-album-3",
+      "name": "Artist Album 3",
+      "description": "艺人搜索结果专辑封面 3。",
+      "type": "image",
+      "path": "src/blocks/artist-search-result-card/assets/album3.png",
+      "ossUrl": "",
+      "usage": "artist-search-result-card 专辑封面"
+    },
+    {
+      "id": "artist-album-4",
+      "name": "Artist Album 4",
+      "description": "艺人搜索结果专辑封面 4。",
+      "type": "image",
+      "path": "src/blocks/artist-search-result-card/assets/album4.png",
+      "ossUrl": "",
+      "usage": "artist-search-result-card 专辑封面"
+    },
+    {
+      "id": "artist-avatar-1",
+      "name": "Artist Avatar 1",
+      "description": "艺人搜索结果头像 1。",
+      "type": "image",
+      "path": "src/blocks/artist-search-result-card/assets/avatar1.png",
+      "ossUrl": "",
+      "usage": "artist-search-result-card 艺人头像"
+    },
+    {
+      "id": "artist-avatar-2",
+      "name": "Artist Avatar 2",
+      "description": "艺人搜索结果头像 2。",
+      "type": "image",
+      "path": "src/blocks/artist-search-result-card/assets/avatar2.png",
+      "ossUrl": "",
+      "usage": "artist-search-result-card 艺人头像"
+    },
+    {
+      "id": "today-movie-1",
+      "name": "Today Movie 1",
+      "description": "今日影片封面 1。",
+      "type": "image",
+      "path": "src/blocks/today-movie-list/assets/movie1.png",
+      "ossUrl": "",
+      "usage": "today-movie-list 影片封面"
+    },
+    {
+      "id": "today-movie-2",
+      "name": "Today Movie 2",
+      "description": "今日影片封面 2。",
+      "type": "image",
+      "path": "src/blocks/today-movie-list/assets/movie2.png",
+      "ossUrl": "",
+      "usage": "today-movie-list 影片封面"
+    },
+    {
+      "id": "today-movie-3",
+      "name": "Today Movie 3",
+      "description": "今日影片封面 3。",
+      "type": "image",
+      "path": "src/blocks/today-movie-list/assets/movie3.png",
+      "ossUrl": "",
+      "usage": "today-movie-list 影片封面"
+    },
+    {
+      "id": "services-me-nps-illustration",
+      "name": "Services Me NPS Illustration",
+      "description": "我的页面产品体验反馈卡片 NPS 插图。",
+      "type": "image",
+      "path": "src/pages/services-me/assets/nps-illustration.png",
+      "ossUrl": "",
+      "usage": "services-me 页面 NPS 插图"
+    },
+    {
+      "id": "services-launch-huawei-video-icon",
+      "name": "Services Launch Huawei Video Icon",
+      "description": "权限启动页华为视频应用图标。",
+      "type": "image",
+      "path": "src/pages/services-launch-page/assets/huawei-video-icon.png",
+      "ossUrl": "",
+      "usage": "services-launch-page 应用图标"
+    },
+    {
+      "id": "services-ranking-illustration-top-banner",
+      "name": "Services Ranking Illustration Top Banner",
+      "description": "榜单页顶部插图背景。",
+      "type": "image",
+      "path": "src/pages/services-ranking/illustration-top-banner.png",
+      "ossUrl": "",
+      "usage": "services-ranking 顶部背景图"
+    },
+    {
+      "id": "my-game-review-game-badge",
+      "name": "My Game Review Game Badge",
+      "description": "游戏评价卡片游戏徽章截图。",
+      "type": "image",
+      "path": "src/blocks/my-game-review/assets/game badge.png",
+      "ossUrl": "",
+      "usage": "my-game-review 游戏徽章"
+    },
+    {
+      "id": "my-game-review-cover",
+      "name": "My Game Review Cover",
+      "description": "游戏评价卡片主封面。",
+      "type": "image",
+      "path": "src/blocks/my-game-review/assets/my game review.png",
+      "ossUrl": "",
+      "usage": "my-game-review 主封面"
+    },
+    {
+      "id": "my-game-review-tabbar",
+      "name": "My Game Review TabBar",
+      "description": "游戏评价卡片底部导航栏素材。",
+      "type": "image",
+      "path": "src/blocks/my-game-review/assets/tabbar 本体.png",
+      "ossUrl": "",
+      "usage": "my-game-review 底部导航栏"
+    },
+    {
+      "id": "my-game-review-tabbar-no-shadow",
+      "name": "My Game Review TabBar No Shadow",
+      "description": "游戏评价卡片底部导航栏无阴影素材。",
+      "type": "image",
+      "path": "src/blocks/my-game-review/assets/tabbar 本体无阴影.png",
+      "ossUrl": "",
+      "usage": "my-game-review 底部导航栏无阴影"
+    },
+    {
+      "id": "my-game-review-big-event",
+      "name": "My Game Review Big Event",
+      "description": "游戏评价卡片大事件截图。",
+      "type": "image",
+      "path": "src/blocks/my-game-review/assets/大事件.png",
+      "ossUrl": "",
+      "usage": "my-game-review 大事件"
+    },
+    {
+      "id": "my-game-review-activity",
+      "name": "My Game Review Activity",
+      "description": "游戏评价卡片活动截图。",
+      "type": "image",
+      "path": "src/blocks/my-game-review/assets/活动.png",
+      "ossUrl": "",
+      "usage": "my-game-review 活动"
+    },
+    {
+      "id": "my-game-review-checkin",
+      "name": "My Game Review Checkin",
+      "description": "游戏评价卡片签到截图。",
+      "type": "image",
+      "path": "src/blocks/my-game-review/assets/签到.png",
+      "ossUrl": "",
+      "usage": "my-game-review 签到"
+    },
+    {
+      "id": "recommended-new-games-blur-large",
+      "name": "Recommended New Games Blur Large",
+      "description": "推荐新游大卡片模糊渐变蒙版。",
+      "type": "image",
+      "path": "src/blocks/recommended-new-games/assets/模糊渐变-大卡.png",
+      "ossUrl": "",
+      "usage": "recommended-new-games 大卡片渐变蒙版"
+    },
+    {
+      "id": "recommended-new-games-blur-small-right",
+      "name": "Recommended New Games Blur Small Right",
+      "description": "推荐新游右小卡片模糊渐变蒙版。",
+      "type": "image",
+      "path": "src/blocks/recommended-new-games/assets/模糊渐变-小卡右.png",
+      "ossUrl": "",
+      "usage": "recommended-new-games 右小卡片渐变蒙版"
+    },
+    {
+      "id": "recommended-new-games-blur-small-left",
+      "name": "Recommended New Games Blur Small Left",
+      "description": "推荐新游左小卡片模糊渐变蒙版。",
+      "type": "image",
+      "path": "src/blocks/recommended-new-games/assets/模糊渐变-小卡左.png",
+      "ossUrl": "",
+      "usage": "recommended-new-games 左小卡片渐变蒙版"
+    }
+  ]
+}

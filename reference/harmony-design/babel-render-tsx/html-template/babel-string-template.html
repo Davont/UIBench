@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#eef1f5" />
+  <title>Babel TSX 字符串模板</title>
+
+  <script type="importmap">
+      {
+        "imports": {
+          "@/components/Container/Card": "../design-system-vendor/design-components.js",
+          "@/components/Container/DialogPhone": "../design-system-vendor/design-components.js",
+          "@/components/Container/FloatingBindSheet": "../design-system-vendor/design-components.js",
+          "@/components/Container/FloatingDialog": "../design-system-vendor/design-components.js",
+          "@/components/Container/ListPhone": "../design-system-vendor/design-components.js",
+          "@/components/Container/Popup": "../design-system-vendor/design-components.js",
+          "@/components/Controls/ActionBar": "../design-system-vendor/design-components.js",
+          "@/components/Controls/Button": "../design-system-vendor/design-components.js",
+          "@/components/Controls/Chips": "../design-system-vendor/design-components.js",
+          "@/components/Controls/FloatingActionBar": "../design-system-vendor/design-components.js",
+          "@/components/Controls/FloatingButtonPhone": "../design-system-vendor/design-components.js",
+          "@/components/Controls/FloatingChips": "../design-system-vendor/design-components.js",
+          "@/components/Controls/FloatingMenu": "../design-system-vendor/design-components.js",
+          "@/components/Controls/FloatingSelectPhone": "../design-system-vendor/design-components.js",
+          "@/components/Controls/FloatingTextSelection": "../design-system-vendor/design-components.js",
+          "@/components/Controls/FloatingToolBarOnlyiconPhone": "../design-system-vendor/design-components.js",
+          "@/components/Controls/FloatingToolBarTextPhone": "../design-system-vendor/design-components.js",
+          "@/components/Controls/Menu": "../design-system-vendor/design-components.js",
+          "@/components/Controls/ScrollBar": "../design-system-vendor/design-components.js",
+          "@/components/Controls/Select": "../design-system-vendor/design-components.js",
+          "@/components/Controls/TextSelection": "../design-system-vendor/design-components.js",
+          "@/components/Controls/TextSelectionHandle": "../design-system-vendor/design-components.js",
+          "@/components/Controls/Toggle": "../design-system-vendor/design-components.js",
+          "@/components/Controls/ToolBar": "../design-system-vendor/design-components.js",
+          "@/components/HMSymbolIcon": "../design-system-vendor/design-components.js",
+          "@/components/Input/Counter": "../design-system-vendor/design-components.js",
+          "@/components/Input/FloatingSearchPhone": "../design-system-vendor/design-components.js",
+          "@/components/Input/FloatingSearchSecondPagePhone": "../design-system-vendor/design-components.js",
+          "@/components/Input/PatternLock": "../design-system-vendor/design-components.js",
+          "@/components/Input/Search": "../design-system-vendor/design-components.js",
+          "@/components/Input/TextInput": "../design-system-vendor/design-components.js",
+          "@/components/Navigation/BottomTab": "../design-system-vendor/design-components.js",
+          "@/components/Navigation/ChipsTab": "../design-system-vendor/design-components.js",
+          "@/components/Navigation/FloatingChipsTabPhone": "../design-system-vendor/design-components.js",
+          "@/components/Navigation/FloatingSwiperDotPhone": "../design-system-vendor/design-components.js",
+          "@/components/Navigation/FloatingTab": "../design-system-vendor/design-components.js",
+          "@/components/Navigation/FloatingTitleBar": "../design-system-vendor/design-components.js",
+          "@/components/Navigation/LoadingProgressBar": "../design-system-vendor/design-components.js",
+          "@/components/Navigation/Swiper": "../design-system-vendor/design-components.js",
+          "@/components/Navigation/SwiperDot": "../design-system-vendor/design-components.js",
+          "@/components/Navigation/TitleBar": "../design-system-vendor/design-components.js",
+          "@/components/Publis/Aibottombar": "../design-system-vendor/design-components.js",
+          "@/components/Publis/IconButton": "../design-system-vendor/design-components.js",
+          "@/components/Publis/Pattern": "../design-system-vendor/design-components.js",
+          "@/components/Publis/Size": "../design-system-vendor/design-components.js",
+          "@/components/Publis/StatusBar": "../design-system-vendor/design-components.js",
+          "@/components/Selection/CheckBox": "../design-system-vendor/design-components.js",
+          "@/components/Selection/CheckboxGroup": "../design-system-vendor/design-components.js",
+          "@/components/Selection/FloatingPickerDialog": "../design-system-vendor/design-components.js",
+          "@/components/Selection/FloatingSegmentedButton": "../design-system-vendor/design-components.js",
+          "@/components/Selection/Picker": "../design-system-vendor/design-components.js",
+          "@/components/Selection/RadioPhone": "../design-system-vendor/design-components.js",
+          "@/components/Selection/RatingPhone": "../design-system-vendor/design-components.js",
+          "@/components/Selection/SegmentedButton": "../design-system-vendor/design-components.js",
+          "@/components/Selection/Slider": "../design-system-vendor/design-components.js",
+          "@/components/Selection/SwitchPhone": "../design-system-vendor/design-components.js",
+          "@/components/Views/AlphabetIndexer": "../design-system-vendor/design-components.js",
+          "@/components/Views/AlphabetIndexerLable": "../design-system-vendor/design-components.js",
+          "@/components/Views/Badge": "../design-system-vendor/design-components.js",
+          "@/components/Views/DataPanelLinearGradient": "../design-system-vendor/design-components.js",
+          "@/components/Views/DataPanelLoading": "../design-system-vendor/design-components.js",
+          "@/components/Views/DataPanelProgressCircle": "../design-system-vendor/design-components.js",
+          "@/components/Views/Divider": "../design-system-vendor/design-components.js",
+          "@/components/Views/FloatingAlphabetIndexerLable": "../design-system-vendor/design-components.js",
+          "@/components/Views/FloatingPopupTip": "../design-system-vendor/design-components.js",
+          "@/components/Views/FloatingSnackbar": "../design-system-vendor/design-components.js",
+          "@/components/Views/FloatingToast": "../design-system-vendor/design-components.js",
+          "@/components/Views/GaugeRing": "../design-system-vendor/design-components.js",
+          "@/components/Views/GaugeStripGauge": "../design-system-vendor/design-components.js",
+          "@/components/Views/PopupTip": "../design-system-vendor/design-components.js",
+          "@/components/Views/ProgressBar": "../design-system-vendor/design-components.js",
+          "@/components/Views/ProgressBarCapsule": "../design-system-vendor/design-components.js",
+          "@/components/Views/ProgressBarEclipse": "../design-system-vendor/design-components.js",
+          "@/components/Views/ProgressBarLoading": "../design-system-vendor/design-components.js",
+          "@/components/Views/QRCode": "../design-system-vendor/design-components.js",
+          "@/components/Views/Snackbar": "../design-system-vendor/design-components.js",
+          "@/components/Views/SubHeader": "../design-system-vendor/design-components.js",
+          "@/components/Views/TextClock": "../design-system-vendor/design-components.js",
+          "@/components/Views/Toast": "../design-system-vendor/design-components.js",
+          "@/container-components/GridContainer": "../design-system-vendor/design-components.js",
+          "@/container-components/ListContainer": "../design-system-vendor/design-components.js",
+          "@/container-components/NavigationContainer": "../design-system-vendor/design-components.js",
+          
+          "@/lib/utils": "../design-system-vendor/design-components.js",
+
+          "@/blocks/artist-search-result-card": "../design-system-vendor/blocks-components.js",
+          "@/blocks/big-image-card": "../design-system-vendor/blocks-components.js",
+          "@/blocks/big-image-card-two-column-normal": "../design-system-vendor/blocks-components.js",
+          "@/blocks/big-image-card-two-column-rating": "../design-system-vendor/blocks-components.js",
+          "@/blocks/common-services": "../design-system-vendor/blocks-components.js",
+          "@/blocks/feedback-card": "../design-system-vendor/blocks-components.js",
+          "@/blocks/filter-chips": "../design-system-vendor/blocks-components.js",
+          "@/blocks/filter-complete": "../design-system-vendor/blocks-components.js",
+          "@/blocks/filter-list": "../design-system-vendor/blocks-components.js",
+          "@/blocks/floating-sheet-semi-modal": "../design-system-vendor/blocks-components.js",
+          "@/blocks/floating-toggle-filter": "../design-system-vendor/blocks-components.js",
+          "@/blocks/identity-card": "../design-system-vendor/blocks-components.js",
+          "@/blocks/list": "../design-system-vendor/blocks-components.js",
+          "@/blocks/mini-player": "../design-system-vendor/blocks-components.js",
+          "@/blocks/movie-grid-card": "../design-system-vendor/blocks-components.js",
+          "@/blocks/music-recommended": "../design-system-vendor/blocks-components.js",
+          "@/blocks/music-search-completed-result-list": "../design-system-vendor/blocks-components.js",
+          "@/blocks/music-search-history": "../design-system-vendor/blocks-components.js",
+          "@/blocks/music-searching-result-list": "../design-system-vendor/blocks-components.js",
+          "@/blocks/my-game-review": "../design-system-vendor/blocks-components.js",
+          "@/blocks/my-movie-review": "../design-system-vendor/blocks-components.js",
+          "@/blocks/new-book-preview": "../design-system-vendor/blocks-components.js",
+          "@/blocks/playlist-section-card": "../design-system-vendor/blocks-components.js",
+          "@/blocks/quick-entry-card": "../design-system-vendor/blocks-components.js",
+          "@/blocks/ranking-categories": "../design-system-vendor/blocks-components.js",
+          "@/blocks/ranking-chipstab-phone": "../design-system-vendor/blocks-components.js",
+          "@/blocks/ranking-hotlist-topbanner": "../design-system-vendor/blocks-components.js",
+          "@/blocks/ranking-list": "../design-system-vendor/blocks-components.js",
+          "@/blocks/ranking-topbanner": "../design-system-vendor/blocks-components.js",
+          "@/blocks/rating-card": "../design-system-vendor/blocks-components.js",
+          "@/blocks/rating-card-detailed": "../design-system-vendor/blocks-components.js",
+          "@/blocks/recently-watching-grid-card": "../design-system-vendor/blocks-components.js",
+          "@/blocks/recommended-new-books": "../design-system-vendor/blocks-components.js",
+          "@/blocks/recommended-new-games": "../design-system-vendor/blocks-components.js",
+          "@/blocks/scroll-list": "../design-system-vendor/blocks-components.js",
+          "@/blocks/service-list-card": "../design-system-vendor/blocks-components.js",
+          "@/blocks/three-column-layout": "../design-system-vendor/blocks-components.js",
+          "@/blocks/today-movie-list": "../design-system-vendor/blocks-components.js",
+          "@/blocks/top-banner": "../design-system-vendor/blocks-components.js",
+          "@/blocks/top-banner-2": "../design-system-vendor/blocks-components.js",
+          "@/blocks/top-songs": "../design-system-vendor/blocks-components.js",
+          "@/blocks/two-column-layout": "../design-system-vendor/blocks-components.js",
+
+          "design-components": "../design-system-vendor/design-components.js",
+          "blocks-components": "../design-system-vendor/blocks-components.js",
+          "react": "../design-system-vendor/react-vendor-19.2.6.js",
+          "react/jsx-runtime": "../design-system-vendor/react-vendor-19.2.6.js",
+          "react/jsx-dev-runtime": "../design-system-vendor/react-vendor-19.2.6.js",
+          "react-dom": "../design-system-vendor/react-vendor-19.2.6.js",
+          "react-dom/client": "../design-system-vendor/react-vendor-19.2.6.js"
+        }
+      }
+    </script>
+
+  <link rel="stylesheet" href="../design-system-vendor/hmsymbol-font.css" />
+  <link rel="stylesheet" href="../design-system-vendor/design-components.css" />
+  <link rel="stylesheet" href="../design-system-vendor/blocks-components.css" />
+  <link rel="icon" href="data:," />
+  <style type="text/tailwindcss"></style>
+  <script src="../design-system-vendor/tailwind-browser.js"></script>
+  <style>
+    html,
+    body,
+    #root {
+      min-height: 100%;
+      margin: 0;
+    }
+
+    body {
+      background:
+        repeating-linear-gradient(
+          135deg,
+          rgba(255, 255, 255, 0.5) 0,
+          rgba(255, 255, 255, 0.5) 1px,
+          transparent 1px,
+          transparent 16px
+        ),
+        linear-gradient(
+          135deg,
+          #eef2f7 0%,
+          #e2e8f0 52%,
+          #d6dee8 100%
+        );
+    }
+
+    #root {
+      display: grid;
+      justify-items: center;
+      padding: 24px 12px;
+    }
+
+    .babel-loading,
+    .babel-error {
+      align-self: start;
+      margin-top: 30vh;
+      padding: 14px 18px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.9);
+      color: #596273;
+      box-shadow: 0 10px 36px rgba(25, 35, 50, 0.08);
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .babel-error {
+      max-width: 680px;
+      color: #b42318;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+
+<body>
+  <main id="root"></main>
+
+  <script src="../design-system-vendor/babel-standalone.js"></script>
+
+  <!--
+      模板本身不保存 TSX。外部调用：
+      await window.renderTsxString(tsxSource, { componentName })
+    -->
+  <script>
+    const tsxRendererReady = new Promise((resolve) => {
+      window.__resolveTsxRenderer = resolve
+    })
+
+    window.renderTsxString = (...args) =>
+      tsxRendererReady.then((renderer) => renderer(...args))
+  </script>
+
+  <script type="module">
+    const { default: React } = await import("react")
+    const ReactDOMClient = await import("react-dom/client")
+    const reactRoot = ReactDOMClient.createRoot(document.getElementById("root"))
+
+    function findPageComponent(pageModule, componentName) {
+      if (componentName && pageModule[componentName]) {
+        return pageModule[componentName]
+      }
+
+      if (pageModule.default) {
+        return pageModule.default
+      }
+
+      return Object.entries(pageModule).find(
+        ([exportName, value]) =>
+          typeof value === "function" &&
+          !exportName.toLowerCase().endsWith("styles"),
+      )?.[1]
+    }
+
+    async function renderTsxString(tsxSource, { componentName } = {}) {
+      if (!tsxSource.trim()) {
+        throw new Error("TSX 字符串不能为空")
+      }
+
+      // tsx 兜底导入 import React from "react";
+      if (!/^import\s+React[\s,{]/m.test(tsxSource.trimStart())) {
+        tsxSource = `import React from "react";\n${tsxSource}`
+      }
+
+      const transformResult = Babel.transform(tsxSource, {
+        filename: "inline-page.tsx",
+        presets: ["typescript", "react"],
+        sourceType: "module",
+      })
+      const pageModuleUrl = URL.createObjectURL(
+        new Blob([transformResult.code], { type: "text/javascript" }),
+      )
+
+      try {
+        const pageModule = await import(pageModuleUrl)
+        const PageComponent = findPageComponent(pageModule, componentName)
+
+        if (!PageComponent) {
+          throw new Error(
+            "没有找到页面组件，请使用 export default 或传入 componentName",
+          )
+        }
+
+        reactRoot.render(
+          React.createElement(
+            React.StrictMode,
+            null,
+            React.createElement(PageComponent),
+          ),
+        )
+      } finally {
+        URL.revokeObjectURL(pageModuleUrl)
+      }
+    }
+
+    window.__resolveTsxRenderer(renderTsxString)
+    delete window.__resolveTsxRenderer
+  </script>
+  <script type="text/plain" id="page-tsx">
+    import React from "react";
+    // tsx 代码 生成位置
+  </script>
+
+  <script>
+    const tsxSource = document.getElementById("page-tsx").textContent
+    window.renderTsxString(tsxSource).catch(console.error)
+  </script>
+</body>
+
+</html>

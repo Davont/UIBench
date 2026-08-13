@@ -1,0 +1,103 @@
+{
+  "variantOptions": {
+    "ColorMode": ["Light", "Dark"],
+    "Button尺寸": ["Medium", "Small"],
+    "Button类型": ["Emphasized", "Normal", "Warning", "Text"],
+    "Button状态": ["Enabled", "Hover", "Pressed", "Focus", "Loading", "Disabled"]
+  },
+  "pixTreeNodes": [
+    {
+      "name": "权限启动页",
+      "guid": "36:54423",
+      "variants": {},
+      "childNode": [
+        {
+          "name": "StatusBar",
+          "guid": "36:54425",
+          "variants": { "ColorMode": "Dark" },
+          "childNode": []
+        },
+        {
+          "name": "Dialog/BG",
+          "guid": "36:54427",
+          "variants": {},
+          "childNode": []
+        },
+        {
+          "name": "Text",
+          "guid": "36:54428",
+          "variants": {},
+          "childNode": [
+            {
+              "name": "AppIcon",
+              "guid": "2:66205",
+              "variants": {},
+              "childNode": []
+            },
+            {
+              "name": "Title",
+              "guid": "2:66204",
+              "variants": {},
+              "childNode": []
+            },
+            {
+              "name": "Subtitle",
+              "guid": "2:66207",
+              "variants": {},
+              "childNode": []
+            }
+          ]
+        },
+        {
+          "name": "PrivacyContent",
+          "guid": "36:54429",
+          "variants": {},
+          "childNode": [
+            {
+              "name": "PrivacyText",
+              "guid": "36:54432",
+              "variants": {},
+              "childNode": []
+            },
+            {
+              "name": "PrivacyLink",
+              "guid": "36:54434",
+              "variants": {},
+              "childNode": []
+            },
+            {
+              "name": "PrivacyText2",
+              "guid": "36:54436",
+              "variants": {},
+              "childNode": []
+            },
+            {
+              "name": "PrivacyShieldIcon",
+              "guid": "36:54437",
+              "variants": {},
+              "childNode": []
+            },
+            {
+              "name": "Button-Agree",
+              "guid": "36:54438",
+              "variants": { "尺寸": "Medium", "类型": "Emphasized", "状态": "Enabled" },
+              "childNode": []
+            },
+            {
+              "name": "Button-Cancel",
+              "guid": "36:54439",
+              "variants": { "尺寸": "Medium", "类型": "Normal", "状态": "Enabled" },
+              "childNode": []
+            }
+          ]
+        },
+        {
+          "name": "Aibottombar",
+          "guid": "36:54440",
+          "variants": { "ColorMode": "Dark" },
+          "childNode": []
+        }
+      ]
+    }
+  ]
+}

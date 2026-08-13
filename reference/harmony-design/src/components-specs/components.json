@@ -1,0 +1,709 @@
+{
+  "$schema": "./schemas/components.schema.json",
+  "components": [
+    {
+      "id": "status-bar",
+      "name": "StatusBar",
+      "path": "src/components/Publis/StatusBar",
+      "export": "StatusBar",
+      "stories": "src/components/Publis/StatusBar/StatusBar.stories.tsx",
+      "spec": "src/components-specs/status-bar.md"
+    },
+    {
+      "id": "title-bar",
+      "name": "TitleBar",
+      "path": "src/components/Navigation/TitleBar",
+      "export": "TitleBar",
+      "stories": "src/components/Navigation/TitleBar/TitleBar.stories.tsx",
+      "spec": "src/components-specs/title-bar.md"
+    },
+    {
+      "id": "bottom-tab",
+      "name": "BottomTab",
+      "path": "src/components/Navigation/BottomTab",
+      "export": "BottomTab",
+      "stories": "src/components/Navigation/BottomTab/BottomTab.stories.tsx",
+      "spec": "src/components-specs/bottom-tab.md"
+    },
+    {
+      "id": "aibottombar",
+      "name": "Aibottombar",
+      "path": "src/components/Publis/Aibottombar",
+      "export": "Aibottombar",
+      "stories": "src/components/Publis/Aibottombar/Aibottombar.stories.tsx",
+      "spec": "src/components-specs/aibottombar.md"
+    },
+    {
+      "id": "floating-button-phone",
+      "name": "FloatingButtonPhone",
+      "path": "src/components/Controls/FloatingButtonPhone",
+      "export": "FloatingButtonPhone",
+      "stories": "src/components/Controls/FloatingButtonPhone/FloatingButtonPhone.stories.tsx",
+      "spec": "src/components-specs/floating-button-phone.md"
+    },
+    {
+      "id": "chips-tab",
+      "name": "ChipsTab",
+      "path": "src/components/Navigation/ChipsTab",
+      "export": "ChipsTab",
+      "stories": "src/components/Navigation/ChipsTab/chips-tab.stories.tsx",
+      "spec": "src/components-specs/chips-tab.md"
+    },
+    {
+      "id": "floating-chips-tab-phone",
+      "name": "FloatingChipsTabPhone",
+      "path": "src/components/Navigation/FloatingChipsTabPhone",
+      "export": "FloatingChipsTabPhone",
+      "stories": "src/components/Navigation/FloatingChipsTabPhone/FloatingChipsTabPhone.stories.tsx",
+      "spec": "src/components-specs/floating-chips-tab-phone.md"
+    },
+    {
+      "id": "size",
+      "name": "Size",
+      "path": "src/components/Publis/Size",
+      "export": "Size",
+      "stories": "src/components/Publis/Size/Size.stories.tsx",
+      "spec": "src/components-specs/size.md"
+    },
+    {
+      "id": "size-phone",
+      "name": "SizePhone",
+      "path": "src/components/Publis/Size",
+      "export": "SizePhone",
+      "stories": "src/components/Publis/Size/SizePhone.stories.tsx",
+      "spec": "src/components-specs/size.md"
+    },
+    {
+      "id": "size-tablet",
+      "name": "SizeTablet",
+      "path": "src/components/Publis/Size",
+      "export": "SizeTablet",
+      "stories": "src/components/Publis/Size/SizeTablet.stories.tsx",
+      "spec": "src/components-specs/size.md"
+    },
+    {
+      "id": "size-foldable",
+      "name": "SizeFoldable",
+      "path": "src/components/Publis/Size",
+      "export": "SizeFoldable",
+      "stories": "src/components/Publis/Size/SizeFoldable.stories.tsx",
+      "spec": "src/components-specs/size.md"
+    },
+    {
+      "id": "floating-swiper-dot-phone",
+      "name": "FloatingSwiperDotPhone",
+      "path": "src/components/Navigation/FloatingSwiperDotPhone",
+      "export": "FloatingSwiperDotPhone",
+      "stories": "src/components/Navigation/FloatingSwiperDotPhone/FloatingSwiperDotPhone.stories.tsx",
+      "spec": "src/components-specs/floating-swiper-dot-phone.md"
+    },
+    {
+      "id": "swiper",
+      "name": "Swiper",
+      "path": "src/components/Navigation/Swiper",
+      "export": "Swiper",
+      "stories": "src/components/Navigation/Swiper/Swiper.stories.tsx",
+      "spec": "src/components-specs/swiper.md"
+    },
+    {
+      "id": "button",
+      "name": "Button",
+      "path": "src/components/Controls/Button",
+      "export": "Button",
+      "stories": "src/components/Controls/Button/button.stories.tsx",
+      "spec": "src/components-specs/button.md"
+    },
+    {
+      "id": "toggle",
+      "name": "Toggle",
+      "path": "src/components/Controls/Toggle",
+      "export": "Toggle",
+      "stories": "src/components/Controls/Toggle/Toggle.stories.tsx",
+      "spec": "src/components-specs/toggle.md"
+    },
+    {
+      "id": "icon-button",
+      "name": "IconButton",
+      "path": "src/components/Publis/IconButton",
+      "export": "IconButton",
+      "stories": "src/components/Publis/IconButton/IconButton.stories.tsx",
+      "spec": "src/components-specs/icon-button.md"
+    },
+    {
+      "id": "select",
+      "name": "Select",
+      "path": "src/components/Controls/Select",
+      "export": "Select",
+      "stories": "src/components/Controls/Select/select.stories.tsx",
+      "spec": "src/components-specs/select.md"
+    },
+    {
+      "id": "slider",
+      "name": "Slider",
+      "path": "src/components/Selection/Slider",
+      "export": "Slider",
+      "stories": "src/components/Selection/Slider/Slider.stories.tsx",
+      "spec": "src/components-specs/slider.md"
+    },
+    {
+      "id": "slider-seekbar",
+      "name": "SliderSeekbar",
+      "path": "src/components/Selection/Slider",
+      "export": "SliderSeekbar",
+      "stories": "src/components/Selection/SliderSeekbar/SliderSeekbar.stories.tsx",
+      "spec": "src/components-specs/slider.md"
+    },
+    {
+      "id": "action-bar",
+      "name": "ActionBar",
+      "path": "src/components/Controls/ActionBar",
+      "export": "ActionBar",
+      "stories": "src/components/Controls/ActionBar/action-bar.stories.tsx",
+      "spec": "src/components-specs/action-bar.md"
+    },
+    {
+      "id": "floating-action-bar",
+      "name": "FloatingActionBar",
+      "path": "src/components/Controls/FloatingActionBar",
+      "export": "FloatingActionBar",
+      "stories": "src/components/Controls/FloatingActionBar/FloatingActionBar.stories.tsx",
+      "spec": "src/components-specs/floating-action-bar.md"
+    },
+    {
+      "id": "menu",
+      "name": "Menu",
+      "path": "src/components/Controls/Menu",
+      "export": "Menu",
+      "stories": "src/components/Controls/Menu/menu.stories.tsx",
+      "spec": "src/components-specs/menu.md"
+    },
+    {
+      "id": "search",
+      "name": "Search",
+      "path": "src/components/Input/Search",
+      "export": "Search",
+      "stories": "src/components/Input/Search/Search.stories.tsx",
+      "spec": "src/components-specs/search.md"
+    },
+    {
+      "id": "toolbar",
+      "name": "ToolBar",
+      "path": "src/components/Controls/ToolBar",
+      "export": "ToolBar",
+      "stories": "src/components/Controls/ToolBar/ToolBar.stories.tsx",
+      "spec": "src/components-specs/toolbar.md"
+    },
+    {
+      "id": "floating-toolbar-onlyicon-phone",
+      "name": "FloatingToolBarOnlyiconPhone",
+      "path": "src/components/Controls/FloatingToolBarOnlyiconPhone",
+      "export": "FloatingToolBarOnlyiconPhone",
+      "stories": "src/components/Controls/FloatingToolBarOnlyiconPhone/FloatingToolBarOnlyiconPhone.stories.tsx",
+      "spec": "src/components-specs/floating-toolbar-onlyicon-phone.md"
+    },
+    {
+      "id": "floating-toolbar-text-phone",
+      "name": "FloatingToolBarTextPhone",
+      "path": "src/components/Controls/FloatingToolBarTextPhone",
+      "export": "FloatingToolBarTextPhone",
+      "stories": "src/components/Controls/FloatingToolBarTextPhone/FloatingToolBarTextPhone.stories.tsx",
+      "spec": "src/components-specs/floating-toolbar-text-phone.md"
+    },
+    {
+      "id": "floating-title-bar",
+      "name": "FloatingTitleBar",
+      "path": "src/components/Navigation/FloatingTitleBar",
+      "export": "FloatingTitleBar",
+      "stories": "src/components/Navigation/FloatingTitleBar/FloatingTitleBar.stories.tsx",
+      "spec": "src/components-specs/floating-title-bar.md"
+    },
+    {
+      "id": "floating-bind-sheet",
+      "name": "FloatingBindSheet",
+      "path": "src/components/Container/FloatingBindSheet",
+      "export": "FloatingBindSheet",
+      "stories": "src/components/Container/FloatingBindSheet/FloatingBindSheet.stories.tsx",
+      "spec": "src/components-specs/floating-bind-sheet.md"
+    },
+    {
+      "id": "floating-menu",
+      "name": "FloatingMenu",
+      "path": "src/components/Controls/FloatingMenu",
+      "export": "FloatingMenu",
+      "stories": "src/components/Controls/FloatingMenu/FloatingMenu.stories.tsx",
+      "spec": "src/components-specs/floating-menu.md"
+    },
+    {
+      "id": "floating-toast",
+      "name": "FloatingToast",
+      "path": "src/components/Views/FloatingToast",
+      "export": "FloatingToast",
+      "stories": "src/components/Views/FloatingToast/FloatingToast.stories.tsx",
+      "spec": "src/components-specs/floating-toast.md"
+    },
+    {
+      "id": "floating-popup-tip",
+      "name": "FloatingPopupTip",
+      "path": "src/components/Views/FloatingPopupTip",
+      "export": "FloatingPopupTip",
+      "stories": "src/components/Views/FloatingPopupTip/FloatingPopupTip.stories.tsx",
+      "spec": "src/components-specs/floating-popup-tip.md"
+    },
+    {
+      "id": "floating-tab",
+      "name": "FloatingTab",
+      "path": "src/components/Navigation/FloatingTab",
+      "export": "FloatingTab",
+      "stories": "src/components/Navigation/FloatingTab/FloatingTab.stories.tsx",
+      "spec": "src/components-specs/floating-tab.md"
+    },
+    {
+      "id": "floatingchips",
+      "name": "FloatingChips",
+      "path": "src/components/Controls/FloatingChips",
+      "export": "FloatingChips",
+      "stories": "src/components/Controls/FloatingChips/FloatingChips.stories.tsx",
+      "spec": "src/components-specs/floating-chips.md"
+    },
+    {
+      "id": "floating-segmented-button",
+      "name": "FloatingSegmentedButton",
+      "path": "src/components/Selection/FloatingSegmentedButton",
+      "export": "FloatingSegmentedButton",
+      "stories": "src/components/Selection/FloatingSegmentedButton/FloatingSegmentedButton.stories.tsx",
+      "spec": "src/components-specs/floating-segmented-button.md"
+    },
+    {
+      "id": "floating-picker-dialog",
+      "name": "FloatingPickerDialog",
+      "path": "src/components/Selection/FloatingPickerDialog",
+      "export": "FloatingPickerDialog",
+      "stories": "src/components/Selection/FloatingPickerDialog/FloatingPickerDialog.stories.tsx",
+      "spec": "src/components-specs/floating-picker-dialog.md"
+    },
+    {
+      "id": "list-phone",
+      "name": "ListPhone",
+      "path": "src/components/Container/ListPhone",
+      "export": "ListPhone",
+      "stories": "src/components/Container/ListPhone/ListPhone.stories.tsx",
+      "spec": "src/components-specs/list-phone.md"
+    },
+    {
+      "id": "dialog-phone",
+      "name": "DialogPhone",
+      "path": "src/components/Container/DialogPhone",
+      "export": "DialogPhone",
+      "stories": "src/components/Container/DialogPhone/DialogPhone.stories.tsx",
+      "spec": "src/components-specs/dialog-phone.md",
+      "usage": "For Storybook/render mobile prototype containers, pass 内嵌 on controlled DialogPhone open={...} so the overlay is bounded to the phone viewport."
+    },
+    {
+      "id": "radio-phone",
+      "name": "RadioPhone",
+      "path": "src/components/Selection/RadioPhone",
+      "export": "RadioPhone",
+      "stories": "src/components/Selection/RadioPhone/RadioPhone.stories.tsx",
+      "spec": "src/components-specs/radio-phone.md"
+    },
+    {
+      "id": "switch-phone",
+      "name": "SwitchPhone",
+      "path": "src/components/Selection/SwitchPhone",
+      "export": "SwitchPhone",
+      "stories": "src/components/Selection/SwitchPhone/SwitchPhone.stories.tsx",
+      "spec": "src/components-specs/switch-phone.md"
+    },
+    {
+      "id": "checkbox",
+      "name": "CheckBox",
+      "path": "src/components/Selection/CheckBox",
+      "export": "CheckBox",
+      "stories": "src/components/Selection/CheckBox/CheckBox.stories.tsx",
+      "spec": "src/components-specs/checkbox.md"
+    },
+    {
+      "id": "text-input-box-phone",
+      "name": "TextInputBoxPhone",
+      "path": "src/components/Input/TextInput",
+      "export": "TextInputBoxPhone",
+      "stories": "src/components/Input/TextInput/TextInputBoxPhone.stories.tsx",
+      "spec": "src/components-specs/text-input.md"
+    },
+    {
+      "id": "text-input-none-phone",
+      "name": "TextInputNonePhone",
+      "path": "src/components/Input/TextInput",
+      "export": "TextInputNonePhone",
+      "stories": "src/components/Input/TextInput/TextInputNonePhone.stories.tsx",
+      "spec": "src/components-specs/text-input.md"
+    },
+    {
+      "id": "text-input-muti-phone",
+      "name": "TextInputMutiPhone",
+      "path": "src/components/Input/TextInput",
+      "export": "TextInputMutiPhone",
+      "stories": "src/components/Input/TextInput/TextInputMutiPhone.stories.tsx",
+      "spec": "src/components-specs/text-input.md"
+    },
+    {
+      "id": "floating-search-phone",
+      "name": "FloatingSearchPhone",
+      "path": "src/components/Input/FloatingSearchPhone",
+      "export": "FloatingSearchPhone",
+      "stories": "src/components/Input/FloatingSearchPhone/FloatingSearchPhone.stories.tsx",
+      "spec": "src/components-specs/floating-search-phone.md"
+    },
+    {
+      "id": "floating-search-second-page-phone",
+      "name": "FloatingSearchSecondPagePhone",
+      "path": "src/components/Input/FloatingSearchSecondPagePhone",
+      "export": "FloatingSearchSecondPagePhone",
+      "stories": "src/components/Input/FloatingSearchSecondPagePhone/FloatingSearchSecondPagePhone.stories.tsx",
+      "spec": "src/components-specs/floating-search-second-page-phone.md"
+    },
+    {
+      "id": "popup",
+      "name": "Popup",
+      "path": "src/components/Container/Popup",
+      "export": "Popup",
+      "stories": "src/components/Container/Popup/Popup.stories.tsx",
+      "spec": "src/components-specs/popup.md"
+    },
+    {
+      "id": "subheader",
+      "name": "SubHeader",
+      "path": "src/components/Views/SubHeader",
+      "export": "SubHeader",
+      "stories": "src/components/Views/SubHeader/subheader.stories.tsx",
+      "spec": "src/components-specs/subheader.md"
+    },
+    {
+      "id": "progress-bar",
+      "name": "ProgressBar",
+      "path": "src/components/Views/ProgressBar",
+      "export": "ProgressBar",
+      "stories": "src/components/Views/ProgressBar/progress-bar.stories.tsx",
+      "spec": "src/components-specs/progress-bar.md"
+    },
+    {
+      "id": "progress-bar-loading",
+      "name": "ProgressBarLoading",
+      "path": "src/components/Views/ProgressBarLoading",
+      "export": "ProgressBarLoading",
+      "stories": "src/components/Views/ProgressBarLoading/progress-bar-loading.stories.tsx",
+      "spec": "src/components-specs/progress-bar-loading.md"
+    },
+    {
+      "id": "loading-progress-bar",
+      "name": "LoadingProgressBar",
+      "path": "src/components/Navigation/LoadingProgressBar",
+      "export": "LoadingProgressBar",
+      "stories": "src/components/Navigation/LoadingProgressBar/loading-progress-bar.stories.tsx",
+      "spec": "src/components-specs/loading-progress-bar.md"
+    },
+    {
+      "id": "divider",
+      "name": "Divider",
+      "path": "src/components/Views/Divider",
+      "export": "Divider",
+      "stories": "src/components/Views/Divider/Divider.stories.tsx",
+      "spec": "src/components-specs/divider.md"
+    },
+    {
+      "id": "alphabet-indexer",
+      "name": "AlphabetIndexer",
+      "path": "src/components/Views/AlphabetIndexer",
+      "export": "AlphabetIndexer",
+      "stories": "src/components/Views/AlphabetIndexer/alphabet-indexer.stories.tsx",
+      "spec": "src/components-specs/alphabet-indexer.md"
+    },
+    {
+      "id": "alphabet-indexer-lable",
+      "name": "AlphabetIndexerLable",
+      "path": "src/components/Views/AlphabetIndexerLable",
+      "export": "AlphabetIndexerLable",
+      "stories": "src/components/Views/AlphabetIndexerLable/AlphabetIndexerLable.stories.tsx",
+      "spec": "src/components-specs/alphabet-indexer-lable.md"
+    },
+    {
+      "id": "floating-alphabet-indexer-lable",
+      "name": "FloatingAlphabetIndexerLable",
+      "path": "src/components/Views/FloatingAlphabetIndexerLable",
+      "export": "FloatingAlphabetIndexerLable",
+      "stories": "src/components/Views/FloatingAlphabetIndexerLable/FloatingAlphabetIndexerLable.stories.tsx",
+      "spec": "src/components-specs/floating-alphabet-indexer-lable.md"
+    },
+    {
+      "id": "scroll-bar",
+      "name": "ScrollBar",
+      "path": "src/components/Controls/ScrollBar",
+      "export": "ScrollBar",
+      "stories": "src/components/Controls/ScrollBar/ScrollBar.stories.tsx",
+      "spec": "src/components-specs/scroll-bar.md"
+    },
+    {
+      "id": "badge",
+      "name": "Badge",
+      "path": "src/components/Views/Badge",
+      "export": "Badge",
+      "stories": "src/components/Views/Badge/Badge.stories.tsx",
+      "spec": "src/components-specs/badge.md"
+    },
+    {
+      "id": "toast",
+      "name": "Toast",
+      "path": "src/components/Views/Toast",
+      "export": "Toast",
+      "stories": "src/components/Views/Toast/Toast.stories.tsx",
+      "spec": "src/components-specs/toast.md"
+    },
+    {
+      "id": "snackbar",
+      "name": "Snackbar",
+      "path": "src/components/Views/Snackbar",
+      "export": "Snackbar",
+      "stories": "src/components/Views/Snackbar/Snackbar.stories.tsx",
+      "spec": "src/components-specs/snackbar.md"
+    },
+    {
+      "id": "floating-snackbar",
+      "name": "FloatingSnackbar",
+      "path": "src/components/Views/FloatingSnackbar",
+      "export": "FloatingSnackbar",
+      "stories": "src/components/Views/FloatingSnackbar/FloatingSnackbar.stories.tsx",
+      "spec": "src/components-specs/floating-snackbar.md"
+    },
+    {
+      "id": "popup-tip",
+      "name": "PopupTip",
+      "path": "src/components/Views/PopupTip",
+      "export": "PopupTip",
+      "stories": "src/components/Views/PopupTip/PopupTip.stories.tsx",
+      "spec": "src/components-specs/popup-tip.md"
+    },
+    {
+      "id": "data-panel-progress-circle",
+      "name": "DataPanelProgressCircle",
+      "path": "src/components/Views/DataPanelProgressCircle",
+      "export": "DataPanelProgressCircle",
+      "stories": "src/components/Views/DataPanelProgressCircle/data-panel-progress-circle.stories.tsx",
+      "spec": "src/components-specs/data-panel-progress-circle.md"
+    },
+    {
+      "id": "data-panel-loading",
+      "name": "DataPanelLoading",
+      "path": "src/components/Views/DataPanelLoading",
+      "export": "DataPanelLoading",
+      "stories": "src/components/Views/DataPanelLoading/DataPanelLoading.stories.tsx",
+      "spec": "src/components-specs/data-panel-loading.md"
+    },
+    {
+      "id": "data-panel-linear-gradient",
+      "name": "DataPanelLinearGradient",
+      "path": "src/components/Views/DataPanelLinearGradient",
+      "export": "DataPanelLinearGradient",
+      "stories": "src/components/Views/DataPanelLinearGradient/data-panel-linear-gradient.stories.tsx",
+      "spec": "src/components-specs/data-panel-linear-gradient.md"
+    },
+    {
+      "id": "gauge-ring",
+      "name": "GaugeRing",
+      "path": "src/components/Views/GaugeRing",
+      "export": "GaugeRing",
+      "stories": "src/components/Views/GaugeRing/gauge-ring.stories.tsx",
+      "spec": "src/components-specs/gauge-ring.md"
+    },
+    {
+      "id": "qr-code",
+      "name": "QRCode",
+      "path": "src/components/Views/QRCode",
+      "export": "QRCode",
+      "stories": "src/components/Views/QRCode/QRCode.stories.tsx",
+      "spec": "src/components-specs/qr-code.md"
+    },
+    {
+      "id": "text-clock",
+      "name": "TextClock",
+      "path": "src/components/Views/TextClock",
+      "export": "TextClock",
+      "stories": "src/components/Views/TextClock/TextClock.stories.tsx",
+      "spec": "src/components-specs/text-clock.md"
+    },
+    {
+      "id": "gauge-strip-gauge",
+      "name": "GaugeStripGauge",
+      "path": "src/components/Views/GaugeStripGauge",
+      "export": "GaugeStripGauge",
+      "stories": "src/components/Views/GaugeStripGauge/gauge-strip-gauge.stories.tsx",
+      "spec": "src/components-specs/gauge-strip-gauge.md"
+    },
+    {
+      "id": "checkbox-group",
+      "name": "CheckboxGroup",
+      "path": "src/components/Selection/CheckboxGroup",
+      "export": "CheckboxGroup",
+      "stories": "src/components/Selection/CheckboxGroup/CheckboxGroup.stories.tsx",
+      "spec": "src/components-specs/checkbox-group.md"
+    },
+    {
+      "id": "text-selection",
+      "name": "TextSelection",
+      "path": "src/components/Controls/TextSelection",
+      "export": "TextSelection",
+      "stories": "src/components/Controls/TextSelection/TextSelection.stories.tsx",
+      "spec": "src/components-specs/text-selection.md"
+    },
+    {
+      "id": "floatingtextselection",
+      "name": "FloatingTextSelection",
+      "path": "src/components/Controls/FloatingTextSelection",
+      "export": "FloatingTextSelection",
+      "stories": "src/components/Controls/FloatingTextSelection/FloatingTextSelection.stories.tsx",
+      "spec": "src/components-specs/floating-textselection.md"
+    },
+    {
+      "id": "chips",
+      "name": "Chips",
+      "path": "src/components/Controls/Chips",
+      "export": "Chips",
+      "stories": "src/components/Controls/Chips/chips.stories.tsx",
+      "spec": "src/components-specs/chips.md"
+    },
+    {
+      "id": "text-selection-handle",
+      "name": "TextSelectionHandle",
+      "path": "src/components/Controls/TextSelectionHandle",
+      "export": "TextSelectionHandle",
+      "stories": "src/components/Controls/TextSelectionHandle/TextSelectionHandle.stories.tsx",
+      "spec": "src/components-specs/text-selection-handle.md"
+    },
+    {
+      "id": "counter",
+      "name": "Counter",
+      "path": "src/components/Input/Counter",
+      "export": "Counter",
+      "stories": "src/components/Input/Counter/counter.stories.tsx",
+      "spec": "src/components-specs/counter.md"
+    },
+    {
+      "id": "pattern-lock",
+      "name": "PatternLock",
+      "path": "src/components/Input/PatternLock",
+      "export": "PatternLock",
+      "stories": "src/components/Input/PatternLock/pattern-lock.stories.tsx",
+      "spec": "src/components-specs/pattern-lock.md"
+    },
+    {
+      "id": "floatingdialog",
+      "name": "FloatingDialog",
+      "path": "src/components/Container/FloatingDialog",
+      "export": "FloatingDialog",
+      "stories": "src/components/Container/FloatingDialog/floatingdialog.stories.tsx",
+      "spec": "src/components-specs/floating-dialog.md"
+    },
+    {
+      "id": "progress-bar-capsule",
+      "name": "ProgressBarCapsule",
+      "path": "src/components/Views/ProgressBarCapsule",
+      "export": "ProgressBarCapsule",
+      "stories": "src/components/Views/ProgressBarCapsule/progress-bar-capsule.stories.tsx",
+      "spec": "src/components-specs/progress-bar-capsule.md"
+    },
+    {
+      "id": "pattern",
+      "name": "Pattern",
+      "path": "src/components/Publis/Pattern",
+      "export": "Pattern",
+      "stories": "src/components/Publis/Pattern/Pattern.stories.tsx",
+      "spec": "src/components-specs/pattern.md"
+    },
+    {
+      "id": "picker",
+      "name": "Picker",
+      "path": "src/components/Selection/Picker",
+      "export": "Picker",
+      "stories": "src/components/Selection/Picker/picker.stories.tsx",
+      "spec": "src/components-specs/picker.md"
+    },
+    {
+      "id": "card",
+      "name": "Card",
+      "path": "src/components/Container/Card",
+      "export": "Card",
+      "stories": "src/components/Container/Card/card.stories.tsx",
+      "spec": "src/components-specs/card.md"
+    },
+    {
+      "id": "rating-phone",
+      "name": "RatingPhone",
+      "path": "src/components/Selection/RatingPhone",
+      "export": "RatingPhone",
+      "stories": "src/components/Selection/RatingPhone/RatingPhone.stories.tsx",
+      "spec": "src/components-specs/rating-phone.md"
+    },
+    {
+      "id": "swiper-dot",
+      "name": "SwiperDot",
+      "path": "src/components/Navigation/SwiperDot",
+      "export": "SwiperDot",
+      "stories": "src/components/Navigation/SwiperDot/SwiperDot.stories.tsx",
+      "spec": "src/components-specs/swiper-dot.md"
+    },
+    {
+      "id": "hmsymbol-icon",
+      "name": "HMSymbolIcon",
+      "category": "symbol",
+      "description": "Harmony HM Symbol 图标组件，基于本地 HMSymbol 字体和 glyph map 渲染语义图标。",
+      "path": "src/components/HMSymbolIcon",
+      "export": "HMSymbolIcon",
+      "stories": "src/components/HMSymbolIcon/HMSymbolIcon.stories.tsx",
+      "spec": "src/components-specs/hmsymbol-icon.md"
+    },
+    {
+      "id": "floating-select-phone",
+      "name": "FloatingSelectPhone",
+      "category": "controls",
+      "description": "手机端浮层选择控件，提供多选/单选选择面板与 Pixso 对齐的 phone 形态。",
+      "path": "src/components/Controls/FloatingSelectPhone",
+      "export": "FloatingSelectPhone",
+      "stories": "src/components/Controls/FloatingSelectPhone/FloatingSelectPhone.stories.tsx",
+      "spec": "src/components-specs/floating-select-phone.md"
+    },
+    {
+      "id": "segmented-button",
+      "name": "SegmentedButton",
+      "category": "selection",
+      "description": "分段按钮组件，支持单选/多选、不同组数与状态变体。",
+      "path": "src/components/Selection/SegmentedButton",
+      "export": "SegmentedButton",
+      "stories": "src/components/Selection/SegmentedButton/segmented-button.stories.tsx",
+      "spec": "src/components-specs/segmented-button.md"
+    },
+    {
+      "id": "progress-bar-eclipse",
+      "name": "ProgressBarEclipse",
+      "category": "views",
+      "description": "月蚀样式进度组件，用于亮度/进度类视觉反馈。",
+      "path": "src/components/Views/ProgressBarEclipse",
+      "export": "ProgressBarEclipse",
+      "stories": "src/components/Views/ProgressBarEclipse/progress-bar-eclipse.stories.tsx"
+    },
+    {
+      "id": "list-container",
+      "name": "ListContainer",
+      "path": "src/container-components/ListContainer",
+      "export": "ListContainer",
+      "stories": "src/container-components/ListContainer/ListContainer.stories.tsx"
+    },
+    {
+      "id": "grid-container",
+      "name": "GridContainer",
+      "category": "container",
+      "description": "二维网格集合容器，仅负责包裹与属性透传；直接子项使用 pixso-grid-item 标识。",
+      "path": "src/container-components/GridContainer",
+      "export": "GridContainer",
+      "stories": "src/container-components/GridContainer/GridContainer.stories.tsx"
+    }
+  ]
+}

@@ -1,0 +1,140 @@
+{
+  "$schema": "standalone-page-generation/template-required-components-v1",
+  "description": "Maps each top-level page template component to the registered React components its rendered tree must keep. The validator consults this file to apply 'template-required components preservation' checks; rules are page_type-specific so swapping shells does not leave a coverage gap.",
+  "always-required-jsx": ["NavigationContainer"],
+  "templates": {
+    "MobilePhoneShellTemplatePage": {
+      "context": "composite-shell",
+      "page-type": "page-shell",
+      "rules-note": "Mode-aware flags are handled by the validator's existing logic (showTitleBar / showFloatingTab / showAIBottomBar), not duplicated here.",
+      "required-jsx": [
+        "NavigationContainer",
+        "FloatingTitleBar"
+      ],
+      "conditional-jsx": [
+        {
+          "when-prop": "showFloatingTab",
+          "defaults-to": "mode === 'app-home'",
+          "required-jsx": ["FloatingTab"]
+        },
+        {
+          "when-prop": "showAIBottomBar",
+          "defaults-to": false,
+          "required-jsx": ["Aibottombar"]
+        }
+      ]
+    },
+
+    "SettingsPageTemplatePage": {
+      "page-type": "mobile-settings",
+      "required-jsx": [
+        "MobilePhoneShellTemplatePage",
+        "ListContainer"
+      ]
+    },
+    "MobileListTemplatePage": {
+      "page-type": "mobile-list",
+      "required-jsx": [
+        "MobilePhoneShellTemplatePage",
+        "ListPhone"
+      ]
+    },
+    "MobileCardTemplatePage": {
+      "page-type": "mobile-card",
+      "required-jsx": [
+        "MobilePhoneShellTemplatePage",
+        "HeroRegion"
+      ]
+    },
+
+    "MobileGridTemplatePage": {
+      "page-type": "mobile-grid",
+      "required-jsx": [
+        "NavigationContainer",
+        "TitleBar",
+        "StatusBar",
+        "FloatingTab"
+      ]
+    },
+
+    "ServiceSearchTemplatePage": {
+      "page-type": "service-search",
+      "required-jsx": [
+        "NavigationContainer",
+        "StatusBar",
+        "FloatingTab",
+        "FloatingSearchSecondPagePhone"
+      ]
+    },
+
+    "ServicesHomeTemplatePage": {
+      "page-type": "services-home",
+      "required-jsx": [
+        "NavigationContainer",
+        "StatusBar",
+        "FloatingTab",
+        "TopBanner"
+      ],
+      "required-any-of": [
+        ["NewBookPreview", "RecommendedNewBooks"],
+        ["TopSongs"],
+        ["MyGameReview", "RecommendedNewGames"],
+        ["MusicRecommended"],
+        ["MyMovieReview", "TodayMovieList"]
+      ],
+      "required-any-of-note": "Services-home-template ships one of five block-shaped bodies (reading / music / game / movie). The validator only requires that at least one of those body sets is present."
+    },
+
+    "ServicesMePage": {
+      "page-type": "services-me",
+      "required-jsx": [
+        "NavigationContainer",
+        "StatusBar",
+        "FloatingTab",
+        "IconButton"
+      ]
+    },
+
+    "ServicesRanking": {
+      "page-type": "services-ranking",
+      "required-jsx": [
+        "NavigationContainer",
+        "Aibottombar",
+        "RankingTopbanner",
+        "MainChart03"
+      ]
+    },
+
+    "ServicesSettingPage": {
+      "page-type": "services-setting",
+      "required-jsx": [
+        "NavigationContainer",
+        "StatusBar",
+        "Aibottombar",
+        "FloatingSheetSemiModal",
+        "ListPhone"
+      ]
+    },
+
+    "ServicesLaunchPage": {
+      "page-type": "services-launch-page",
+      "required-jsx": [
+        "NavigationContainer",
+        "Aibottombar",
+        "Button",
+        "PrivacyShieldIcon"
+      ]
+    },
+
+    "ServicesCategoriesPage": {
+      "page-type": "services-categories",
+      "required-jsx": [
+        "NavigationContainer",
+        "StatusBar",
+        "Aibottombar",
+        "FilterChip",
+        "GridContainer"
+      ]
+    }
+  }
+}

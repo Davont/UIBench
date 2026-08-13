@@ -1,0 +1,125 @@
+{
+  "schema": "standalone-page-generation/resource-manifest-v1",
+  "tokenSource": "src/styles/global.css",
+  "iconSource": "src/components/HMSymbolIcon/hmsymbol-icon.generated.ts",
+  "sharedTokens": [
+    "--harmony-brand",
+    "--harmony-video-brand",
+    "--harmony-warning",
+    "--harmony-font-primary",
+    "--harmony-font-secondary",
+    "--harmony-font-tertiary",
+    "--harmony-font-on-primary",
+    "--harmony-font-on-secondary",
+    "--harmony-icon-primary",
+    "--harmony-icon-emphasize",
+    "--harmony-background-primary",
+    "--harmony-background-secondary",
+    "--harmony-comp-background-primary",
+    "--harmony-comp-background-gray",
+    "--harmony-comp-background-secondary",
+    "--harmony-comp-background-emphasize",
+    "--harmony-comp-divider"
+  ],
+  "pageTypes": {
+    "mobile-card": {
+      "templateId": "mobile-card-template",
+      "componentIds": [
+        "hmsymbol-icon",
+        "list-container",
+        "grid-container",
+        "search",
+        "floating-tab"
+      ],
+      "commonIcons": [
+        "house_fill",
+        "magnifyingglass",
+        "chevron_down",
+        "checkmark",
+        "checkmark_circle_fill",
+        "star_fill",
+        "calendar_fill",
+        "gearshape",
+        "message",
+        "doc_text",
+        "person_crop_circle_fill_1",
+        "book_open_fill",
+        "drop",
+        "figure_running"
+      ],
+      "patterns": [
+        {
+          "id": "mobile-metric-dashboard",
+          "triggers": [
+            "指标卡",
+            "连续天数",
+            "打卡",
+            "周进度",
+            "习惯列表",
+            "KPI"
+          ],
+          "source": "skills/03-prototype-generation/standalone-page-generation/references/patterns/mobile-metric-dashboard.md"
+        }
+      ]
+    },
+    "mobile-grid": {
+      "templateId": "mobile-grid-template",
+      "componentIds": [
+        "hmsymbol-icon",
+        "grid-container",
+        "list-container",
+        "search",
+        "floating-tab"
+      ],
+      "commonIcons": [
+        "house_fill",
+        "magnifyingglass",
+        "chevron_down",
+        "person_crop_circle_fill_1"
+      ],
+      "patterns": []
+    },
+    "mobile-list": {
+      "templateId": "mobile-list-template",
+      "componentIds": [
+        "hmsymbol-icon",
+        "list-container",
+        "floating-tab"
+      ],
+      "commonIcons": [
+        "house_fill",
+        "chevron_right",
+        "person_crop_circle_fill_1"
+      ],
+      "patterns": []
+    },
+    "mobile-settings": {
+      "templateId": "settings-page",
+      "componentIds": [
+        "hmsymbol-icon",
+        "list-container"
+      ],
+      "commonIcons": [
+        "chevron_right",
+        "gearshape"
+      ],
+      "patterns": []
+    },
+    "page-shell": {
+      "templateId": "mobile-phone-shell-template",
+      "componentIds": [
+        "hmsymbol-icon",
+        "list-container",
+        "grid-container",
+        "floating-tab"
+      ],
+      "commonIcons": [
+        "house_fill",
+        "chevron_left",
+        "chevron_right",
+        "person_crop_circle_fill_1"
+      ],
+      "patterns": []
+    }
+  }
+}

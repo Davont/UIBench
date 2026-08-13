@@ -1,0 +1,1166 @@
+{
+  "$schema": "./schemas/blocks.schema.json",
+  "blocks": [
+    {
+      "id": "top-banner",
+      "name": "top-banner",
+      "pageType": "content-hero",
+      "description": "阅读/书城顶部沉浸式推荐 Banner；山林背景 + 书封 + 标题标签描述 + 分段轮播进度",
+      "files": [
+        "src/blocks/top-banner/top-banner.tsx",
+        "src/blocks/top-banner/top-banner.css",
+        "src/blocks-specs/top-banner.md"
+      ],
+      "stories": [
+        "src/blocks/top-banner/top-banner.stories.tsx"
+      ],
+      "dependencies": [
+        "badge",
+        "swiper-dot"
+      ],
+      "assets": [
+        "book8"
+      ]
+    },
+    {
+      "id": "top-banner-2",
+      "name": "top-banner-2",
+      "pageType": "content-hero",
+      "description": "游戏/音乐/电影顶部沉浸式推荐 Banner（简化版）；场景化背景 + 前景 Logo + 标签描述 + 分段轮播进度",
+      "files": [
+        "src/blocks/top-banner-2/top-banner-2.tsx",
+        "src/blocks/top-banner-2/top-banner-2.css",
+        "src/blocks-specs/top-banner-2.md"
+      ],
+      "stories": [
+        "src/blocks/top-banner-2/top-banner-2.stories.tsx"
+      ],
+      "dependencies": [
+        "badge",
+        "swiper-dot"
+      ],
+      "assets": [
+        "game-background",
+        "game-foreground",
+        "music-background",
+        "music-foreground",
+        "movie-background",
+        "movie-foreground"
+      ]
+    },
+    {
+      "id": "mobile-phone-shell-template",
+      "name": "mobile-phone-shell-template",
+      "pageType": "page-shell",
+      "description": "通用手机壳层模板，提供固定 360px 移动端画布、状态栏/标题栏/底部安全区组合",
+      "files": [
+        "src/pages/mobile-phone-shell-template/mobile-phone-shell-template.tsx",
+        "src/pages/mobile-phone-shell-template/mobile-phone-shell-template.css"
+      ],
+      "stories": [
+        "src/pages/mobile-phone-shell-template/mobile-phone-shell-template.stories.tsx"
+      ],
+      "dependencies": [
+        "status-bar",
+        "title-bar",
+        "aibottombar"
+      ],
+      "assets": []
+    },
+    {
+      "id": "settings-page",
+      "name": "settings-page",
+      "pageType": "mobile-settings",
+      "description": "通用设置页 - page template 多组设置卡片，开关/值/跳转/强调值行",
+      "files": [
+        "src/pages/settings-page-template/settings-page-template.tsx",
+        "src/pages/settings-page-template/settings-page-template.css"
+      ],
+      "stories": [
+        "src/pages/settings-page-template/settings-page-template.stories.tsx"
+      ],
+      "dependencies": [
+        "mobile-phone-shell-template",
+        "list",
+        "hmsymbol-icon",
+        "list-phone",
+        "switch-phone"
+      ],
+      "assets": []
+    },
+    {
+      "id": "list",
+      "name": "list",
+      "pageType": "list",
+      "description": "统一列表 block；支持 card（16px 圆角，328px 宽）、dropdown（12px 圆角）、grouped（subtitle + body card + footnote）三种变体，替代 grouped-list-section、settings-multi-row-list、settings-switch-list、dropdown-list、settings-blocks",
+      "files": [
+        "src/blocks/list/list.tsx",
+        "src/blocks/list/list.css",
+        "src/blocks-specs/list.md"
+      ],
+      "stories": [
+        "src/blocks/list/list.stories.tsx"
+      ],
+      "dependencies": [
+        "list-phone",
+        "switch-phone"
+      ]
+    },
+    {
+      "id": "big-image-card",
+      "name": "big-image-card",
+      "pageType": "content-card",
+      "description": "精选指南大图卡片 block",
+      "files": [
+        "src/blocks/big-image-card/big-image-card.tsx",
+        "src/blocks/big-image-card/big-image-card.css",
+        "src/blocks-specs/big-image-card.md"
+      ],
+      "stories": [
+        "src/blocks/big-image-card/BigImageCard.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": []
+    },
+    {
+      "id": "big-image-card-two-column-normal",
+      "name": "big-image-card-two-column-normal",
+      "pageType": "content-card",
+      "description": "双列普通大图卡片 block",
+      "files": [
+        "src/blocks/big-image-card-two-column-normal/big-image-card-two-column-normal.tsx",
+        "src/blocks/big-image-card-two-column-normal/big-image-card-two-column-normal.css",
+        "src/blocks-specs/big-image-card-two-column-normal.md"
+      ],
+      "stories": [
+        "src/blocks/big-image-card-two-column-normal/BigImageCardTwoColumnNormal.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": []
+    },
+    {
+      "id": "big-image-card-two-column-rating",
+      "name": "big-image-card-two-column-rating",
+      "pageType": "content-card",
+      "description": "双列带评分大图卡片 block",
+      "files": [
+        "src/blocks/big-image-card-two-column-rating/big-image-card-two-column-rating.tsx",
+        "src/blocks/big-image-card-two-column-rating/big-image-card-two-column-rating.css",
+        "src/blocks-specs/big-image-card-two-column-rating.md"
+      ],
+      "stories": [
+        "src/blocks/big-image-card-two-column-rating/BigImageCardTwoColumnRating.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": []
+    },
+    {
+      "id": "two-column-layout",
+      "name": "two-column-layout",
+      "pageType": "content-card",
+      "description": "2列布局 block；上方标题（Subtitle_L/Medium + font_primary），下方两张 BigImageCardTwoColumnNormal 并排，间距 8px",
+      "files": [
+        "src/blocks/two-column-layout/two-column-layout.tsx",
+        "src/blocks/two-column-layout/two-column-layout.css"
+      ],
+      "stories": [
+        "src/blocks/two-column-layout/two-column-layout.stories.tsx"
+      ],
+      "dependencies": [
+        "big-image-card-two-column-normal"
+      ],
+      "assets": []
+    },
+    {
+      "id": "rating-card",
+      "name": "rating-card",
+      "pageType": "content-card",
+      "description": "评分摘要卡片 block",
+      "files": [
+        "src/blocks/rating-card/rating-card.tsx",
+        "src/blocks/rating-card/rating-card.css",
+        "src/blocks-specs/rating-card.md"
+      ],
+      "stories": [
+        "src/blocks/rating-card/RatingCard.stories.tsx"
+      ],
+      "dependencies": [
+        "rating-phone"
+      ],
+      "assets": []
+    },
+    {
+      "id": "rating-card-detailed",
+      "name": "rating-card-detailed",
+      "pageType": "content-card",
+      "description": "详细点评卡片 block",
+      "files": [
+        "src/blocks/rating-card-detailed/rating-card-detailed.tsx",
+        "src/blocks/rating-card-detailed/rating-card-detailed.css",
+        "src/blocks-specs/rating-card-detailed.md"
+      ],
+      "stories": [
+        "src/blocks/rating-card-detailed/rating-card-detailed.stories.tsx"
+      ],
+      "dependencies": [
+        "rating-phone"
+      ],
+      "assets": []
+    },
+    {
+      "id": "floating-sheet-semi-modal",
+      "name": "floating-sheet-semi-modal",
+      "pageType": "layout-supplement",
+      "description": "半模态面板 block；基于 FloatingBindSheet，四周贴边，左右与底部无空隙，适合 bottom sheet / 一级页面承接页 / Explore Sheet",
+      "files": [
+        "src/blocks/floating-sheet-semi-modal/floating-sheet-semi-modal.tsx",
+        "src/blocks/floating-sheet-semi-modal/floating-sheet-semi-modal.css",
+        "src/blocks-specs/floating-sheet-semi-modal.md"
+      ],
+      "stories": [
+        "src/blocks/floating-sheet-semi-modal/floating-sheet-semi-modal.stories.tsx"
+      ],
+      "dependencies": [
+        "floating-bind-sheet"
+      ],
+      "assets": []
+    },
+    {
+      "id": "new-book-preview",
+      "name": "new-book-preview",
+      "pageType": "content-card",
+      "description": "新书预览 Block；深色主题，标题栏 + 横向滚动 3D 书封列表，每本书含阴影封面、底部渐变和书名",
+      "files": [
+        "src/blocks/new-book-preview/new-book-preview.tsx",
+        "src/blocks/new-book-preview/new-book-preview.css",
+        "src/blocks-specs/new-book-preview.md"
+      ],
+      "stories": [
+        "src/blocks/new-book-preview/new-book-preview.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": [
+        "book2",
+        "book3",
+        "book4"
+      ]
+    },
+    {
+      "id": "recommended-new-books",
+      "name": "Recommended New Books",
+      "pageType": "content-card",
+      "description": "推荐新书 Block；标题区 + 右侧箭头入口 + 3 条纵向 3:4 书封列表，支持深色/浅色文字模式",
+      "files": [
+        "src/blocks/recommended-new-books/recommended-new-books.tsx",
+        "src/blocks/recommended-new-books/recommended-new-books.css",
+        "src/blocks/recommended-new-books/recommended-new-books.json",
+        "src/blocks-specs/recommended-new-books.md"
+      ],
+      "stories": [
+        "src/blocks/recommended-new-books/recommended-new-books.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": [
+        "book5",
+        "book6",
+        "book7"
+      ]
+    },
+    {
+      "id": "services-home-template",
+      "name": "services-home-template",
+      "pageType": "services-home",
+      "description": "云服务业务首页模板 — 顶部可替换 Hero slot + 分类胶囊 + NewBookPreview + RecommendedNewBooks + 底部导航；对应 Pixso 首页_4C (360×792)",
+      "files": [
+        "src/pages/services-home-template/services-home-template.tsx",
+        "src/pages/services-home-template/services-home-template.css",
+        "src/pages-specs/layout/services-home.md"
+      ],
+      "stories": [
+        "src/pages/services-home-template/services-home-template.stories.tsx"
+      ],
+      "dependencies": [
+        "top-banner",
+        "new-book-preview",
+        "recommended-new-books",
+        "status-bar",
+        "title-bar",
+        "floating-tab",
+        "aibottombar"
+      ],
+      "assets": []
+    },
+    {
+      "id": "service-search-template",
+      "name": "service-search-template",
+      "pageType": "service-search",
+      "description": "云服务应用搜索页模板 — 适用于视频、应用市场、音乐、游戏、主题、阅读、云空间、查找、浏览器等 APP 搜索；固定顶部搜索壳层，支持搜索前 history/ranking、搜索中 MusicSearchingResultList、搜索完成 completed-results（FloatingChipsTabPhone 76×28 胶囊、ArtistSearchResultCard 横滑 rail、MusicSearchCompletedResultList、FloatingTab 1+bar MiniPlayer）；对应 Pixso 36:45118 / 36:45082 / 36:45193",
+      "files": [
+        "src/pages/service-search-template/service-search-template.tsx",
+        "src/pages/service-search-template/service-search-template.css",
+        "src/pages-specs/layout/service-search.md"
+      ],
+      "stories": [
+        "src/pages/service-search-template/service-search-template.stories.tsx"
+      ],
+      "dependencies": [
+        "music-search-history",
+        "music-searching-result-list",
+        "music-search-completed-result-list",
+        "artist-search-result-card",
+        "top-songs",
+        "search",
+        "icon-button",
+        "status-bar",
+        "floating-chips-tab-phone",
+        "floating-tab",
+        "mini-player",
+        "aibottombar"
+      ],
+      "assets": []
+    },
+    {
+      "id": "recently-watching-grid-card",
+      "name": "recently-watching-grid-card",
+      "pageType": "content-card",
+      "description": "最近在看 - 宫格式列表 block；深色卡片 + 2×3 宫格视频列表，每项含封面图、徽标（评分/集数）、副标题",
+      "files": [
+        "src/blocks/recently-watching-grid-card/RecentlyWatchingGridCard.tsx",
+        "src/blocks/recently-watching-grid-card/recently-watching-grid-card.css",
+        "src/blocks-specs/recently-watching-grid-card.md"
+      ],
+      "stories": [
+        "src/blocks/recently-watching-grid-card/RecentlyWatchingGridCard.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": [
+        "电影封面01",
+        "电影封面02",
+        "电影封面03",
+        "电影封面04",
+        "电影封面05",
+        "电影封面06"
+      ]
+    },
+    {
+      "id": "ranking-list",
+      "name": "ranking-list",
+      "pageType": "content-card",
+      "description": "排行榜纵向列表 block；深色主题排行榜 (360×auto, 328×120px per item)，排名 + 封面图 + 标题/演员/年份 + 追按钮 + 分割线",
+      "files": [
+        "src/blocks/ranking-list/ranking-list.tsx",
+        "src/blocks/ranking-list/ranking-list.css",
+        "src/blocks/ranking-list/ranking-list.json",
+        "src/blocks-specs/ranking-list.md"
+      ],
+      "stories": [
+        "src/blocks/ranking-list/ranking-list.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": []
+    },
+    {
+      "id": "filter-list",
+      "name": "filter-list",
+      "pageType": "filter-list",
+      "description": "筛选页面列表 block；白色背景列表容器，每项含圆形头像（48×48px）+ 名称，item 高 72px，间距 8px",
+      "files": [
+        "src/blocks/filter-list/filter-list.tsx",
+        "src/blocks/filter-list/filter-list-item.tsx",
+        "src/blocks/filter-list/filter-list.css",
+        "src/blocks/filter-list/index.ts",
+        "src/blocks-specs/filter-list.md"
+      ],
+      "stories": [
+        "src/blocks/filter-list/filter-list.stories.tsx"
+      ],
+      "dependencies": [
+        "list-phone"
+      ],
+      "assets": []
+    },
+    {
+      "id": "ranking-categories",
+      "name": "ranking-categories",
+      "pageType": "content-card",
+      "description": "ranking-categories block；深色主题竖排分类标签 74×56px per item，激活态麦穗图标 + 金色文字 + 白色半透明圆角背景",
+      "files": [
+        "src/blocks/ranking-categories/ranking-categories.tsx",
+        "src/blocks/ranking-categories/ranking-categories.css",
+        "src/blocks/ranking-categories/ranking-categories.json",
+        "src/blocks-specs/ranking-categories.md"
+      ],
+      "stories": [
+        "src/blocks/ranking-categories/ranking-categories.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": []
+    },
+    {
+      "id": "floating-toggle-filter",
+      "name": "floating-toggle-filter",
+      "pageType": "filter-toggle",
+      "description": "筛选浮动切换按钮 block；多行浮动 chip 组，每行一个 active 项（品牌红），inactive 项使用 FLOATING_THIN 毛玻璃材质",
+      "files": [
+        "src/blocks/floating-toggle-filter/floating-toggle-filter.tsx",
+        "src/blocks/floating-toggle-filter/floating-toggle-filter.css",
+        "src/blocks/floating-toggle-filter/floating-toggle-filter.constants.ts",
+        "src/blocks/floating-toggle-filter/floating-toggle-filter.json",
+        "src/blocks/floating-toggle-filter/index.ts",
+        "src/blocks-specs/floating-toggle-filter.md"
+      ],
+      "stories": [
+        "src/blocks/floating-toggle-filter/floating-toggle-filter.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": []
+    },
+    {
+      "id": "top-songs",
+      "name": "Top Songs",
+      "pageType": "music-chart",
+      "description": "Top Songs 白底圆角歌曲榜单卡片；标题 + 粉色播放按钮 + 20 条歌曲排名列表，复用 Badge 渲染热/升/新状态标签",
+      "files": [
+        "src/blocks/top-songs/top-songs.tsx",
+        "src/blocks/top-songs/top-songs.css",
+        "src/blocks/top-songs/top-songs.json",
+        "src/blocks-specs/top-songs.md"
+      ],
+      "stories": [
+        "src/blocks/top-songs/top-songs.stories.tsx"
+      ],
+      "dependencies": [
+        "badge"
+      ],
+      "assets": []
+    },
+    {
+      "id": "music-search-history",
+      "name": "music search history",
+      "pageType": "music-search",
+      "description": "音乐搜索历史 Block；Pixso DSL 根尺寸 328×88，Block 根无背景，标题 + HM Symbol 清空图标 + 无关闭图标的 Chips 历史词条 + HM Symbol 展开按钮",
+      "files": [
+        "src/blocks/music-search-history/music-search-history.tsx",
+        "src/blocks/music-search-history/music-search-history.css",
+        "src/blocks/music-search-history/music-search-history.json",
+        "src/blocks-specs/music-search-history.md"
+      ],
+      "stories": [
+        "src/blocks/music-search-history/music-search-history.stories.tsx"
+      ],
+      "dependencies": [
+        "chips"
+      ],
+      "assets": []
+    },
+    {
+      "id": "music-searching-result-list",
+      "name": "Music Searching Result List",
+      "pageType": "music-search",
+      "description": "音乐搜索结果列表 Block；基于 Pixso item-id 122:59411 还原 360×678 无背板未截断裁切列表，10 条歌曲结果行包含歌名、VIP/空间音频标签、#FF1949 周杰伦、灰色副标题、右侧 Huawei HM Symbol heart/dot_grid_1x2 与行分割线",
+      "files": [
+        "src/blocks/music-searching-result-list/music-searching-result-list.tsx",
+        "src/blocks/music-searching-result-list/music-searching-result-list.css",
+        "src/blocks/music-searching-result-list/music-searching-result-list.json",
+        "src/blocks/music-searching-result-list/index.ts",
+        "src/blocks-specs/music-searching-result-list.md"
+      ],
+      "stories": [
+        "src/blocks/music-searching-result-list/music-searching-result-list.stories.tsx"
+      ],
+      "dependencies": [
+        "badge"
+      ],
+      "assets": []
+    },
+    {
+      "id": "music-search-completed-result-list",
+      "name": "Music Search Completed Result List",
+      "pageType": "music-search",
+      "description": "音乐搜索完成态结果列表 Block；基于 Pixso item-id 143:59576 还原 328×450 透明背景列表，包含顶部歌曲播放入口、首条 83px 展开态、5 条 64px 普通歌曲行，复用 Badge 渲染 VIP/原唱标签，复用 HMSymbolIcon 渲染播放/收藏/更多/展开图标",
+      "files": [
+        "src/blocks/music-search-completed-result-list/music-search-completed-result-list.tsx",
+        "src/blocks/music-search-completed-result-list/music-search-completed-result-list.css",
+        "src/blocks/music-search-completed-result-list/music-search-completed-result-list.json",
+        "src/blocks/music-search-completed-result-list/index.ts",
+        "src/blocks-specs/music-search-completed-result-list.md"
+      ],
+      "stories": [
+        "src/blocks/music-search-completed-result-list/music-search-completed-result-list.stories.tsx"
+      ],
+      "dependencies": [
+        "badge"
+      ],
+      "assets": []
+    },
+    {
+      "id": "artist-search-result-card",
+      "name": "Artist Search Result Card",
+      "pageType": "music-search",
+      "description": "艺人搜索结果作品组 Block；基于 Pixso item-id 138:53 还原 656×242 透明背景横向卡片组，复用 Badge 渲染歌单/专辑标签，复用 HMSymbolIcon 渲染播放图标",
+      "files": [
+        "src/blocks/artist-search-result-card/artist-search-result-card.tsx",
+        "src/blocks/artist-search-result-card/artist-search-result-card.css",
+        "src/blocks/artist-search-result-card/artist-search-result-card.json",
+        "src/blocks/artist-search-result-card/index.ts",
+        "src/blocks-specs/artist-search-result-card.md"
+      ],
+      "stories": [
+        "src/blocks/artist-search-result-card/artist-search-result-card.stories.tsx"
+      ],
+      "dependencies": [
+        "badge"
+      ],
+      "assets": [
+        "artist-album-1",
+        "artist-album-2",
+        "artist-album-3",
+        "artist-album-4",
+        "artist-avatar-1",
+        "artist-avatar-2"
+      ]
+    },
+    {
+      "id": "scroll-list",
+      "name": "scroll-list",
+      "pageType": "filter-list",
+      "description": "滚动列表 block；可滚动列表 + AlphabetIndexer 字母索引侧边栏 + FloatingAlphabetIndexerLable 浮动指示器，复用 FilterListItem",
+      "files": [
+        "src/blocks/scroll-list/scroll-list.tsx",
+        "src/blocks/scroll-list/scroll-list.css",
+        "src/blocks/scroll-list/scroll-list.json",
+        "src/blocks/scroll-list/index.ts",
+        "src/blocks-specs/scroll-list.md"
+      ],
+      "stories": [
+        "src/blocks/scroll-list/scroll-list.stories.tsx"
+      ],
+      "dependencies": [
+        "filter-list",
+        "list-phone",
+        "alphabet-indexer",
+        "floating-alphabet-indexer-lable"
+      ],
+      "assets": []
+    },
+    {
+      "id": "filter-complete",
+      "name": "filter-complete",
+      "pageType": "filter-complete",
+      "description": "筛选完成 Block；展示当前已选中的筛选条件摘要（如「战争 / 2023 / 免费 / 芒果TV」），点击可重新打开筛选面板",
+      "files": [
+        "src/blocks/filter-complete/filter-complete.tsx",
+        "src/blocks/filter-complete/filter-complete.css",
+        "src/blocks/filter-complete/index.ts"
+      ],
+      "stories": [
+        "src/blocks/filter-complete/FilterComplete.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": []
+    },
+    {
+      "id": "filter-chips",
+      "name": "filter-chips",
+      "pageType": "filter-chips",
+      "description": "筛选标签块；深色主题多行水平排列 Chip 标签组，每行首项选中态（橙色），其余未选中态（半透明白），提取自 ServicesCategories 页面筛选项 (itemId=36:41333)",
+      "files": [
+        "src/blocks/filter-chips/filter-chips.tsx",
+        "src/blocks/filter-chips/filter-chips.css",
+        "src/blocks/filter-chips/index.ts",
+        "src/blocks/filter-chips/filter-chips.json"
+      ],
+      "stories": [
+        "src/blocks/filter-chips/filter-chips.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": []
+    },
+    {
+      "id": "movie-grid-card",
+      "name": "movie-grid-card",
+      "pageType": "content-card",
+      "description": "宫格影片卡片块；深色主题 3 列等宽宫格 (104px)，每卡含 3:4 封面图、VIP 金色角标、评分浮层和单行标题，提取自 ServicesCategories 页面影片网格区 (itemId=36:41326)",
+      "files": [
+        "src/blocks/movie-grid-card/movie-grid-card.tsx",
+        "src/blocks/movie-grid-card/movie-grid-card.css",
+        "src/blocks/movie-grid-card/index.ts",
+        "src/blocks/movie-grid-card/movie-grid-card.json"
+      ],
+      "stories": [
+        "src/blocks/movie-grid-card/movie-grid-card.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": [
+        "services-category-mask-1",
+        "services-category-mask-2",
+        "services-category-mask-3",
+        "services-category-mask-4",
+        "services-category-mask-5",
+        "services-category-mask-6",
+        "services-category-mask-7",
+        "services-category-mask-8",
+        "services-category-mask-9"
+      ]
+    },
+    {
+      "id": "identity-card",
+      "name": "identity-card",
+      "pageType": "mine-card-blocks",
+      "description": "身份卡片 block；头像 + 昵称 + 会员状态 / 会员中心 / 简洁变体 / 勋章图标变体，从「我的 - 直板机 v1」页面拆分",
+      "files": [
+        "src/blocks/identity-card/IdentityCard.tsx",
+        "src/blocks/identity-card/identity-card.css",
+        "src/blocks/identity-card/identity-card.json",
+        "src/blocks/identity-card/index.ts"
+      ],
+      "stories": [
+        "src/blocks/identity-card/IdentityCard.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": []
+    },
+    {
+      "id": "quick-entry-card",
+      "name": "quick-entry-card",
+      "pageType": "mine-card-blocks",
+      "description": "快捷入口卡片 block；水平可滚动快捷入口 (328×104px)，从「我的 - 直板机 v1」页面拆分",
+      "files": [
+        "src/blocks/quick-entry-card/QuickEntryCard.tsx",
+        "src/blocks/quick-entry-card/quick-entry-card.css",
+        "src/blocks/quick-entry-card/index.ts"
+      ],
+      "stories": [
+        "src/blocks/quick-entry-card/QuickEntryCard.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": []
+    },
+    {
+      "id": "playlist-section-card",
+      "name": "playlist-section-card",
+      "pageType": "mine-card-blocks",
+      "description": "歌单列表卡片 block；标题栏 + 歌单条目列表 + 查看更多按钮，从「我的 - 直板机 v1」页面拆分",
+      "files": [
+        "src/blocks/playlist-section-card/PlaylistSectionCard.tsx",
+        "src/blocks/playlist-section-card/playlist-section-card.css",
+        "src/blocks/playlist-section-card/index.ts"
+      ],
+      "stories": [
+        "src/blocks/playlist-section-card/PlaylistSectionCard.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": [
+        "mine-zhibanji-covers"
+      ]
+    },
+    {
+      "id": "common-services",
+      "name": "common-services",
+      "pageType": "mine-card-blocks",
+      "description": "常用服务宫格卡片 block；白色圆角卡片 (328×232px)，4 列宫格布局，每项含图标和标签，末项为「更多」入口。从「我的 - 直板机 v1」页面拆分。",
+      "files": [
+        "src/blocks/common-services/CommonServices.tsx",
+        "src/blocks/common-services/common-services.css",
+        "src/blocks/common-services/index.ts"
+      ],
+      "stories": [
+        "src/blocks/common-services/CommonServices.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": []
+    },
+    {
+      "id": "feedback-card",
+      "name": "feedback-card",
+      "pageType": "mine-card-blocks",
+      "description": "产品体验反馈卡片 block；白色圆角卡片 (328×82px)，左侧标题+描述文字，右侧 NPS 插图，右上角关闭按钮。从「我的 - 直板机 v1」页面拆分。",
+      "files": [
+        "src/blocks/feedback-card/FeedbackCard.tsx",
+        "src/blocks/feedback-card/feedback-card.css",
+        "src/blocks/feedback-card/index.ts"
+      ],
+      "stories": [
+        "src/blocks/feedback-card/FeedbackCard.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": [
+        "feedback-card-nps-illustration"
+      ]
+    },
+    {
+      "id": "service-list-card",
+      "name": "service-list-card",
+      "pageType": "mine-card-blocks",
+      "description": "公共区列表卡片 block；白色圆角卡片 (328×232px)，包含 优惠券/金币/权益兑换/消费记录 4 行列表项，每项含左侧图标+标签、右侧文字+chevron 箭头。从「我的 - 直板机 v1」页面拆分。",
+      "files": [
+        "src/blocks/service-list-card/ServiceListCard.tsx",
+        "src/blocks/service-list-card/service-list-card.css",
+        "src/blocks/service-list-card/index.ts"
+      ],
+      "stories": [
+        "src/blocks/service-list-card/ServiceListCard.stories.tsx"
+      ],
+      "dependencies": [
+        "hmsymbol-icon",
+        "divider"
+      ],
+      "assets": []
+    },
+    {
+      "id": "mini-player",
+      "name": "MiniPlayer",
+      "pageType": "mine-card-blocks",
+      "description": "Harmony 毛玻璃 MiniPlayer 组件 Block；支持 player（播放器：compact 40px / large 56px）和 ranking（榜单排名卡片：344×48px，排名前缀 + 封面 + 标题副标题 + 播放/菜单图标）两种变体。整合原 GridCardListMinibar02。",
+      "files": [
+        "src/blocks/mini-player/MiniPlayer.tsx",
+        "src/blocks/mini-player/mini-player.css",
+        "src/blocks/mini-player/mini-player.json",
+        "src/blocks/mini-player/index.ts"
+      ],
+      "stories": [
+        "src/blocks/mini-player/MiniPlayer.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": []
+    },
+    {
+      "id": "ranking-hotlist-topbanner",
+      "name": "ranking-hotlist-topbanner",
+      "pageType": "content-card",
+      "description": "ranking-hotlist-topbanner block；单头图卡片 360×244px，完整头图背景 + SVG 弧形蒙版 + 暗色遮罩 + 标题栏（单按钮）+ 居中大字标题区（HOT LIST + 热播榜 + 描述）",
+      "files": [
+        "src/blocks/ranking-hotlist-topbanner/ranking-hotlist-topbanner.tsx",
+        "src/blocks/ranking-hotlist-topbanner/ranking-hotlist-topbanner.css",
+        "src/blocks/ranking-hotlist-topbanner/ranking-hotlist-topbanner.json",
+        "src/blocks-specs/ranking-hotlist-topbanner.md"
+      ],
+      "stories": [
+        "src/blocks/ranking-hotlist-topbanner/ranking-hotlist-topbanner.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": []
+    },
+    {
+      "id": "ranking-chipstab-phone",
+      "name": "ranking-chipstab-phone",
+      "pageType": "content-card",
+      "description": "ranking-ChipsTab-Phone block；Pixso 1:1 还原，360×64px ChipsTabPhone 标签栏，4 页签 (综合榜/电视剧榜/电影榜/综艺榜)，类型=tab，get_node_dsl + design_to_code + get_screenshot 三证据",
+      "files": [
+        "src/blocks/ranking-chipstab-phone/ranking-chipstab-phone.tsx",
+        "src/blocks/ranking-chipstab-phone/ranking-chipstab-phone.css",
+        "src/blocks-specs/ranking-chipstab-phone.md"
+      ],
+      "stories": [
+        "src/blocks/ranking-chipstab-phone/ranking-chipstab-phone.stories.tsx"
+      ],
+      "dependencies": [
+        "chips-tab"
+      ],
+      "assets": []
+    },
+    {
+      "id": "my-game-review",
+      "name": "my-game-review",
+      "pageType": "content-card",
+      "description": "横向滚动游戏评价卡片 Block；可应用于影音游戏场景；4张280×148卡片横向滚动，头部标签+操作链接，左栏封面图+去圈子按钮，右栏标题+日期+底部链接条，虚线分隔左右栏，深色主题",
+      "files": [
+        "src/blocks/my-game-review/my-game-review.tsx",
+        "src/blocks/my-game-review/my-game-review.css",
+        "src/blocks/my-game-review/my-game-review.json",
+        "src/blocks/my-game-review/index.ts",
+        "src/blocks-specs/my-game-review.md"
+      ],
+      "stories": [
+        "src/blocks/my-game-review/my-game-review.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": [
+        "game1",
+        "game2",
+        "game3",
+        "game4",
+        "game-prop1",
+        "game-prop2",
+        "game-prop3",
+        "my-game-review-game-badge",
+        "my-game-review-cover",
+        "my-game-review-tabbar",
+        "my-game-review-tabbar-no-shadow",
+        "my-game-review-big-event",
+        "my-game-review-activity",
+        "my-game-review-checkin"
+      ]
+    },
+    {
+      "id": "recommended-new-games",
+      "name": "recommended-new-games",
+      "pageType": "content-card",
+      "description": "推荐新游 Block；SubHeader 标题区 + 上方大特色卡片 328×328（背景图+模糊渐变+内容描述区+半透明底栏+Logo+标题分类+去玩按钮）+ 下方两张小卡片 160×248 并排（HM Symbol play icon 毛玻璃圆圈+去玩按钮）；复用 SubHeader、Badge、HMSymbolIcon",
+      "files": [
+        "src/blocks/recommended-new-games/recommended-new-games.tsx",
+        "src/blocks/recommended-new-games/recommended-new-games.css",
+        "src/blocks/recommended-new-games/recommended-new-games.json",
+        "src/blocks/recommended-new-games/index.ts",
+        "src/blocks-specs/recommended-new-games.md"
+      ],
+      "stories": [
+        "src/blocks/recommended-new-games/recommended-new-games.stories.tsx"
+      ],
+      "dependencies": [
+        "badge",
+        "subheader",
+        "hmsymbol-icon"
+      ],
+      "assets": [
+        "samolioti3-background",
+        "samolioti3-logo",
+        "starwar-background",
+        "starwar-logo",
+        "forza-background",
+        "forza-logo",
+        "recommended-new-games-blur-large",
+        "recommended-new-games-blur-small-right",
+        "recommended-new-games-blur-small-left"
+      ]
+    },
+    {
+      "id": "today-movie-list",
+      "name": "today-movie-list",
+      "pageType": "content-card",
+      "description": "今日影片 Block；SubHeader 标题区(2line+arrow) + 3 列等宽宫格(104×185) 影片卡片，每卡含 3:4 封面图(r=8) + Badge 信息角标 + Title(14px/2行) + Description(12px/1行)；复用 SubHeader、Badge",
+      "files": [
+        "src/blocks/today-movie-list/today-movie-list.tsx",
+        "src/blocks/today-movie-list/today-movie-list.css",
+        "src/blocks/today-movie-list/today-movie-list.json",
+        "src/blocks/today-movie-list/index.ts",
+        "src/blocks-specs/today-movie-list.md"
+      ],
+      "stories": [
+        "src/blocks/today-movie-list/today-movie-list.stories.tsx"
+      ],
+      "dependencies": [
+        "badge",
+        "subheader"
+      ],
+      "assets": [
+        "today-movie-1",
+        "today-movie-2",
+        "today-movie-3"
+      ]
+    },
+    {
+      "id": "my-movie-review",
+      "name": "my-movie-review",
+      "pageType": "content-card",
+      "description": "欢迎你回来续看 Block；SubHeader 标题区(title+arrow) + 横向滚动 16:9 电影续看卡片，每卡含封面图、右上 Badge 追看标签、标题和描述；复用 SubHeader、Badge",
+      "files": [
+        "src/blocks/my-movie-review/my-movie-review.tsx",
+        "src/blocks/my-movie-review/my-movie-review.css",
+        "src/blocks/my-movie-review/my-movie-review.json",
+        "src/blocks/my-movie-review/index.ts",
+        "src/blocks-specs/my-movie-review.md"
+      ],
+      "stories": [
+        "src/blocks/my-movie-review/my-movie-review.stories.tsx"
+      ],
+      "dependencies": [
+        "badge",
+        "subheader"
+      ],
+      "assets": [
+        "my-movie-review-movie1",
+        "my-movie-review-movie2",
+        "my-movie-review-movie3"
+      ]
+    },
+    {
+      "id": "music-recommended",
+      "name": "music-recommended",
+      "pageType": "content-card",
+      "description": "音乐推荐 Block；SubHeader 标题区(title+arrow) + 横向 130×130 专辑封面卡片，每卡含播放 icon、热度文本和标题；复用 SubHeader",
+      "files": [
+        "src/blocks/music-recommended/music-recommended.tsx",
+        "src/blocks/music-recommended/music-recommended.css",
+        "src/blocks/music-recommended/music-recommended.json",
+        "src/blocks/music-recommended/index.ts",
+        "src/blocks-specs/music-recommended.md"
+      ],
+      "stories": [
+        "src/blocks/music-recommended/music-recommended.stories.tsx"
+      ],
+      "dependencies": [
+        "subheader"
+      ],
+      "assets": [
+        "music-recommended-music1",
+        "music-recommended-music2",
+        "music-recommended-music3",
+        "music-recommended-play-icon"
+      ]
+    },
+    {
+      "id": "ranking-topbanner",
+      "name": "ranking-topbanner",
+      "pageType": "content-card",
+      "description": "榜单页顶部麦穗标题插图 block；提供金色主标题/描述与 SVG 麦穗装饰，用于 services-ranking 的 IllustrationSlot。",
+      "files": [
+        "src/blocks/ranking-topbanner/ranking-topbanner.tsx",
+        "src/blocks/ranking-topbanner/ranking-topbanner.css",
+        "src/blocks/ranking-topbanner/ranking-topbanner.json",
+        "src/blocks/ranking-topbanner/index.ts",
+        "src/blocks-specs/ranking-topbanner.md"
+      ],
+      "stories": [
+        "src/blocks/ranking-topbanner/ranking-topbanner.stories.tsx"
+      ],
+      "dependencies": [
+        "status-bar",
+        "title-bar",
+        "hmsymbol-icon"
+      ],
+      "assets": []
+    },
+    {
+      "id": "three-column-layout",
+      "name": "three-column-layout",
+      "pageType": "content-card",
+      "description": "三列内容卡片布局 block；标题栏 + 3 张内容卡片，适用于推荐内容/媒体卡片横排。",
+      "files": [
+        "src/blocks/three-column-layout/three-column-layout.tsx",
+        "src/blocks/three-column-layout/three-column-layout.css",
+        "src/blocks/three-column-layout/three-column-layout.json",
+        "src/blocks-specs/three-column-layout.md"
+      ],
+      "stories": [
+        "src/blocks/three-column-layout/three-column-layout.stories.tsx"
+      ],
+      "dependencies": [],
+      "assets": []
+    },
+    {
+      "id": "mobile-card-template",
+      "name": "mobile-card-template",
+      "pageType": "mobile-card",
+      "description": "移动端内容卡片页模板（卡片布局）；以多种卡片类型垂直堆叠 + section header 分区管理为核心组织形式。对应 Pixso node 23:13468，画布 360×780。",
+      "files": [
+        "src/pages/mobile-card-template/mobile-card-template.tsx",
+        "src/pages/mobile-card-template/mobile-card-template.css",
+        "src/pages/mobile-card-template/index.ts",
+        "src/pages-specs/layout/mobile-card.md"
+      ],
+      "stories": [
+        "src/pages/mobile-card-template/mobile-card-template.stories.tsx"
+      ],
+      "dependencies": [
+        "mobile-phone-shell-template",
+        "status-bar",
+        "floating-title-bar",
+        "search",
+        "hmsymbol-icon",
+        "floating-tab",
+        "aibottombar",
+        "floating-swiper-dot-phone",
+        "bottom-tab"
+      ],
+      "assets": []
+    },
+    {
+      "id": "mobile-grid-template",
+      "name": "mobile-grid-template",
+      "pageType": "mobile-grid",
+      "description": "移动端首页/发现页模板（宫格布局）；以水平滚动的宫格卡片 + 多内容区域混合编排为核心组织形式。对应 Pixso node 118:19305，画布 360×792。",
+      "files": [
+        "src/pages/mobile-grid-template/mobile-grid-template.tsx",
+        "src/pages/mobile-grid-template/mobile-grid-template.css",
+        "src/pages/mobile-grid-template/index.ts",
+        "src/pages-specs/layout/mobile-grid.md"
+      ],
+      "stories": [
+        "src/pages/mobile-grid-template/mobile-grid-template.stories.tsx"
+      ],
+      "dependencies": [
+        "list",
+        "chips-tab",
+        "floating-tab",
+        "hmsymbol-icon",
+        "list-phone",
+        "search",
+        "status-bar",
+        "title-bar",
+        "aibottombar"
+      ],
+      "assets": []
+    },
+    {
+      "id": "mobile-list-template",
+      "name": "mobile-list-template",
+      "pageType": "mobile-list",
+      "description": "移动端入口型列表页模板；以入口型 list item 的垂直堆叠为核心内容组织形式。对应 Pixso source node 23:16731，画布 360×792。",
+      "files": [
+        "src/pages/mobile-list-template/mobile-list-template.tsx",
+        "src/pages/mobile-list-template/mobile-list-template.css",
+        "src/pages/mobile-list-template/index.ts",
+        "src/pages-specs/layout/mobile-list.md"
+      ],
+      "stories": [
+        "src/pages/mobile-list-template/mobile-list-template.stories.tsx"
+      ],
+      "dependencies": [
+        "list",
+        "mobile-phone-shell-template",
+        "status-bar",
+        "floating-title-bar",
+        "hmsymbol-icon",
+        "list-phone",
+        "floating-tab",
+        "aibottombar",
+        "bottom-tab"
+      ],
+      "assets": []
+    },
+    {
+      "id": "services-categories",
+      "name": "services-categories",
+      "pageType": "services-categories",
+      "description": "云服务业务筛选分类页面模板，适用于阅读、视频、音乐、游戏、应用市场、主题、云空间&查找、浏览器等业务的筛选/分类浏览页。对应 Pixso 筛选-4c，节点 36:41326，画布 360×792。",
+      "files": [
+        "src/pages/services-categories/ServicesCategoriesPage.tsx",
+        "src/pages/services-categories/services-categories.css",
+        "src/pages/services-categories/index.ts",
+        "src/pages/services-categories/services-categories.json",
+        "src/pages-specs/layout/services-categories.md"
+      ],
+      "stories": [
+        "src/pages/services-categories/services-categories.stories.tsx"
+      ],
+      "dependencies": [
+        "status-bar",
+        "aibottombar",
+        "filter-chips",
+        "movie-grid-card"
+      ],
+      "assets": [
+        "services-category-mask-1",
+        "services-category-mask-2",
+        "services-category-mask-3",
+        "services-category-mask-4",
+        "services-category-mask-5",
+        "services-category-mask-6",
+        "services-category-mask-7",
+        "services-category-mask-8",
+        "services-category-mask-9"
+      ]
+    },
+    {
+      "id": "services-launch-page",
+      "name": "services-launch-page",
+      "pageType": "services-launch",
+      "description": "云服务业务权限启动页模板，适用于华为视频等应用首次启动时展示隐私协议的场景。对应 Pixso 权限启动页，节点 36:54423，画布 360×792。",
+      "files": [
+        "src/pages/services-launch-page/services-launch-page.tsx",
+        "src/pages/services-launch-page/services-launch-page.css",
+        "src/pages/services-launch-page/index.ts",
+        "src/pages/services-launch-page/services-launch-page.json",
+        "src/pages-specs/layout/services-launch-page.md"
+      ],
+      "stories": [
+        "src/pages/services-launch-page/services-launch-page.stories.tsx"
+      ],
+      "dependencies": [
+        "status-bar",
+        "button",
+        "aibottombar",
+        "hmsymbol-icon"
+      ],
+      "assets": [
+        "services-launch-huawei-video-icon"
+      ]
+    },
+    {
+      "id": "services-me",
+      "name": "services-me",
+      "pageType": "services-me",
+      "description": "云服务个人中心页（我的页面），适用于阅读、视频、音乐、游戏、应用市场、主题、云空间&查找、浏览器等云服务类 App 的用户个人中心。对应 Pixso 云服务-我的页面，节点 36:3663，画布 360×792。",
+      "files": [
+        "src/pages/services-me/ServicesMePage.tsx",
+        "src/pages/services-me/services-me.css",
+        "src/pages/services-me/index.ts",
+        "src/pages/services-me/services-me.json",
+        "src/pages-specs/layout/services-me.md"
+      ],
+      "stories": [
+        "src/pages/services-me/services-me.stories.tsx"
+      ],
+      "dependencies": [
+        "status-bar",
+        "floating-tab",
+        "hmsymbol-icon",
+        "icon-button",
+        "divider",
+        "identity-card",
+        "quick-entry-card",
+        "feedback-card",
+        "service-list-card",
+        "playlist-section-card",
+        "recently-watching-grid-card"
+      ],
+      "assets": [
+        "services-me-nps-illustration"
+      ]
+    },
+    {
+      "id": "services-ranking",
+      "name": "services-ranking",
+      "pageType": "services-ranking",
+      "description": "云服务业务榜单模板，适用于阅读、视频、音乐、游戏、应用市场、主题、云空间&查找、浏览器等云服务类业务的排行榜页面。对应 Pixso 排行榜，节点 36:37008，画布 360×792。",
+      "files": [
+        "src/pages/services-ranking/services-ranking.tsx",
+        "src/pages/services-ranking/services-ranking.css",
+        "src/pages/services-ranking/index.ts",
+        "src/pages/services-ranking/services-ranking.json",
+        "src/pages-specs/layout/services-ranking.md"
+      ],
+      "stories": [
+        "src/pages/services-ranking/services-ranking.stories.tsx"
+      ],
+      "dependencies": [
+        "aibottombar",
+        "ranking-topbanner",
+        "ranking-chipstab-phone",
+        "ranking-list",
+        "chips-tab",
+        "status-bar",
+        "title-bar",
+        "hmsymbol-icon"
+      ],
+      "assets": [
+        "services-ranking-illustration-top-banner"
+      ]
+    },
+    {
+      "id": "services-setting",
+      "name": "services-setting",
+      "pageType": "services-setting",
+      "description": "服务类 App 底部弹出设置 Sheet，带全页半透明蒙层与毛玻璃面板。展示数据隐私、隐私政策、服务模式、关于等分组设置项。对应 Pixso 设置首页_全内容，节点 36:49162，画布 360×792。",
+      "files": [
+        "src/pages/services-setting/services-setting-page.tsx",
+        "src/pages/services-setting/services-setting-page.css",
+        "src/pages/services-setting/index.ts",
+        "src/pages/services-setting/services-setting.json",
+        "src/pages-specs/layout/services-setting.md"
+      ],
+      "stories": [
+        "src/pages/services-setting/services-setting-page.stories.tsx"
+      ],
+      "dependencies": [
+        "list",
+        "floating-sheet-semi-modal",
+        "list-phone",
+        "aibottombar",
+        "status-bar"
+      ],
+      "assets": []
+    }
+  ]
+}

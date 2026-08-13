@@ -1,0 +1,109 @@
+/* ─── 榜单-宫格式列表 (ServicesRanking) — Pixso 1:1 还原 ─── */
+/* Pixso main node: item-id=36:37008, get_node_dsl */
+/* DSL 真值:
+   - 根: FRAME "排行榜" (36:37008) 360×792, fill rgba(24,24,26,1) #18181A
+   - 头部容器 (59:497): 360×237, white bg
+     StatusBar (top) + TitleBar (328×56, top=36, left=16) + 背景图 + 插图标题
+   - 列表: FRAME "列表" (36:37062) 328×1440, left=16, top=294
+   - 底部: Aibottombar ColorModeDark 360×28, top=764
+*/
+
+/* ─── Container
+   Pixso 36:37008: FRAME "排行榜" 360×792, fill #18181A
+   固定手机页面尺寸，深色主题 ─── */
+
+.srv-container {
+  width: 360px;
+  height: 792px;
+  overflow: hidden;
+  position: relative;
+  flex-shrink: 0;
+  background-color: #18181A; /* DSL fillPaints: rgba(24,24,26,1) */
+}
+
+.srv-navigation {
+  height: 100%;
+}
+
+/* ─── Content Panel — Pixso 36:37058 "bg" ─── */
+/* 360×578px, top=214, fillPaints #18181A, cornerRadius [24,24,0,0]
+   与 header 底部重叠 23px (237-214)，顶部圆角衔接 header
+   内部 flex 布局: ChipsTab (固定) + 列表 (可滚动) + 底栏 (固定) */
+
+.srv-content-panel {
+  width: 360px;
+  height: 578px; /* Pixso DSL: 578px */
+  margin-top: -23px; /* 与 header 底部重叠，实现 top=214 */
+  position: relative;
+  z-index: 1;
+  background-color: #18181A; /* Pixso fillPaints */
+  border-radius: 24px 24px 0 0; /* cornerRadius [24,24,0,0] */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ─── Tab Section — Pixso 36:37061, top=226, 360×64 ─── */
+
+.srv-tab-section {
+  flex-shrink: 0;
+  margin-top: 12px; /* 保留原外层 top=12 定位；组件内部仍负责 4px 顶部对齐与 16px 横向内边距 */
+}
+
+/* ─── List Section — Pixso 36:37062, top=294, left=16 ─── */
+/* 328×1440px 内容，可滚动区域 */
+/* 可见高度 = 578(panel) - 12(padding) - 64(tab) - 4(tab-pad) - 28(bottom) - 8(bar-pad) = 462px */
+
+.srv-list-section {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 40px; /* ranking-list 原 12px + Aibottombar 留白 28px */
+  /* 隐藏滚动条保持设计干净 */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.srv-list-section::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+/* ─── Bottom Bar — Pixso 36:37075 "2.Aibottombar" ─── */
+/* 360×28px, top=764, absolute 浮动在列表上方，透明底不遮挡列表 */
+
+.srv-bottom-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 360px;
+  height: 28px;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 6px;
+  box-sizing: border-box;
+  /* 透明背景，不遮挡列表 */
+  background: transparent;
+  pointer-events: none; /* 让点击穿透到列表 */
+}
+
+/* Pill 指示器 — Pixso 76:59940: 112×5px, cornerRadius:4, #FFFFFF/50%, blur:54.37px */
+.srv-bottom-bar .hm-aibottombar__pill {
+  pointer-events: auto;
+  width: 112px;
+  height: 5px;
+  border-radius: 4px;
+  background-color: rgba(255, 255, 255, 0.5);
+  -webkit-backdrop-filter: blur(27.18px); /* Pixso 54.37 / 2 */
+  backdrop-filter: blur(27.18px);
+}
+
+/* 重置 Aibottombar 组件自带容器，由 srv-bottom-bar 负责外层布局 */
+.srv-bottom-bar .hm-aibottombar {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 0;
+  background: transparent;
+}

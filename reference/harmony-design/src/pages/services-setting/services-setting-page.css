@@ -1,0 +1,143 @@
+/* ServicesSetting Page — 底部弹出 Sheet 样式 */
+
+/* ── Root: 360px 手机画布 ─ */
+.services-setting-root {
+  position: relative;
+  width: 360px;
+  height: 792px;
+  overflow: hidden;
+  border-radius: 24px;
+  background: var(
+    --harmony-background-secondary,
+    var(--harmony-comp-background-gray, #f1f3f5)
+  );
+  font-family: "HarmonyHeiTi", "Geist Variable", sans-serif;
+  color: var(--harmony-font-primary, rgba(0, 0, 0, 0.9));
+}
+
+/* ── 状态栏（最高层级，蒙层之上） ── */
+.services-setting-status-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+}
+
+.services-setting-semi-modal .block-floating-sheet-semi-modal__body {
+  padding-bottom: 0;
+}
+
+.services-setting-semi-modal .pixso-floating-sheet__close-button {
+  background: var(--harmony-comp-background-tertiary, rgba(0, 0, 0, 0.047));
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transition: opacity 0.15s ease;
+}
+
+.services-setting-semi-modal .pixso-floating-sheet__close-button::before {
+  content: none;
+}
+
+.services-setting-semi-modal .pixso-floating-sheet__close-button:hover {
+  opacity: 0.8;
+}
+
+.services-setting-semi-modal .pixso-floating-sheet__close-button:active {
+  opacity: 0.6;
+}
+
+/* ── 页面内容区 ── */
+.services-setting-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 0 44px;
+  box-sizing: border-box;
+  font-family: "HarmonyHeiTi", "Geist Variable", sans-serif;
+  color: var(--harmony-font-primary, rgba(0, 0, 0, 0.9));
+}
+
+.services-setting-ai-bottom-bar {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 30;
+  height: 28px;
+  pointer-events: none;
+}
+
+[data-theme="dark"] .services-setting-ai-bottom-bar .hm-aibottombar__pill {
+  background-color: rgba(255, 255, 255, 0.5);
+  -webkit-backdrop-filter: blur(27.18px);
+  backdrop-filter: blur(27.18px);
+}
+
+/* ─ 卡片内列表距上下边距 4px ── */
+.services-setting-page .grouped-list-section__body {
+  padding: 4px 0;
+}
+
+/* ─ 独立 section 标题（数据和隐私 / 更多），写法同 footnote ── */
+.services-setting-section-title {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 19px;
+  color: var(--harmony-font-secondary, rgba(0, 0, 0, 0.6));
+  padding: 0 12px;
+  margin-top: 16px;
+  margin-bottom: -4px;
+}
+
+/* 红点标记 */
+.services-setting-page__title-with-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.services-setting-page__red-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--harmony-warning, rgba(232, 64, 38, 1));
+  flex-shrink: 0;
+}
+
+/* Section header 样式对齐 */
+.services-setting-page .grouped-list-section__header {
+  padding: 20px 12px 8px;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 19px;
+  color: var(--harmony-font-secondary, rgba(0, 0, 0, 0.6));
+}
+
+/* Footnote 文本样式 */
+.services-setting-page .grouped-list-section__footnote {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  color: var(--harmony-font-secondary, rgba(0, 0, 0, 0.6));
+  padding: 0 12px;
+  margin-top: 8px;
+}
+
+/* 数据和隐私下方：下一个 section header padding-top 归零 */
+.services-setting-data-privacy
+  + .grouped-list-section
+  .grouped-list-section__header {
+  padding-top: 0;
+}
+
+/* ─ 数据和隐私 footnote，写法同 section title ── */
+.services-setting-data-privacy .grouped-list-section__footnote {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 19px;
+  color: var(--harmony-font-secondary, rgba(0, 0, 0, 0.6));
+  padding: 0 12px;
+  margin-top: 28px;
+  margin-bottom: -4px;
+}

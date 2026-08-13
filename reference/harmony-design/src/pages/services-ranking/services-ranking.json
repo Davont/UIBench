@@ -1,0 +1,54 @@
+{
+  "variantOptions": {
+    "页签": ["综合榜", "电视剧榜", "电影榜", "综艺榜"],
+    "状态": ["activated", "enable"],
+    "列表项": ["328×120 卡片 × 12"]
+  },
+  "pixTreeNodes": [
+    {
+      "name": "排行榜",
+      "guid": "36:37008",
+      "variants": {},
+      "childNode": [
+        {
+          "name": "StatusBar (实例 85)",
+          "guid": "36:37075",
+          "variants": { "ColorMode": "Dark" },
+          "childNode": []
+        },
+        {
+          "name": "TitleBar (secondary-page-phone)",
+          "guid": "design_to_code: Titlebarsecondarypagephone",
+          "variants": { "category": "secondary-phone", "title": "排行榜" },
+          "childNode": []
+        },
+        {
+          "name": "ChipsTab (ranking-ChipsTab-Phone)",
+          "guid": "36:37061",
+          "variants": { "类型": "tab", "visible_9_1": "false", "visible_9_4": "false" },
+          "childNode": [
+            { "name": "综合榜 (activated)", "guid": "59:125", "variants": { "状态": "activated" }, "childNode": [] },
+            { "name": "电视剧榜 (enable)", "guid": "59:125", "variants": { "状态": "enable" }, "childNode": [] },
+            { "name": "电影榜 (enable)", "guid": "59:125", "variants": { "状态": "enable" }, "childNode": [] },
+            { "name": "综艺榜 (enable)", "guid": "59:125", "variants": { "状态": "enable" }, "childNode": [] }
+          ]
+        },
+        {
+          "name": "列表 (MainChart03/主榜03)",
+          "guid": "36:37062",
+          "variants": {},
+          "childNode": [
+            { "name": "实例 84 (排名12: 姜子牙)", "guid": "36:37074", "variants": { "mainComponent": "2:66603" }, "childNode": [] },
+            { "name": "实例 73 (排名1: 拆弹专家2)", "guid": "36:37063", "variants": { "mainComponent": "2:66603" }, "childNode": [] }
+          ]
+        },
+        {
+          "name": "Aibottombar (实例 85)",
+          "guid": "36:37075",
+          "variants": { "ColorMode": "Dark" },
+          "childNode": []
+        }
+      ]
+    }
+  ]
+}

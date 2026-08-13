@@ -1,0 +1,8 @@
+/* HMSymbol icon font — dedicated CSS file for synchronous @font-face registration.
+   Loaded via <link> before React rendering to guarantee icon availability. */
+@font-face {
+  font-family: "HMSymbol";
+  src: url(HMSymbolVF.ttf) format("truetype");
+  font-style: normal;
+  font-weight: 400;
+}

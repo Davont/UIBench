@@ -1,0 +1,122 @@
+{
+  "variantOptions": {
+    "chipState": ["active", "inactive"],
+    "colorMode": ["Dark"]
+  },
+  "pixTreeNodes": [
+    {
+      "name": "筛选-4c",
+      "guid": "36:41326",
+      "variants": {},
+      "childNode": [
+        {
+          "name": "实例 86 (StatusBar-Top)",
+          "guid": "36:41330",
+          "variants": { "Color Mode": "Dark" },
+          "childNode": []
+        },
+        {
+          "name": "实例 87 (TitleBar)",
+          "guid": "36:41331",
+          "variants": {},
+          "childNode": []
+        },
+        {
+          "name": "筛选项",
+          "guid": "36:41333",
+          "variants": {},
+          "childNode": [
+            {
+              "name": "画板 16 (评分行)",
+              "guid": "36:41334",
+              "variants": {},
+              "childNode": [
+                { "name": "实例 88 (评分-active)", "guid": "36:41332", "variants": { "state": "active" }, "childNode": [] },
+                { "name": "实例 89 (最新)", "guid": "36:41335", "variants": { "state": "inactive" }, "childNode": [] },
+                { "name": "实例 90 (最热)", "guid": "36:41336", "variants": { "state": "inactive" }, "childNode": [] },
+                { "name": "实例 91 (最新上架)", "guid": "36:41337", "variants": { "state": "inactive" }, "childNode": [] }
+              ]
+            },
+            {
+              "name": "画板 17 (年份行)",
+              "guid": "36:41338",
+              "variants": {},
+              "childNode": [
+                { "name": "实例 94 (年份-active)", "guid": "36:41339", "variants": { "state": "active" }, "childNode": [] },
+                { "name": "实例 95 (2025)", "guid": "36:41340", "variants": { "state": "inactive" }, "childNode": [] },
+                { "name": "实例 96 (2024)", "guid": "36:41341", "variants": { "state": "inactive" }, "childNode": [] },
+                { "name": "实例 97 (2023)", "guid": "36:41342", "variants": { "state": "inactive" }, "childNode": [] }
+              ]
+            },
+            {
+              "name": "画板 18 (地区行)",
+              "guid": "36:41343",
+              "variants": {},
+              "childNode": [
+                { "name": "实例 100 (地区-active)", "guid": "36:41344", "variants": { "state": "active" }, "childNode": [] },
+                { "name": "实例 101 (中国大陆)", "guid": "36:41345", "variants": { "state": "inactive" }, "childNode": [] },
+                { "name": "实例 102 (中国港台)", "guid": "36:41346", "variants": { "state": "inactive" }, "childNode": [] },
+                { "name": "实例 103 (欧美)", "guid": "36:41347", "variants": { "state": "inactive" }, "childNode": [] }
+              ]
+            },
+            {
+              "name": "画板 19 (会员行)",
+              "guid": "36:41348",
+              "variants": {},
+              "childNode": [
+                { "name": "实例 106 (会员-active)", "guid": "36:41349", "variants": { "state": "active" }, "childNode": [] },
+                { "name": "实例 107 (免费)", "guid": "36:41350", "variants": { "state": "inactive" }, "childNode": [] }
+              ]
+            },
+            {
+              "name": "画板 20 (类型行)",
+              "guid": "36:41351",
+              "variants": {},
+              "childNode": [
+                { "name": "实例 108 (类型-active)", "guid": "36:41352", "variants": { "state": "active" }, "childNode": [] },
+                { "name": "实例 109 (喜剧)", "guid": "36:41353", "variants": { "state": "inactive" }, "childNode": [] },
+                { "name": "实例 110 (爱情)", "guid": "36:41354", "variants": { "state": "inactive" }, "childNode": [] },
+                { "name": "实例 111 (剧情)", "guid": "36:41355", "variants": { "state": "inactive" }, "childNode": [] }
+              ]
+            },
+            {
+              "name": "画板 21 (华为视频行)",
+              "guid": "36:41356",
+              "variants": {},
+              "childNode": [
+                { "name": "实例 113 (华为视频-active)", "guid": "36:41357", "variants": { "state": "active" }, "childNode": [] },
+                { "name": "实例 114 (腾讯)", "guid": "36:41358", "variants": { "state": "inactive" }, "childNode": [] },
+                { "name": "实例 115 (优酷)", "guid": "36:41359", "variants": { "state": "inactive" }, "childNode": [] },
+                { "name": "实例 116 (芒果TV)", "guid": "36:41360", "variants": { "state": "inactive" }, "childNode": [] }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "实例 117 (MovieGrid-Row1)",
+          "guid": "36:41361",
+          "variants": {},
+          "childNode": []
+        },
+        {
+          "name": "实例 118 (MovieGrid-Row2)",
+          "guid": "36:41362",
+          "variants": {},
+          "childNode": []
+        },
+        {
+          "name": "实例 119 (MovieGrid-Row3)",
+          "guid": "36:41363",
+          "variants": {},
+          "childNode": []
+        },
+        {
+          "name": "实例 120 (StatusBar-Bottom)",
+          "guid": "36:41369",
+          "variants": { "Color Mode": "Dark" },
+          "childNode": []
+        }
+      ]
+    }
+  ]
+}

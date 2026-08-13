@@ -1,0 +1,190 @@
+.services-launch-page {
+  align-items: flex-start;
+  background: #18181a;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 0;
+  position: relative;
+}
+
+.services-launch-page,
+.services-launch-page * {
+  box-sizing: border-box;
+}
+
+.services-launch-page__screen {
+  background: #18181a;
+  height: 792px;
+  overflow: hidden;
+  position: relative;
+  width: 360px;
+}
+
+/* ── Status Bar ── */
+.services-launch-page__status {
+  color: #fff;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 360px;
+  z-index: 30;
+}
+
+/* ── Background layers (bottom → top) ── */
+/* Layer 1: full-page dark overlay (Dark/mask_fourth) */
+.services-launch-page__bg-mask {
+  background: rgba(0, 0, 0, 0.4);
+  height: 792px;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 360px;
+  z-index: 1;
+}
+
+/* Layer 1.5: mask between bg-mask and blur panel (Dark/mask_tertiary) */
+.services-launch-page__bg-mask-tertiary {
+  background: var(--harmony-dark-mask-tertiary, rgba(0, 0, 0, 0.2));
+  height: 792px;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 360px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Layer 3: rounded blur panel (Dark/Blur/COMPONENT_ULTRA_THICK) */
+.services-launch-page__bg-blur {
+  background: rgba(46, 48, 51, 0.9);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+  border-radius: 32px 32px 0 0;
+  height: 748px;
+  left: 0;
+  position: absolute;
+  top: 44px;
+  width: 360px;
+  z-index: 3;
+}
+
+/* ── Hero section (app icon + title + subtitle) ── */
+.services-launch-page__hero {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 161px;
+  justify-content: center;
+  left: 24px;
+  position: absolute;
+  top: 280px;
+  width: 312px;
+  z-index: 10;
+}
+
+.services-launch-page__app-icon {
+  flex-shrink: 0;
+}
+
+.services-launch-page__title {
+  color: var(--harmony-font-on-primary, rgba(255, 255, 255, 0.9));
+  font-family: "HarmonyHeiTi", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 36px;
+  margin: 0;
+  text-align: center;
+  width: 312px;
+}
+
+.services-launch-page__subtitle {
+  color: var(--harmony-font-on-secondary, rgba(255, 255, 255, 0.6));
+  font-family: "HarmonyHeiTi", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 20px;
+  margin: 0;
+  text-align: center;
+  width: 312px;
+}
+
+/* ─ Privacy section ── */
+.services-launch-page__privacy {
+  bottom: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  left: 16px;
+  position: absolute;
+  width: 328px;
+  z-index: 10;
+}
+
+.services-launch-page__privacy-icon {
+  flex-shrink: 0;
+}
+
+.services-launch-page__privacy-text {
+  color: var(--harmony-font-on-tertiary, rgba(255, 255, 255, 0.4));
+  font-family: "HarmonyHeiTi", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 14px;
+  margin: 0;
+  text-align: left;
+  width: 312px;
+}
+
+/* 第二段隐私文本：flex gap 12px + margin-top -8px = 4px */
+.services-launch-page__privacy-text:nth-child(3) {
+  margin-top: -8px;
+}
+
+.services-launch-page__privacy-link {
+  color: rgba(255, 117, 0, 1);
+  text-decoration: none;
+}
+
+/* ── Buttons ── */
+.services-launch-page__buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 12px;
+  width: 100%;
+}
+
+.services-launch-page__btn-agree {
+  --button-bg: rgba(255, 117, 0, 1);
+  --button-fg: rgba(255, 255, 255, 0.9);
+  --button-width: 158px;
+  width: 158px !important;
+  min-width: 158px !important;
+}
+
+.services-launch-page__btn-cancel {
+  --button-bg: rgba(255, 255, 255, 0.15);
+  --button-fg: rgba(255, 117, 0, 1);
+  --button-width: 158px;
+  width: 158px !important;
+  min-width: 158px !important;
+}
+
+/* ── Bottom bar ── */
+.services-launch-page__bottom-bar {
+  position: absolute;
+  bottom: auto;
+  left: 50%;
+  top: 764px;
+  transform: translateX(-50%);
+  width: 360px;
+  z-index: 30;
+}

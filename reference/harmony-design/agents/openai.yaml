@@ -1,0 +1,5 @@
+interface:
+  display_name: "Harmony Design"
+  short_description: "生成独立可运行的 HarmonyOS 单页 HTML 产物"
+  default_prompt: "Use $standalone-page-generation to create a self-contained HarmonyOS page HTML artifact."
+1

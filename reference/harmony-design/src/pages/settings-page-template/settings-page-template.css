@@ -1,0 +1,63 @@
+/* SettingsPageTemplatePage - content inside MobilePhoneShellTemplatePage */
+
+.template-settings-page {
+  --settings-page-divider-color: var(
+    --grouped-list-section-divider-color,
+    var(--harmony-comp-divider, rgba(0, 0, 0, 0.2))
+  );
+  --settings-page-divider-inset: var(--grouped-list-section-divider-inset, 12px);
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 var(--harmony-page-margin, 16px) 16px;
+  box-sizing: border-box;
+  font-family: "HarmonyHeiTi", "Geist Variable", sans-serif;
+  color: var(--harmony-font-primary, rgba(0, 0, 0, 0.9));
+}
+
+.template-settings-page .template-setting-group {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.template-settings-page .template-setting-row {
+  --list-row-height: 64px;
+  --list-horizontal-padding: 16px;
+  --list-divider-color: var(--settings-page-divider-color);
+  --list-divider-inset-end: var(--settings-page-divider-inset);
+  height: var(--list-row-height);
+  color: var(--harmony-font-primary, rgba(0, 0, 0, 0.9));
+}
+
+.template-settings-page .template-setting-row:hover {
+  background: var(--harmony-interactive-hover, rgba(0, 0, 0, 0.04));
+}
+
+.template-settings-page .template-setting-row:active {
+  background: var(--harmony-interactive-pressed, rgba(0, 0, 0, 0.08));
+}
+
+.template-settings-page .template-setting-row:focus-visible {
+  outline: 2px solid var(--harmony-interactive-focus, rgba(10, 89, 247, 0.35));
+  outline-offset: -2px;
+}
+
+.template-settings-page .template-setting-row .list-phone__left {
+  padding: 16px 0;
+}
+
+.template-settings-page .template-setting-row .list-phone__right {
+  max-width: 120px;
+}
+
+.template-settings-page .template-setting-row .list-phone__right-text {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.template-settings-page .template-setting-row--accent {
+  --list-right-text-color: var(--harmony-brand, #0a59f7);
+}

@@ -1,0 +1,517 @@
+.services-home-template {
+  align-items: flex-start;
+  background: #202124;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 0;
+  position: relative;
+}
+
+.services-home-template,
+.services-home-template * {
+  box-sizing: border-box;
+}
+
+.services-home-template__screen {
+  background: #18181a;
+  height: 792px;
+  overflow: hidden;
+  position: relative;
+  width: 360px;
+}
+
+.services-home-template__hero-slot {
+  flex-shrink: 0;
+  height: 610px;
+  overflow: visible;
+  width: 360px;
+}
+
+.services-home-template__hero-slot > * {
+  height: 450px;
+  width: 360px;
+}
+
+.services-home-template__overlay {
+  color: #fff;
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 36px;
+  width: 360px;
+  z-index: 20;
+}
+
+.services-home-template__status {
+  color: #fff;
+  left: 50%;
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  width: 360px;
+  z-index: 30;
+}
+
+.services-home-template__titlebar {
+  --harmony-font-primary: rgba(255, 255, 255, 0.9);
+  --harmony-font-secondary: rgba(255, 255, 255, 0.6);
+  --harmony-icon-primary: rgba(255, 255, 255, 0.9);
+  --harmony-icon-on-primary: rgba(255, 255, 255, 0.9);
+  --harmony-comp-background-tertiary: rgba(255, 255, 255, 0.18);
+  --harmony-interactive-hover: rgba(255, 255, 255, 0.28);
+  --harmony-interactive-focus: rgba(255, 255, 255, 0.48);
+  margin: 0 16px;
+  pointer-events: auto;
+  width: 328px;
+}
+
+.services-home-template__content {
+  inset: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 0 116px;
+  position: absolute;
+  scrollbar-width: none;
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  z-index: 10;
+}
+
+.services-home-template__content::-webkit-scrollbar {
+  display: none;
+}
+
+.services-home-template__category-slot {
+  height: 56px;
+  margin-top: -140px;
+  overflow: hidden;
+  padding-left: 16px;
+  position: relative;
+  z-index: 5;
+}
+
+.services-home-template__category-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 16px 10px 0;
+  scrollbar-width: none;
+  width: 100%;
+}
+
+.services-home-template__category-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.services-home-template__category {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: 0;
+  border-radius: 20px;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-family: "HarmonyHeiTi", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  gap: 6px;
+  height: 36px;
+  justify-content: center;
+  letter-spacing: 0;
+  line-height: 16px;
+  min-width: 78px;
+  padding: 0 16px;
+}
+
+.services-home-template__category[data-active="true"] {
+  background: #fff;
+  color: rgba(0, 0, 0, 0.9);
+  font-weight: 500;
+}
+
+.services-home-template__category svg {
+  display: block;
+}
+
+.services-home-template__new-book-slot {
+  width: 100%;
+}
+
+.services-home-template__recommended-slot {
+  width: 360px;
+}
+
+.services-home-template__recommended-slot > * {
+  width: 360px;
+}
+
+.services-home-template__recommended-slot {
+  margin-top: 6px;
+}
+
+.services-home-template__bottom-nav {
+  background: linear-gradient(to bottom, rgba(241, 243, 245, 0) 0%, rgba(241, 243, 245, 0.001677) 11.78963%, rgba(241, 243, 245, 0.006483) 21.383704%, rgba(241, 243, 245, 0.01408) 29.12%, rgba(241, 243, 245, 0.02413) 35.336298%, rgba(241, 243, 245, 0.036296) 40.370369%, rgba(241, 243, 245, 0.05024) 44.56%, rgba(241, 243, 245, 0.065624) 48.242962%, rgba(241, 243, 245, 0.08211) 51.757038%, rgba(241, 243, 245, 0.09936) 55.44%, rgba(241, 243, 245, 0.117037) 59.629631%, rgba(241, 243, 245, 0.134803) 64.663702%, rgba(241, 243, 245, 0.15232) 70.88%, rgba(241, 243, 245, 0.16925) 78.616297%, rgba(241, 243, 245, 0.185256) 88.210368%, rgba(241, 243, 245, 0.2) 100%);
+  bottom: 0;
+  height: 100px;
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  width: 360px;
+  z-index: 50;
+}
+
+.services-home-template__bottom-nav-pill {
+  height: auto;
+  left: 16px;
+  pointer-events: auto;
+  position: absolute;
+  top: 0;
+  width: 328px;
+}
+
+.services-home-template__bottom-nav-pill > .pixso-floating-tab-container {
+  width: 328px;
+}
+
+.services-home-template__bottom-nav-pill .pixso-floating-tab {
+  --harmony-font-secondary: rgba(255, 255, 255, 0.9);
+  --harmony-font-emphasize: #f34d4f;
+  --harmony-icon-primary: rgba(255, 255, 255, 0.9);
+  --harmony-icon-emphasize: #f34d4f;
+  height: 56px;
+  width: 328px;
+}
+
+/* ──────────────────────────────────────────────
+   Game 场景覆盖 (.services-home-game)
+   ────────────────────────────────────────────── */
+
+.services-home-game {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(109, 92, 205, 0.32), transparent 360px),
+    #202124;
+}
+
+.services-home-game .services-home-template__screen {
+  background: #111112;
+}
+
+.services-home-game .services-home-template__category-slot {
+  margin-top: -138px;
+}
+
+.services-home-game .services-home-template__category {
+  min-width: 84px;
+}
+
+.services-home-game .services-home-template__category[data-active="true"] {
+  background: #fff;
+  color: rgba(0, 0, 0, 0.9);
+}
+
+.services-home-game__new-mark {
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font-family: "HarmonyHeiTi", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 10px;
+  padding: 0 2px;
+}
+
+.services-home-game .services-home-template__new-book-slot {
+  position: relative;
+  z-index: 6;
+}
+
+.services-home-game .my-game-review {
+  background: transparent;
+}
+
+.services-home-game .my-game-review__subheader {
+  padding-left: 16px;
+  padding-top: 6px;
+}
+
+.services-home-game .my-game-review__scroll {
+  padding-left: 16px;
+  scroll-padding-left: 16px;
+}
+
+.services-home-game .services-home-template__recommended-slot {
+  margin-top: 8px;
+  padding-bottom: 8px;
+  width: 360px;
+}
+
+.services-home-game .services-home-template__recommended-slot > .recommended-new-games {
+  margin-left: 16px;
+  width: 328px;
+}
+
+.services-home-game .services-home-template__bottom-nav {
+  background: linear-gradient(
+    to bottom,
+    rgba(17, 17, 18, 0) 0%,
+    rgba(17, 17, 18, 0.36) 38%,
+    rgba(17, 17, 18, 0.86) 100%
+  );
+}
+
+.services-home-game .services-home-template__bottom-nav-pill .pixso-floating-tab {
+  --harmony-font-emphasize: var(--harmony-brand);
+  --harmony-icon-emphasize: var(--harmony-brand);
+}
+
+/* ──────────────────────────────────────────────
+   Music / Movie 场景覆盖
+   ────────────────────────────────────────────── */
+
+.services-home-music {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(236, 143, 43, 0.28), transparent 340px),
+    #202124;
+}
+
+.services-home-movie {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(26, 80, 76, 0.26), transparent 360px),
+    #202124;
+}
+
+.services-home-music .services-home-template__screen {
+  background: #1b100c;
+}
+
+.services-home-movie .services-home-template__screen {
+  background: #081312;
+}
+
+.services-home-music .services-home-template__category-slot,
+.services-home-movie .services-home-template__category-slot {
+  margin-top: -148px;
+  padding-left: 16px;
+}
+
+.services-home-music .services-home-template__category-scroll,
+.services-home-movie .services-home-template__category-scroll {
+  gap: 8px;
+  padding-right: 16px;
+}
+
+.services-home-music .services-home-template__category,
+.services-home-movie .services-home-template__category {
+  height: 36px;
+  min-width: 82px;
+  padding: 0 16px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.services-home-music .services-home-template__category[data-active="true"],
+.services-home-movie .services-home-template__category[data-active="true"] {
+  background: #fff;
+  color: rgba(0, 0, 0, 0.9);
+}
+
+.services-home-music .services-home-template__new-book-slot,
+.services-home-music .services-home-template__recommended-slot,
+.services-home-movie .services-home-template__new-book-slot,
+.services-home-movie .services-home-template__recommended-slot {
+  position: relative;
+  z-index: 6;
+}
+
+.services-home-music .music-recommended {
+  background: transparent;
+  padding-top: 10px;
+}
+
+.services-home-music .music-recommended .music-recommended__subheader.subheader {
+  margin-left: 16px;
+  padding-left: 0;
+  padding-right: 0;
+  width: 328px;
+}
+
+.services-home-music .music-recommended__list {
+  padding-left: 16px;
+  scroll-padding-left: 16px;
+}
+
+.services-home-movie .my-movie-review,
+.services-home-movie .today-movie-list {
+  background: transparent;
+}
+
+.services-home-movie .my-movie-review {
+  padding-top: 10px;
+}
+
+.services-home-movie .my-movie-review .my-movie-review__subheader.subheader {
+  margin-left: 16px;
+  padding-left: 0;
+  padding-right: 0;
+  width: 336px;
+}
+
+.services-home-movie .my-movie-review__scroll {
+  padding-left: 16px;
+  scroll-padding-left: 16px;
+}
+
+.services-home-movie .services-home-template__recommended-slot {
+  margin-top: 6px;
+}
+
+.services-home-movie .today-movie-list .today-movie-list__subheader.subheader {
+  margin-left: 16px;
+  padding-left: 0;
+  padding-right: 0;
+  width: 328px;
+}
+
+.services-home-movie .today-movie-list .today-movie-list__subheader.subheader .subheader__left,
+.services-home-movie .today-movie-list .today-movie-list__subheader.subheader .subheader__right {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.services-home-movie .today-movie-list__grid {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.services-home-music .services-home-template__bottom-nav,
+.services-home-movie .services-home-template__bottom-nav {
+  background: linear-gradient(
+    to bottom,
+    rgba(17, 17, 18, 0) 0%,
+    rgba(17, 17, 18, 0.42) 34%,
+    rgba(17, 17, 18, 0.9) 100%
+  );
+}
+
+.services-home-music .services-home-template__bottom-nav {
+  height: 132px;
+}
+
+.services-home-media-bottom-pill {
+  left: 16px;
+  pointer-events: auto;
+  position: absolute;
+  top: 0;
+  width: 328px;
+}
+
+.services-home-media-bottom-pill .pixso-floating-tab-container,
+.services-home-media-bottom-pill .pixso-floating-tab {
+  width: 328px;
+}
+
+.services-home-media-bottom-pill .pixso-floating-tab {
+  --harmony-font-secondary: rgba(255, 255, 255, 0.82);
+  --harmony-icon-primary: rgba(255, 255, 255, 0.82);
+  height: 56px;
+}
+
+.services-home-media-bottom-pill--music .pixso-floating-tab {
+  --harmony-font-emphasize: #ff2f66;
+  --harmony-icon-emphasize: #ff2f66;
+}
+
+.services-home-media-bottom-pill--movie .pixso-floating-tab {
+  --harmony-font-emphasize: #ff7a00;
+  --harmony-icon-emphasize: #ff7a00;
+}
+
+.services-home-media-bottom-pill .pixso-floating-tab__bottombar-pill {
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.services-home-music__player {
+  align-items: center;
+  background:
+    linear-gradient(90deg, rgba(91, 75, 160, 0.78) 0%, rgba(255, 255, 255, 0.28) 52%, rgba(52, 43, 31, 0.72) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 24px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  color: #fff;
+  display: flex;
+  height: 48px;
+  left: 16px;
+  overflow: hidden;
+  padding: 4px 14px 4px 4px;
+  pointer-events: auto;
+  position: absolute;
+  top: -34px;
+  width: 328px;
+  z-index: 2;
+}
+
+.services-home-music__player::before {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px) saturate(135%);
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  -webkit-backdrop-filter: blur(10px) saturate(135%);
+}
+
+.services-home-music__cover {
+  border-radius: 20px;
+  flex: 0 0 40px;
+  height: 40px;
+  object-fit: cover;
+  position: relative;
+  width: 40px;
+  z-index: 1;
+}
+
+.services-home-music__copy {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding-left: 10px;
+  position: relative;
+  z-index: 1;
+}
+
+.services-home-music__title {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.services-home-music__artist,
+.services-home-music__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.services-home-music__artist {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+}
+
+.services-home-music__actions {
+  align-items: center;
+  color: #fff;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 18px;
+  position: relative;
+  z-index: 1;
+}

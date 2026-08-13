@@ -1,0 +1,151 @@
+{
+  "variantOptions": {
+    "会员勋章图标": ["开", "关"],
+    "个人主页入口": ["开", "关"],
+    "头卡类型": ["会员管理样式", "带自定义扩展区域"],
+    "会员勋章文字": ["开", "关"],
+    "登陆状态": ["已登陆", "未登陆"],
+    "宫格item_名称": ["用户资产", "常用服务", "我的资产", "权益兑换", "更多", "消费记录", "帮助与客服", "设置", "灰色星星", "黑色星星", "24兜底", "28兜底"],
+    "宫格item_副文本": ["开", "关"],
+    "宫格item_红点": ["开", "关"]
+  },
+  "pixTreeNodes": {
+    "name": "云服务-我的页面",
+    "guid": "36:3663",
+    "variants": {},
+    "childNode": [
+      {
+        "name": "实例 13 (StatusBar)",
+        "guid": "36:3683",
+        "variants": {},
+        "childNode": []
+      },
+      {
+        "name": "Header",
+        "guid": "36:3679",
+        "variants": {},
+        "childNode": []
+      },
+      {
+        "name": "实例 8 (BottomTab)",
+        "guid": "36:3671",
+        "variants": {},
+        "childNode": []
+      },
+      {
+        "name": "#illustration_画板 87 (Main Content)",
+        "guid": "36:3672",
+        "variants": {},
+        "childNode": [
+          {
+            "name": "身份卡片 (User Profile Card)",
+            "guid": "41:614",
+            "variants": {
+              "会员勋章图标": "开",
+              "个人主页入口": "开",
+              "头卡类型": "会员管理样式",
+              "会员勋章文字": "开",
+              "登陆状态": "已登陆"
+            },
+            "childNode": [
+              {
+                "name": "Container/Cardview/Phone/Basic",
+                "guid": "2:62855",
+                "variants": {},
+                "childNode": [
+                  {
+                    "name": "Card/light",
+                    "guid": "2:62877",
+                    "variants": {},
+                    "childNode": []
+                  }
+                ]
+              },
+              {
+                "name": "画板 6 (顶部行: 头像+姓名+勋章+个人主页)",
+                "guid": "2:62862",
+                "variants": {},
+                "childNode": [
+                  {
+                    "name": "Button-Phone (会员中心)",
+                    "guid": "2:62875",
+                    "variants": {},
+                    "childNode": []
+                  },
+                  {
+                    "name": "类型=Text (姓名+勋章)",
+                    "guid": "2:62863",
+                    "variants": {},
+                    "childNode": []
+                  },
+                  {
+                    "name": "Divider-Phone",
+                    "guid": "2:62874",
+                    "variants": {},
+                    "childNode": []
+                  }
+                ]
+              },
+              {
+                "name": "画板 7 (底部行: 文字+按钮)",
+                "guid": "2:62864",
+                "variants": {},
+                "childNode": [
+                  {
+                    "name": "类型=Text (个人主页)",
+                    "guid": "2:62866",
+                    "variants": {},
+                    "childNode": []
+                  },
+                  {
+                    "name": "画板 5 (头像+勋章带文字)",
+                    "guid": "2:62867",
+                    "variants": {},
+                    "childNode": [
+                      {
+                        "name": "画板 4 (姓名+3个勋章带文字)",
+                        "guid": "2:62868",
+                        "variants": {},
+                        "childNode": []
+                      },
+                      {
+                        "name": "Item/账号头像",
+                        "guid": "2:62472",
+                        "variants": {},
+                        "childNode": []
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "实例 4 (Quick Actions)",
+            "guid": "36:3668",
+            "variants": {},
+            "childNode": []
+          },
+          {
+            "name": "实例 5 (Feedback Card)",
+            "guid": "36:3669",
+            "variants": {},
+            "childNode": []
+          },
+          {
+            "name": "实例 6 (Common Services)",
+            "guid": "36:3670",
+            "variants": {},
+            "childNode": []
+          }
+        ]
+      },
+      {
+        "name": "实例 1 (Background Overlay)",
+        "guid": "36:3664",
+        "variants": {},
+        "childNode": []
+      }
+    ]
+  }
+}

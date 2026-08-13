@@ -1,0 +1,385 @@
+.service-search-template {
+  --service-search-page-bg: var(--harmony-storybook-preview-bg, var(--harmony-background-secondary));
+  --service-search-screen-bg: var(--harmony-background-secondary);
+  --service-search-brand: var(--harmony-music-search-brand, #ff1949);
+  --service-search-bottom-fade-start: rgba(241, 243, 245, 0);
+  --service-search-bottom-fade-end: rgba(241, 243, 245, 0.94);
+  align-items: flex-start;
+  background: var(--service-search-page-bg);
+  box-sizing: border-box;
+  color: var(--harmony-font-primary);
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 0;
+  position: relative;
+}
+
+[data-theme="dark"] .service-search-template {
+  --service-search-bottom-fade-start: rgba(25, 26, 28, 0);
+  --service-search-bottom-fade-end: rgba(25, 26, 28, 0.94);
+}
+
+.service-search-template,
+.service-search-template * {
+  box-sizing: border-box;
+}
+
+.service-search-template__screen {
+  background: var(--service-search-screen-bg);
+  height: 792px;
+  overflow: hidden;
+  position: relative;
+  width: 360px;
+}
+
+.service-search-template[data-mode="in-search"] .service-search-template__screen {
+  background: var(--service-search-screen-bg);
+}
+
+.service-search-template[data-mode="completed-results"] .service-search-template__screen {
+  background: var(--service-search-screen-bg);
+}
+
+.service-search-template__status {
+  left: 50%;
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  width: 360px;
+  z-index: 20;
+}
+
+.service-search-template__search-slot {
+  height: 40px;
+  left: 16px;
+  position: absolute;
+  top: 44px;
+  width: 328px;
+  z-index: 10;
+}
+
+.service-search-template__floating-search {
+  display: flex;
+  width: 328px;
+}
+
+.service-search-template__floating-search.hm-floating-search-second-page-phone[data-opacity="强"] {
+  --fssp-button-backdrop: var(--harmony-floating-thin-backdrop);
+  --fssp-button-shadow: var(--harmony-floating-thin-shadow);
+  --fssp-button-surface: var(--FLOATING_THIN_fill);
+  --fssp-button-surface-highlight: var(--harmony-floating-thin-highlight);
+  --fssp-surface-backdrop: var(--harmony-floating-thin-backdrop);
+  --fssp-surface-highlight: var(--harmony-floating-thin-highlight);
+  --fssp-surface-highlight-blend-mode: var(--harmony-floating-thin-highlight-blend-mode, plus-lighter);
+  --fssp-surface-shadow: var(--harmony-floating-thin-shadow);
+  --fssp-surface-surface: var(--FLOATING_THIN_fill);
+}
+
+.service-search-template__history-slot {
+  height: 88px;
+  left: 16px;
+  position: absolute;
+  top: 92px;
+  width: 328px;
+  z-index: 5;
+}
+
+.service-search-template__ranking-slot {
+  height: 856px;
+  left: 16px;
+  overflow: visible;
+  position: absolute;
+  top: 196px;
+  width: 496px;
+  z-index: 1;
+}
+
+.service-search-template__ranking-rail {
+  display: flex;
+  gap: 8px;
+  height: 856px;
+  width: 496px;
+}
+
+.service-search-template__ranking-rail > .top-songs {
+  flex: 0 0 244px;
+}
+
+.service-search-template__category-tabs {
+  height: 44px;
+  left: 16px;
+  overflow: visible;
+  position: absolute;
+  top: 92px;
+  width: 328px;
+  z-index: 8;
+}
+
+.service-search-template__category-tabs-control.hm-floating-chips-tab-phone {
+  height: 44px;
+  padding: 0;
+  width: 428px;
+}
+
+.service-search-template__category-tabs-control .hm-floating-chips-tab-phone__viewport {
+  height: 44px;
+}
+
+.service-search-template__category-tabs-control .hm-floating-chips-tab-phone__rail {
+  gap: 8px;
+}
+
+.service-search-template__category-tabs-control .hm-floating-chips-tab-phone__chip {
+  border-radius: 14px;
+  font-size: 12px;
+  height: 28px;
+  line-height: 16px;
+  min-width: 76px;
+  padding: 6px 0;
+  width: 76px;
+}
+
+.service-search-template__category-tabs-control .hm-floating-chips-tab-phone__chip-label {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.service-search-template__category-tabs-control .hm-floating-chips-tab-phone__chip--active {
+  background: var(--service-search-brand);
+  color: var(--harmony-font-on-primary);
+}
+
+.service-search-template__category-tabs-control .hm-floating-chips-tab-phone__fade {
+  height: 44px;
+  width: 56px;
+}
+
+.service-search-template__artist-card-slot {
+  height: 242px;
+  left: 16px;
+  overflow: visible;
+  position: absolute;
+  top: 112px;
+  width: 656px;
+  z-index: 4;
+}
+
+.service-search-template__artist-card-slot > .artist-search-result-card {
+  transform: none;
+  transform-origin: top left;
+}
+
+.service-search-template__artist-card-slot .artist-search-result-card__eyebrow {
+  display: none;
+}
+
+.service-search-template__completed-result-list-slot {
+  bottom: 0;
+  height: auto;
+  left: 16px;
+  overflow: hidden;
+  position: absolute;
+  top: 364px;
+  width: 328px;
+  z-index: 3;
+}
+
+.service-search-template__completed-result-list-slot > .music-search-completed-result-list {
+  --music-search-completed-bottom-inset: 120px;
+  height: 100%;
+  width: 328px;
+}
+
+.service-search-template__result-action {
+  height: 40px;
+  left: 16px;
+  position: absolute;
+  top: 100px;
+  width: 328px;
+  z-index: 8;
+}
+
+.service-search-template__result-action-inner {
+  align-items: center;
+  color: var(--harmony-font-primary);
+  display: flex;
+  font-family: "HarmonyHeiTi", "HarmonyOS Sans", "PingFang SC", system-ui, sans-serif;
+  height: 40px;
+  width: 328px;
+}
+
+.service-search-template__result-play {
+  align-items: center;
+  background: var(--service-search-brand);
+  border-radius: 44% 56% 49% 51% / 42% 46% 54% 58%;
+  color: var(--harmony-font-on-primary);
+  display: inline-flex;
+  flex: 0 0 40px;
+  height: 40px;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  width: 40px;
+}
+
+.service-search-template__result-play::before {
+  border-bottom: 8px solid transparent;
+  border-left: 13px solid var(--harmony-font-on-primary);
+  border-top: 8px solid transparent;
+  content: "";
+  display: block;
+  height: 0;
+  margin-left: 3px;
+  width: 0;
+}
+
+.service-search-template__result-label {
+  color: var(--harmony-font-primary);
+  flex: 1 1 auto;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 28px;
+  margin-left: 8px;
+  min-width: 0;
+}
+
+.service-search-template__result-list-icon {
+  color: var(--harmony-icon-secondary);
+  flex: 0 0 auto;
+}
+
+.service-search-template__result-list-slot {
+  height: 678px;
+  left: 0;
+  position: absolute;
+  top: 132px;
+  width: 360px;
+  z-index: 2;
+}
+
+.service-search-template__result-list-slot > .music-searching-result-list {
+  height: 678px;
+  width: 360px;
+}
+
+.service-search-template__online-search {
+  bottom: 98px;
+  height: 40px;
+  left: 16px;
+  pointer-events: none;
+  position: absolute;
+  width: 328px;
+  z-index: 60;
+}
+
+.service-search-template__online-search-button {
+  --floating-button-width: 328px;
+  --floating-button-height: 40px;
+  --floating-button-radius: 20px;
+  --floating-button-font-size: 18px;
+  --floating-button-font-weight: 700;
+  --floating-button-line-height: 24px;
+  --floating-button-fg: var(--service-search-brand);
+  --floating-button-shadow:
+    0 8px 28px rgba(0, 0, 0, 0.12),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.92);
+  block-size: 40px;
+  box-sizing: border-box;
+  color: var(--service-search-brand);
+  flex: 0 0 328px;
+  height: 40px;
+  inline-size: 328px;
+  max-width: 328px;
+  min-height: 40px;
+  min-width: 328px;
+  pointer-events: auto;
+  width: 328px;
+}
+
+.service-search-template__online-search-button.hm-floating-button-phone--opacity-standard:not(
+    .hm-floating-button-phone--type-Emphasized
+  ):not(.hm-floating-button-phone--type-Selected) {
+  --floating-button-shadow:
+    0 8px 28px rgba(0, 0, 0, 0.12),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.92);
+}
+
+.service-search-template__mini-player {
+  bottom: 0;
+  height: 100px;
+  left: 16px;
+  pointer-events: none;
+  position: absolute;
+  width: 328px;
+  z-index: 70;
+}
+
+.service-search-template__floating-mini-tab {
+  pointer-events: auto;
+  width: 328px;
+}
+
+.service-search-template__bottom-nav {
+  background: linear-gradient(
+    to bottom,
+    var(--service-search-bottom-fade-start) 0%,
+    var(--service-search-bottom-fade-end) 100%
+  );
+  bottom: 0;
+  height: 100px;
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  width: 360px;
+  z-index: 50;
+}
+
+.service-search-template__bottom-tab {
+  height: auto;
+  left: 16px;
+  pointer-events: auto;
+  position: absolute;
+  top: 0;
+  width: 328px;
+}
+
+.service-search-template__bottom-tab .pixso-floating-tab-row {
+  width: 328px;
+}
+
+.service-search-template .top-songs {
+  --top-songs-card-bg: var(--harmony-comp-background-primary);
+  --top-songs-text: var(--harmony-font-primary);
+  --top-songs-rank-muted: var(--harmony-font-tertiary);
+  --top-songs-brand: var(--service-search-brand);
+}
+
+.service-search-template .music-searching-result-list {
+  color: var(--harmony-font-primary);
+}
+
+.service-search-template .music-searching-result-list__song-name {
+  color: var(--harmony-font-primary);
+}
+
+.service-search-template .music-searching-result-list__artist {
+  color: var(--service-search-brand);
+}
+
+.service-search-template .music-searching-result-list__subtitle {
+  color: var(--harmony-font-tertiary);
+}
+
+.service-search-template .music-searching-result-list__favorite,
+.service-search-template .music-searching-result-list__more,
+.service-search-template .music-searching-result-list__download {
+  color: var(--harmony-icon-secondary);
+}
+
+.service-search-template .music-searching-result-list__vip.harmony-badge,
+.service-search-template .music-searching-result-list__spatial.harmony-badge {
+  --badge-bg: var(--harmony-comp-background-secondary);
+  --badge-fg: var(--harmony-font-secondary);
+}

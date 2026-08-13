@@ -1,0 +1,93 @@
+{
+  "variantOptions": {
+    "Color Mode": ["Light"],
+    "行数": ["1"],
+    "尺寸": ["Medium"],
+    "属性 1": ["默认"],
+    "Land": ["OFF"]
+  },
+  "pixTreeNodes": [
+    {
+      "name": "设置首页_全内容",
+      "guid": "36:49162",
+      "variants": {},
+      "childNode": [
+        {
+          "name": "Land=OFF",
+          "guid": "root-bg",
+          "variants": { "Land": "OFF" },
+          "childNode": []
+        },
+        {
+          "name": ".Sheet",
+          "guid": "overlay-sheet",
+          "variants": {},
+          "childNode": []
+        },
+        {
+          "name": "画板 7",
+          "guid": "36:49165",
+          "variants": {},
+          "childNode": [
+            { "name": "属性 1=默认", "guid": "header-7", "variants": { "属性 1": "默认" }, "childNode": [] },
+            { "name": "行数=1,尺寸=Medium", "guid": "item-7", "variants": { "行数": "1", "尺寸": "Medium" }, "childNode": [] }
+          ]
+        },
+        {
+          "name": "画板 8",
+          "guid": "36:49168",
+          "variants": {},
+          "childNode": [
+            { "name": "属性 1=默认", "guid": "header-8", "variants": { "属性 1": "默认" }, "childNode": [] },
+            { "name": "行数=1,尺寸=Medium", "guid": "item-8", "variants": { "行数": "1", "尺寸": "Medium" }, "childNode": [] }
+          ]
+        },
+        {
+          "name": "画板 6",
+          "guid": "36:49171",
+          "variants": {},
+          "childNode": [
+            { "name": "SubHeader-Phone", "guid": "subheader-6", "variants": {}, "childNode": [] },
+            { "name": "属性 1=默认", "guid": "header-6", "variants": { "属性 1": "默认" }, "childNode": [] },
+            { "name": "行数=1,尺寸=Medium (×5)", "guid": "items-6", "variants": { "行数": "1", "尺寸": "Medium" }, "childNode": [] }
+          ]
+        },
+        {
+          "name": "画板 9",
+          "guid": "36:49174",
+          "variants": {},
+          "childNode": [
+            { "name": "SubHeader-Phone", "guid": "subheader-9", "variants": {}, "childNode": [] },
+            { "name": "属性 1=默认", "guid": "header-9", "variants": { "属性 1": "默认" }, "childNode": [] },
+            { "name": "行数=1,尺寸=Medium (×6)", "guid": "items-9", "variants": { "行数": "1", "尺寸": "Medium" }, "childNode": [] }
+          ]
+        },
+        {
+          "name": "画板 10",
+          "guid": "36:49177",
+          "variants": {},
+          "childNode": [
+            { "name": "SubHeader-Phone", "guid": "subheader-10", "variants": {}, "childNode": [] },
+            { "name": "属性 1=默认", "guid": "header-10", "variants": { "属性 1": "默认" }, "childNode": [] },
+            { "name": "行数=1,尺寸=Medium (×3)", "guid": "items-10", "variants": { "行数": "1", "尺寸": "Medium" }, "childNode": [] }
+          ]
+        },
+        {
+          "name": "组合 1",
+          "guid": "combo-1",
+          "variants": {},
+          "childNode": [
+            { "name": "属性 1=默认", "guid": "header-combo", "variants": { "属性 1": "默认" }, "childNode": [] },
+            { "name": "行数=1,尺寸=Medium (×2)", "guid": "items-combo", "variants": { "行数": "1", "尺寸": "Medium" }, "childNode": [] }
+          ]
+        },
+        {
+          "name": "Color Mode=Light",
+          "guid": "color-mode",
+          "variants": { "Color Mode": "Light" },
+          "childNode": []
+        }
+      ]
+    }
+  ]
+}

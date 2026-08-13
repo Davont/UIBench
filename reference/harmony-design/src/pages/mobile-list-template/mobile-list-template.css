@@ -1,0 +1,173 @@
+/* MobileListTemplatePage - content inside MobilePhoneShellTemplatePage */
+
+.layout-mobile-list {
+  --mobile-list-divider-color: var(
+    --grouped-list-section-divider-color,
+    var(--harmony-comp-divider, rgba(0, 0, 0, 0.2))
+  );
+  --mobile-list-divider-inset: var(--grouped-list-section-divider-inset, 12px);
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px var(--harmony-page-margin, 16px) 16px;
+  box-sizing: border-box;
+  font-family: "HarmonyHeiTi", "Geist Variable", sans-serif;
+  color: var(--harmony-font-primary, rgba(0, 0, 0, 0.9));
+}
+
+.layout-mobile-list .layout-card-header {
+  width: 100%;
+  background: var(--harmony-comp-background-primary, #fff);
+  border-radius: 20px;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.layout-mobile-list .layout-card-header__inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.layout-mobile-list .layout-card-header__avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #5a6cf3, #2c3eb1);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.layout-mobile-list .layout-card-header__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.layout-mobile-list .layout-card-header__name {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 22px;
+  color: var(--harmony-font-primary, rgba(0, 0, 0, 0.9));
+}
+
+.layout-mobile-list .layout-card-header__meta {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--harmony-font-tertiary, rgba(0, 0, 0, 0.4));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.layout-mobile-list .layout-card-header__chevron {
+  color: var(--harmony-icon-tertiary, rgba(0, 0, 0, 0.4));
+  flex-shrink: 0;
+}
+
+.layout-mobile-list .layout-card-group-entry {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.layout-mobile-list .layout-list-card-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.layout-mobile-list .layout-list-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 72px;
+  padding: 0 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+
+.layout-mobile-list .layout-list-row:hover {
+  background: var(--harmony-interactive-hover, rgba(0, 0, 0, 0.04));
+}
+
+.layout-mobile-list .layout-list-row:active {
+  background: var(--harmony-interactive-pressed, rgba(0, 0, 0, 0.08));
+}
+
+.layout-mobile-list .layout-list-row:focus-visible {
+  outline: 2px solid var(--harmony-interactive-focus, rgba(10, 89, 247, 0.35));
+  outline-offset: -2px;
+}
+
+.layout-mobile-list .layout-list-row__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--harmony-comp-background-tertiary, rgba(0, 0, 0, 0.05));
+  color: var(--harmony-icon-primary, rgba(0, 0, 0, 0.9));
+  flex-shrink: 0;
+}
+
+.layout-mobile-list .layout-list-row__content {
+  --list-horizontal-padding: 0px;
+  --list-divider-color: var(--mobile-list-divider-color);
+  flex: 1;
+  min-width: 0;
+  height: 72px;
+  padding: 0;
+  background: transparent;
+}
+
+.layout-mobile-list .layout-list-row__content:hover,
+.layout-mobile-list .layout-list-row__content:active {
+  background: transparent;
+}
+
+.layout-mobile-list .layout-list-row__content:focus-visible {
+  outline: none;
+}
+
+.layout-mobile-list .layout-list-row__content .list-phone__left {
+  padding: 16px 0;
+}
+
+.layout-mobile-list .layout-list-row__content .list-phone__right {
+  max-width: 112px;
+}
+
+.layout-mobile-list .layout-list-row__content .list-phone__right-text {
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.layout-mobile-list .layout-list-row__content--accent {
+  --list-right-text-color: var(--harmony-brand, #0a59f7);
+}
+
+.layout-mobile-list .layout-list-row__chevron {
+  color: var(--harmony-icon-tertiary, rgba(0, 0, 0, 0.4));
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
