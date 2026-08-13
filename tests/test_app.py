@@ -112,6 +112,63 @@ def _progress(messages, key: str | None = None):
     return events
 
 
+def test_arkui_prepare_repairs_layout_wrapper_before_capture(client) -> None:
+    html = """<!DOCTYPE html><html><body>
+    <div data-component="scroll" data-node-id="display.brightness"
+         class="flex flex-col min-h-screen">
+      <main class="flex-1 space-y-6">
+        <section data-component="column"
+                 data-node-id="display.brightness.card"
+                 class="flex flex-col"></section>
+      </main>
+    </div>
+    </body></html>"""
+
+    response = client.post("/api/arkui/prepare", json={"html": html})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["changed"] is True
+    assert payload["exportable"] is True
+    assert payload["repairs"] == [{
+        "code": "ARKUI_UNANNOTATED_WRAPPER_REPAIRED",
+        "message": (
+            "Annotated <main> as 'column' so its DOM and ArkUI parent "
+            "trees stay identical"
+        ),
+        "nodeId": "display.brightness.content",
+        "component": "column",
+    }]
+    assert 'data-node-id="display.brightness.content"' in payload["html"]
+    assert (
+        payload["manifest"]["summary"]["exportReadiness"]
+        in {"ready", "lossy"}
+    )
+
+
+def test_arkui_export_rejects_html_that_skipped_prepare(client) -> None:
+    html = """<div data-component="scroll" data-node-id="page"
+      class="flex flex-col min-h-screen">
+      <main>
+        <section data-component="column" data-node-id="page.card"
+          class="flex flex-col"></section>
+      </main>
+    </div>"""
+
+    response = client.post("/api/arkui/export", json={
+        "html": html,
+        "page_name": "PrepareRequired",
+        "mode": "annotated",
+    })
+
+    assert response.status_code == 409
+    error = response.json()["error"]
+    assert error["code"] == "UIBENCH_ARKUI_PREPARE_REQUIRED"
+    assert error["details"]["repairs"][0]["code"] == (
+        "ARKUI_UNANNOTATED_WRAPPER_REPAIRED"
+    )
+
+
 def test_index_page(client) -> None:
     resp = client.get("/")
     assert resp.status_code == 200

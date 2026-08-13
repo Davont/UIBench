@@ -13,6 +13,7 @@ from uibench.arkui import (
     build_screen_ir,
     load_component_registry,
     load_renderer_contract,
+    repair_arkui_export_html,
     repair_missing_component_node_ids,
     validate_component_registry,
 )
@@ -46,6 +47,8 @@ def test_checked_in_registry_has_phased_component_families() -> None:
     assert registry.renderer_keys() == (
         "column", "row", "stack", "scroll", "text", "span", "image",
         "symbol", "divider", "button", "list", "list-item", "grid", "grid-item",
+        "search", "text-input", "checkbox", "radio", "toggle", "tabs",
+        "tab-content", "slider",
     )
     assert registry.components["list"].allowed_children == frozenset({"list-item"})
     assert registry.components["list-item"].max_component_children == 1
@@ -192,7 +195,7 @@ def test_native_html_controls_are_inferred_without_rewriting_html() -> None:
         "text-area", "symbol",
     ]
     assert all(node.source == "html" for node in report.nodes)
-    assert len(report.warnings) == 13
+    assert len(report.warnings) == 9
     assert report.errors == ()
     assert _codes(report) == {
         "ARKUI_COMPONENT_NOT_RENDERER_SUPPORTED",
@@ -413,6 +416,120 @@ def test_mobile_prompt_includes_arkui_metadata_contract() -> None:
     assert "`flex-direction: row`" in SYSTEM_MOBILE
     assert "list, list-item" in SYSTEM_MOBILE.split("第一版允许值为：", 1)[1].split("。", 1)[0]
     assert MOBILE_ARKUI_METADATA_INSTRUCTIONS in SYSTEM_MOBILE
+    allowed = SYSTEM_MOBILE.split("第一版允许值为：", 1)[1].split("。", 1)[0]
+    assert all(
+        component in allowed
+        for component in (
+            "toggle", "slider", "text-input", "search", "checkbox", "radio",
+            "tabs", "tab-content",
+        )
+    )
+    assert 'type="checkbox" data-component="toggle"' in SYSTEM_MOBILE
+    assert 'type="range" data-component="slider"' in SYSTEM_MOBILE
+    assert 'type="checkbox" data-component="checkbox"' in SYSTEM_MOBILE
+    assert 'type="radio" data-component="radio"' in SYSTEM_MOBILE
+    assert 'data-component="tabs" data-index="0"' in SYSTEM_MOBILE
+    assert 'data-component="tab-content" data-tab-bar="概览"' in SYSTEM_MOBILE
+
+
+def test_native_form_controls_build_screen_ir_props() -> None:
+    report = analyze_component_metadata("""
+      <main data-node-id="page" data-component="column" class="flex flex-col">
+        <input data-node-id="page.toggle" data-component="toggle"
+               type="checkbox" checked disabled>
+        <input data-node-id="page.slider" data-component="slider"
+               type="range" value="42.5" min="0" max="100" step="0.5">
+        <input data-node-id="page.name" data-component="text-input"
+               type="text" value="Ada" placeholder="姓名" readonly>
+        <input data-node-id="page.search" data-component="search"
+               type="search" value="ArkUI" placeholder="搜索" disabled>
+      </main>
+    """)
+    built = build_screen_ir(report)
+
+    assert report.errors == ()
+    assert report.warnings == ()
+    assert built.screen_ir is not None
+    children = built.screen_ir["ui"]["children"]
+    assert [child["componentName"] for child in children] == [
+        "Toggle", "Slider", "TextInput", "Search",
+    ]
+    assert children[0]["props"] == {"checked": True, "disabled": True}
+    assert children[1]["props"] == {
+        "value": 42.5, "min": 0, "max": 100, "step": 0.5,
+    }
+    assert children[2]["props"] == {
+        "value": "Ada", "placeholder": "姓名", "readOnly": True,
+    }
+    assert children[3]["props"] == {
+        "value": "ArkUI", "placeholder": "搜索", "disabled": True,
+    }
+
+
+def test_slider_rejects_non_numeric_html_state() -> None:
+    report = analyze_component_metadata("""
+      <input data-node-id="page.slider" data-component="slider"
+             type="range" value="bright">
+    """)
+
+    assert "ARKUI_CONTROL_VALUE_INVALID" in _codes(report)
+    assert report.export_readiness == "blocked"
+
+
+def test_selection_controls_and_tabs_build_screen_ir_props() -> None:
+    report = analyze_component_metadata("""
+      <main data-node-id="page" data-component="column" class="flex flex-col">
+        <input data-node-id="page.marketing" data-component="checkbox"
+               type="checkbox" name="consents" value="marketing" checked disabled>
+        <input data-node-id="page.light" data-component="radio"
+               type="radio" name="theme" value="light">
+        <input data-node-id="page.dark" data-component="radio"
+               type="radio" name="theme" value="dark" checked>
+        <button data-node-id="page.save" data-component="button" disabled>保存</button>
+        <div data-node-id="page.tabs" data-component="tabs" data-index="1">
+          <section data-node-id="page.overview" data-component="tab-content"
+                   data-tab-bar="概览">
+            <p data-node-id="page.overview.text" data-component="text">第一页</p>
+          </section>
+          <section data-node-id="page.settings" data-component="tab-content"
+                   data-tab-bar="设置"></section>
+        </div>
+      </main>
+    """)
+    built = build_screen_ir(report)
+
+    assert report.errors == ()
+    assert report.warnings == ()
+    assert built.screen_ir is not None
+    children = built.screen_ir["ui"]["children"]
+    assert children[0]["props"] == {
+        "name": "marketing", "group": "consents",
+        "checked": True, "disabled": True,
+    }
+    assert children[1]["props"] == {
+        "value": "light", "group": "theme", "checked": False,
+    }
+    assert children[2]["props"] == {
+        "value": "dark", "group": "theme", "checked": True,
+    }
+    assert children[3]["props"] == {"disabled": True}
+    assert children[4]["props"] == {"index": 1}
+    assert [item["props"] for item in children[4]["children"]] == [
+        {"tabBar": "概览"}, {"tabBar": "设置"},
+    ]
+
+
+def test_tabs_require_valid_index_and_tab_bar() -> None:
+    report = analyze_component_metadata("""
+      <div data-node-id="page.tabs" data-component="tabs" data-index="1.5">
+        <section data-node-id="page.tab" data-component="tab-content"></section>
+      </div>
+    """)
+
+    assert report.export_readiness == "blocked"
+    assert {
+        "ARKUI_CONTROL_VALUE_INVALID", "ARKUI_COMPONENT_METADATA_MISSING",
+    }.issubset(_codes(report))
 
 
 def test_prompts_pin_the_frozen_lucide_version() -> None:
@@ -575,6 +692,110 @@ def test_unannotated_button_sibling_keeps_missing_node_id_error() -> None:
     assert "ARKUI_NODE_ID_MISSING" in _codes(
         analyze_component_metadata(repaired)
     )
+
+
+def test_export_repair_annotates_unannotated_layout_wrapper() -> None:
+    html = """<div data-component="scroll" data-node-id="display.brightness"
+      class="flex flex-col min-h-screen">
+      <main class="flex-1 px-4 pt-3 pb-10 space-y-6">
+        <section data-component="column" data-node-id="display.brightness.card"
+          class="flex flex-col gap-4"></section>
+        <footer data-component="column" data-node-id="display.footer"
+          class="flex flex-col"></footer>
+      </main>
+    </div>"""
+
+    repaired = repair_arkui_export_html(html)
+    report = analyze_component_metadata(repaired.html)
+    by_id = {node.node_id: node for node in report.nodes}
+    content = by_id["display.brightness.content"]
+
+    assert repaired.changed is True
+    assert [item.code for item in repaired.repairs] == [
+        "ARKUI_UNANNOTATED_WRAPPER_REPAIRED",
+    ]
+    assert 'data-component="column"' in repaired.html
+    assert 'data-node-id="display.brightness.content"' in repaired.html
+    assert 'data-uibench-generated-node-id="layout-wrapper"' in repaired.html
+    assert re.search(
+        r'<main[^>]*class="flex-1 px-4 pt-3 pb-10 space-y-6"',
+        repaired.html,
+    )
+    assert report.nodes[content.parent_index].node_id == "display.brightness"
+    assert all(
+        report.nodes[node.parent_index].node_id == "display.brightness.content"
+        for node in report.nodes
+        if node.node_id in {"display.brightness.card", "display.footer"}
+    )
+    assert "ARKUI_CONTENT_WRAPPED_FOR_SINGLE_SLOT" not in _codes(report)
+
+    second = repair_arkui_export_html(repaired.html)
+    assert second.changed is False
+    assert second.html == repaired.html
+    assert second.repairs == ()
+
+
+def test_export_repair_preserves_existing_flex_wrapper_direction() -> None:
+    html = """<div data-component="column" data-node-id="page"
+      class="flex flex-col min-h-screen">
+      <nav class="flex items-center justify-between">
+        <span data-component="text" data-node-id="page.previous">上一页</span>
+        <span data-component="text" data-node-id="page.next">下一页</span>
+      </nav>
+    </div>"""
+
+    repaired = repair_arkui_export_html(html)
+    report = analyze_component_metadata(repaired.html)
+    wrapper = next(node for node in report.nodes if node.node_id == "page.content")
+
+    assert wrapper.component == "row"
+    assert re.search(
+        r'<nav[^>]*class="flex items-center justify-between"',
+        repaired.html,
+    )
+
+
+def test_export_repair_generates_ids_for_all_component_nodes() -> None:
+    html = """<main data-component="column" class="flex flex-col min-h-screen">
+      <h1 data-component="text">设置</h1>
+      <div data-component="row" class="flex">
+        <span data-component="text">显示</span>
+      </div>
+    </main>"""
+
+    repaired = repair_arkui_export_html(html)
+    report = analyze_component_metadata(repaired.html)
+
+    assert [node.node_id for node in report.nodes] == [
+        "page",
+        "page.text",
+        "page.row",
+        "page.row.text",
+    ]
+    assert {item.code for item in repaired.repairs} == {
+        "ARKUI_NODE_ID_REPAIRED",
+    }
+    assert report.export_readiness == "ready"
+
+
+def test_export_repair_does_not_create_an_addressable_root_wrapper() -> None:
+    html = """<!DOCTYPE html><html><head><title>设置</title></head>
+    <body class="dt-bg-canvas">
+      <header data-component="column" data-node-id="settings.header"
+        class="flex flex-col"></header>
+      <main data-component="column" data-node-id="settings.content"
+        class="flex flex-col"></main>
+    </body></html>"""
+
+    repaired = repair_arkui_export_html(html)
+    report = analyze_component_metadata(repaired.html)
+
+    assert repaired.changed is False
+    assert repaired.html == html
+    assert report.root_components == 2
+    assert 'data-component="column"' not in repaired.html.split("<body", 1)[1].split(
+        ">", 1,
+    )[0]
 
 
 def test_empty_span_inside_text_still_blocks_export() -> None:

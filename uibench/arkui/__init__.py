@@ -11,10 +11,13 @@ from uibench.arkui.components import (
     validate_renderer_contract,
 )
 from uibench.arkui.metadata import (
+    ArkUiHtmlRepair,
+    ArkUiHtmlRepairResult,
     ComponentDiagnostic,
     ComponentMetadataReport,
     ComponentNode,
     analyze_component_metadata,
+    repair_arkui_export_html,
     repair_missing_component_node_ids,
 )
 from uibench.arkui.screen_ir import (
@@ -93,6 +96,22 @@ MOBILE_ARKUI_METADATA_INSTRUCTIONS = f"""
 - 状态圆点、色块、装饰条这类没有文字的元素一律不要标成 span，改标 column 或 stack。
 - image 只能用在带非空 `src` 的真实 `<img>` 上，并保留 alt。没有真实图片的头像位、占位块
   不要标成 image，改用 column/stack 加背景色表达。
+- 开关必须使用原生 `<input type="checkbox" data-component="toggle">`，初始状态用 HTML
+  `checked`，禁用状态用 `disabled`；不要再用 button、圆点、阴影和 transform 手绘开关。
+- 滑块必须使用原生 `<input type="range" data-component="slider">`，并用 `value`、`min`、
+  `max`、`step` 表达数值；不要额外创建轨道和 thumb 节点。
+- 单行输入框使用原生 `<input type="text" data-component="text-input">`，当前文字、提示、
+  只读和禁用状态分别使用 `value`、`placeholder`、`readonly`、`disabled`。
+- 搜索框使用原生 `<input type="search" data-component="search">`，当前文字和提示分别使用
+  `value`、`placeholder`；搜索图标由 ArkUI Search 自带，不要再添加一个 symbol 子节点。
+- 复选框使用原生 `<input type="checkbox" data-component="checkbox">`，用 `name` 表示组、
+  `value` 表示选项标识，初始和禁用状态使用 `checked`、`disabled`；不要手绘勾选框。
+- 单选框使用原生 `<input type="radio" data-component="radio">`；同一组选项使用相同的
+  `name`，每项必须有不同的非空 `value`，初始状态使用 `checked`，不要手绘圆形选择器。
+- 页签容器使用 `<div data-component="tabs" data-index="0">`，直接子组件只能是
+  `tab-content`；每页使用 `<section data-component="tab-content" data-tab-bar="概览">`，
+  `data-tab-bar` 必须是非空页签文字。`data-index` 是从 0 开始的初始页；交互状态由 ArkUI
+  Tabs 接管，不要用 button 加显示/隐藏面板冒充 Tabs。
 - button 保留原生 `<button>` 标签，且 Button 最多只能有一个已标注组件子节点。按钮内部
   同时有图标和文字时，必须在 `<button>` 里再包一层已标注的 row，把图标和文字都放进去：
 
@@ -120,6 +139,8 @@ MOBILE_ARKUI_METADATA_INSTRUCTIONS = f"""
 """
 
 __all__ = [
+    "ArkUiHtmlRepair",
+    "ArkUiHtmlRepairResult",
     "ComponentDefinition",
     "ComponentDiagnostic",
     "ComponentMetadataReport",
@@ -144,6 +165,7 @@ __all__ = [
     "normalize_page_name",
     "repair_missing_component_node_ids",
     "resolve_symbol",
+    "repair_arkui_export_html",
     "validate_component_registry",
     "validate_renderer_contract",
 ]

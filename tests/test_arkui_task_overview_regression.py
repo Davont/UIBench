@@ -98,6 +98,14 @@ def test_task_overview_exports_ready_with_truthful_layout_and_styles() -> None:
             "ListItem": 0,
             "Grid": 0,
             "GridItem": 0,
+            "Toggle": 0,
+            "Slider": 0,
+            "TextInput": 0,
+            "Search": 0,
+            "Checkbox": 0,
+            "Radio": 0,
+            "Tabs": 0,
+            "TabContent": 0,
         },
     }
     root = result["screenIr"]["ui"]

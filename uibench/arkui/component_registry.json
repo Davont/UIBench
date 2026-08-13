@@ -159,7 +159,7 @@
       "fallback": "button",
       "stateProperties": ["checked", "disabled", "name", "value"],
       "actions": ["change"],
-      "minApiVersion": null
+      "minApiVersion": 8
     },
     "checkbox-group": {
       "arkuiComponent": "CheckboxGroup",
@@ -178,7 +178,7 @@
       "fallback": "button",
       "stateProperties": ["checked", "disabled", "name", "value"],
       "actions": ["change"],
-      "minApiVersion": null
+      "minApiVersion": 8
     },
     "toggle": {
       "arkuiComponent": "Toggle",
@@ -195,8 +195,9 @@
       "phase": "P1",
       "fallback": "column",
       "allowedChildren": ["tab-content"],
+      "stateProperties": ["index"],
       "actions": ["change"],
-      "minApiVersion": null
+      "minApiVersion": 7
     },
     "tab-content": {
       "arkuiComponent": "TabContent",
@@ -204,7 +205,8 @@
       "phase": "P1",
       "fallback": "column",
       "allowedParents": ["tabs"],
-      "minApiVersion": null
+      "requiredMetadata": ["data-tab-bar"],
+      "minApiVersion": 7
     },
     "flex": {
       "arkuiComponent": "Flex",

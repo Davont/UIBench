@@ -9,7 +9,10 @@ from pydantic import ValidationError
 
 import app as app_mod
 from uibench.arkui.exporter import ArkUiExporterError, export_annotated_html
-from uibench.arkui.metadata import analyze_component_metadata
+from uibench.arkui.metadata import (
+    analyze_component_metadata,
+    repair_arkui_export_html,
+)
 from uibench.arkui.screen_ir import build_screen_ir
 from uibench.arkui.snapshot import (
     BrowserComputedStyle,
@@ -219,6 +222,75 @@ def test_css_snapshot_maps_only_supported_screen_ir_styles() -> None:
     assert "textAlign" not in styles
 
 
+def test_single_outer_box_shadow_maps_to_arkui_shadow() -> None:
+    node = BrowserNodeSnapshot.model_validate(_node(
+        "page.knob", "span", [24, 10, 24, 24], {
+            "display": "block",
+            "boxShadow": "rgba(31, 35, 41, 0.1) 0px 10px 30px 0px",
+        },
+    ))
+
+    styles, lossy = screen_ir_styles("Column", node)
+
+    assert styles["shadow"] == {
+        "radius": 30,
+        "color": "#1A1F2329",
+        "offsetX": 0,
+        "offsetY": 10,
+    }
+    assert "box-shadow" not in lossy
+
+
+@pytest.mark.parametrize("box_shadow", [
+    "rgba(0, 0, 0, 0.2) 0px 2px 8px 1px",
+    "rgba(0, 0, 0, 0.2) 0px 2px 8px inset",
+    "rgba(0, 0, 0, 0.2) 0px 2px 8px, rgb(0, 0, 0) 0px 1px 2px",
+])
+def test_unrepresentable_box_shadow_shapes_stay_lossy(box_shadow: str) -> None:
+    node = BrowserNodeSnapshot.model_validate(_node(
+        "page.card", "div", [0, 0, 100, 40], {
+            "display": "block",
+            "boxShadow": box_shadow,
+        },
+    ))
+
+    styles, lossy = screen_ir_styles("Column", node)
+
+    assert "shadow" not in styles
+    assert "box-shadow" in lossy
+
+
+def test_absolute_pure_translation_is_baked_into_snapshot_position() -> None:
+    node = BrowserNodeSnapshot.model_validate(_node(
+        "page.thumb", "div", [72, 18, 28, 28], {
+            "display": "block",
+            "position": "absolute",
+            "transform": "matrix(1, 0, 0, 1, 0, -14)",
+        },
+    ))
+
+    styles, lossy = screen_ir_styles("Column", node)
+
+    assert styles["position"] == "absolute"
+    assert styles["left"] == 72
+    assert styles["top"] == 18
+    assert "transform" not in lossy
+
+
+def test_non_translation_transform_stays_lossy() -> None:
+    node = BrowserNodeSnapshot.model_validate(_node(
+        "page.art", "div", [0, 0, 40, 40], {
+            "display": "block",
+            "position": "absolute",
+            "transform": "matrix(1.1, 0, 0, 1.1, 0, 0)",
+        },
+    ))
+
+    _, lossy = screen_ir_styles("Column", node)
+
+    assert "transform" in lossy
+
+
 def test_button_of_component_children_has_no_label_typography_to_lose() -> None:
     """CSS line-height/text-align never styled an icon/row button's children.
 
@@ -256,6 +328,66 @@ def test_flex_align_items_normal_and_stretch_map_to_start() -> None:
         assert styles["justifyContent"] == "Start", align_items
         assert styles["alignItems"] == "Start", align_items
         assert lossy == (), align_items
+
+
+def test_baseline_row_uses_measured_child_offsets_without_loss() -> None:
+    html = """<div data-node-id="preview" data-component="row">
+      <span data-node-id="preview.small" data-component="text">A</span>
+      <span data-node-id="preview.medium" data-component="text">A</span>
+      <span data-node-id="preview.large" data-component="text">A</span>
+    </div>"""
+    raw_nodes = [
+        _node("preview", "div", [20, 100, 80, 24], {
+            "display": "flex",
+            "flexDirection": "row",
+            "justifyContent": "flex-start",
+            "alignItems": "baseline",
+            "paddingTop": "0px",
+            "borderTopWidth": "0px",
+        }),
+        _node("preview.small", "span", [20, 111, 8, 12], {
+            "display": "block", "fontSize": "12px", "lineHeight": "12px",
+        }),
+        _node("preview.medium", "span", [32, 106, 10, 16], {
+            "display": "block", "fontSize": "14px", "lineHeight": "16px",
+        }),
+        _node("preview.large", "span", [46, 101, 12, 20], {
+            "display": "block", "fontSize": "16px", "lineHeight": "20px",
+        }),
+    ]
+    for raw in raw_nodes:
+        computed = BrowserComputedStyle().model_dump(by_alias=True)
+        computed.update(raw["computed"])
+        raw["computed"] = computed
+        if raw["nodeId"] != "preview":
+            raw["directParentNodeId"] = "preview"
+            raw["isFlexItem"] = True
+    snapshot = BrowserSnapshot.model_validate({
+        "snapshotVersion": 1,
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "theme": "light",
+        "tokenTheme": "harmonyos",
+        "nodes": raw_nodes,
+    })
+
+    built = build_screen_ir(
+        analyze_component_metadata(html),
+        page_name="BaselinePreview",
+        snapshot=snapshot,
+    )
+
+    assert built.screen_ir is not None
+    assert built.readiness == "ready"
+    assert not any(
+        item.code == "UIBENCH_BROWSER_STYLE_LOSSY"
+        for item in built.diagnostics
+    )
+    row = built.screen_ir["ui"]
+    assert row["styles"]["alignItems"] == "Start"
+    assert [child["styles"]["margin"]["top"] for child in row["children"]] == [
+        11, 6, 1,
+    ]
 
 
 def test_single_edge_border_maps_to_per_edge_arkui_forms() -> None:
@@ -586,6 +718,8 @@ def test_required_full_snapshot_produces_ready_screen_ir_and_arkts() -> None:
             "Text": 1, "Span": 0, "Image": 0, "SymbolGlyph": 0,
             "Divider": 0, "Button": 1, "List": 0, "ListItem": 0,
             "Grid": 0, "GridItem": 0,
+            "Toggle": 0, "Slider": 0, "TextInput": 0, "Search": 0,
+            "Checkbox": 0, "Radio": 0, "Tabs": 0, "TabContent": 0,
         },
     }
     assert result["viewport"]["source"] == "browser-snapshot"
@@ -604,6 +738,98 @@ def test_required_full_snapshot_produces_ready_screen_ir_and_arkts() -> None:
     assert '.width("100%")' in result["arkTs"]
     assert '.height("100%")' in result["arkTs"]
     assert ".backgroundColor(\"#0A59F7\")" in result["arkTs"]
+
+
+def test_native_form_control_snapshot_exports_native_arkts() -> None:
+    html = """<!doctype html><html><body>
+    <main data-node-id="page" data-component="column" class="flex flex-col">
+      <input data-node-id="page.toggle" data-component="toggle"
+             type="checkbox" checked disabled>
+      <input data-node-id="page.slider" data-component="slider"
+             type="range" value="42.5" min="0" max="100" step="0.5">
+      <input data-node-id="page.name" data-component="text-input"
+             type="text" value="Ada" placeholder="姓名" readonly>
+      <input data-node-id="page.search" data-component="search"
+             type="search" value="ArkUI" placeholder="搜索" disabled>
+    </main></body></html>"""
+    raw_nodes = [
+        _node("page", "main", [0, 0, 390, 844], {
+            "display": "flex", "flexDirection": "column",
+            "width": "390px", "height": "844px",
+            "justifyContent": "flex-start", "alignItems": "stretch",
+            "backgroundColor": "rgb(255, 255, 255)",
+        }),
+        _node("page.toggle", "input", [326, 20, 48, 28], {
+            "display": "block", "width": "48px", "height": "28px",
+        }),
+        _node("page.slider", "input", [16, 68, 358, 28], {
+            "display": "block", "width": "358px", "height": "28px",
+        }),
+        _node("page.name", "input", [16, 116, 358, 44], {
+            "display": "block", "width": "358px", "height": "44px",
+            "paddingTop": "10px", "paddingRight": "12px",
+            "paddingBottom": "10px", "paddingLeft": "12px",
+            "backgroundColor": "rgb(245, 247, 250)",
+            "color": "rgb(24, 36, 49)", "fontSize": "16px",
+            "fontWeight": "400", "fontFamily": "HarmonyOS Sans",
+            "borderTopWidth": "0px", "borderRightWidth": "0px",
+            "borderBottomWidth": "0px", "borderLeftWidth": "0px",
+            "borderTopLeftRadius": "8px", "borderTopRightRadius": "8px",
+            "borderBottomRightRadius": "8px", "borderBottomLeftRadius": "8px",
+        }),
+        _node("page.search", "input", [16, 180, 358, 44], {
+            "display": "block", "width": "358px", "height": "44px",
+            "paddingTop": "10px", "paddingRight": "12px",
+            "paddingBottom": "10px", "paddingLeft": "12px",
+            "backgroundColor": "rgb(245, 247, 250)",
+            "color": "rgb(24, 36, 49)", "fontSize": "16px",
+            "fontWeight": "500", "fontFamily": "HarmonyOS Sans",
+            "borderTopWidth": "0px", "borderRightWidth": "0px",
+            "borderBottomWidth": "0px", "borderLeftWidth": "0px",
+            "borderTopLeftRadius": "8px", "borderTopRightRadius": "8px",
+            "borderBottomRightRadius": "8px", "borderBottomLeftRadius": "8px",
+        }),
+    ]
+    for raw in raw_nodes:
+        computed = BrowserComputedStyle().model_dump(by_alias=True)
+        computed.update(raw["computed"])
+        raw["computed"] = computed
+        if raw["nodeId"] != "page":
+            raw["directParentNodeId"] = "page"
+            raw["isFlexItem"] = True
+    snapshot = BrowserSnapshot.model_validate({
+        "snapshotVersion": 1,
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "theme": "light",
+        "tokenTheme": "harmonyos",
+        "canvasBackgroundColor": "rgb(255, 255, 255)",
+        "canvasBackgroundImage": "none",
+        "nodes": raw_nodes,
+    })
+
+    result = export_annotated_html(
+        html,
+        page_name="NativeControls",
+        snapshot=snapshot,
+        require_snapshot=True,
+    )
+
+    assert result["quality"]["readiness"] == "ready"
+    assert result["quality"]["componentCounts"] == {
+        "Row": 0, "Column": 1, "Stack": 0, "Scroll": 0,
+        "Text": 0, "Span": 0, "Image": 0, "SymbolGlyph": 0,
+        "Divider": 0, "Button": 0, "List": 0, "ListItem": 0,
+        "Grid": 0, "GridItem": 0, "Toggle": 1, "Slider": 1,
+        "TextInput": 1, "Search": 1, "Checkbox": 0, "Radio": 0,
+        "Tabs": 0, "TabContent": 0,
+    }
+    assert 'Toggle({ type: ToggleType.Switch, isOn: true })' in result["arkTs"]
+    assert 'Slider({ value: 42.5, min: 0, max: 100, step: 0.5 })' in result["arkTs"]
+    assert 'TextInput({ text: "Ada", placeholder: "姓名" })' in result["arkTs"]
+    assert 'Search({ value: "ArkUI", placeholder: "搜索" })' in result["arkTs"]
+    assert result["arkTs"].count(".enabled(false)") == 2
+    assert ".enableKeyboardOnFocus(false)" in result["arkTs"]
 
 
 MIXED_TEXT_HTML = """<main data-node-id="page" data-component="column">
@@ -1630,6 +1856,51 @@ def test_unannotated_dom_wrapper_blocks_screen_ir_with_parent_diagnostic() -> No
         and "'page.wrapper'" in item["message"]
         for item in raised.value.details
     )
+
+
+def test_export_repair_makes_normal_flow_wrapper_snapshot_exportable() -> None:
+    html = """<main data-node-id="page" data-component="column"
+      class="flex flex-col">
+      <div class="space-y-2">
+        <p data-node-id="page.item" data-component="text">Flexible</p>
+      </div>
+    </main>"""
+    repaired = repair_arkui_export_html(html)
+    root = _node("page", "main", [0, 0, 390, 844], {
+        "display": "flex", "flexDirection": "column",
+    })
+    wrapper = _node("page.content", "div", [0, 0, 390, 100], {
+        "display": "block",
+    })
+    wrapper["directParentNodeId"] = "page"
+    wrapper["isFlexItem"] = True
+    item = _node("page.item", "p", [0, 0, 390, 100], {
+        "display": "block",
+    })
+    item["directParentNodeId"] = "page.content"
+    item["isFlexItem"] = False
+    snapshot = BrowserSnapshot.model_validate({
+        "snapshotVersion": 1,
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "theme": "light",
+        "tokenTheme": "harmonyos",
+        "nodes": [root, wrapper, item],
+    })
+
+    built = build_screen_ir(
+        analyze_component_metadata(repaired.html),
+        page_name="RepairedWrapper",
+        snapshot=snapshot,
+    )
+
+    assert repaired.changed is True
+    assert built.screen_ir is not None
+    assert not any(
+        item.code == "UIBENCH_ARKUI_DOM_PARENT_MISMATCH"
+        for item in built.diagnostics
+    )
+    assert 'class="space-y-2"' in repaired.html
 
 
 def test_direct_verified_flex_item_maps_to_layout_weight_in_screen_ir() -> None:

@@ -32,6 +32,7 @@ from langchain_core.messages import HumanMessage
 from config import settings
 from uibench.arkui import (
     analyze_component_metadata,
+    repair_arkui_export_html,
     repair_missing_component_node_ids,
 )
 from uibench.arkui.exporter import (
@@ -73,6 +74,7 @@ from uibench.pc import inject_pc_bootstrap
 from uibench.prompts import prompt_for
 from uibench.schemas import (
     ArkUiExportRequest,
+    ArkUiPrepareRequest,
     GenerateRequest,
     GenerationResult,
     ModelConfig,
@@ -1674,9 +1676,45 @@ def hm_text_font(filename: str):
     return _serve_font_file(HM_SYMBOL_FONT_FILE.parent / filename)
 
 
+@app.post("/api/arkui/prepare")
+def prepare_arkui(req: ArkUiPrepareRequest):
+    """Deterministically repair HTML before the browser captures its styles."""
+    repaired = repair_arkui_export_html(req.html)
+    manifest = analyze_component_metadata(repaired.html).to_manifest()
+    summary = manifest["summary"]
+    return JSONResponse({
+        "html": repaired.html,
+        "changed": repaired.changed,
+        "repairs": [item.to_dict() for item in repaired.repairs],
+        "manifest": manifest,
+        "exportable": bool(summary["exportable"]),
+    })
+
+
 @app.post("/api/arkui/export")
 async def export_arkui(req: ArkUiExportRequest):
     """Export annotated or legacy HTML through the platform converter."""
+    if req.mode == "annotated":
+        pending_repairs = repair_arkui_export_html(req.html)
+        if pending_repairs.changed:
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "UIBENCH_ARKUI_PREPARE_REQUIRED",
+                        "message": (
+                            "ArkUI HTML must be repaired before browser "
+                            "snapshot capture"
+                        ),
+                        "details": {
+                            "repairs": [
+                                item.to_dict()
+                                for item in pending_repairs.repairs
+                            ],
+                        },
+                    },
+                },
+                status_code=409,
+            )
     exporter = (
         export_annotated_html
         if req.mode == "annotated"
@@ -1918,10 +1956,19 @@ INDEX_HTML = """<!DOCTYPE html>
     border: 1px solid var(--border); border-radius: 8px; padding: 5px 12px;
     font-size: 12px; cursor: pointer; }
   .modal-head button:hover { color: var(--text); border-color: var(--accent); }
+  .modal-actions { display: flex; align-items: center; gap: 8px; }
   .modal-body { flex: 1; overflow: auto; padding: 16px 20px; }
   .modal-body pre { margin: 0; white-space: pre-wrap; word-break: break-word;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 12.5px; line-height: 1.6; color: var(--text); }
+  .modal.copy-modal { height: min(68vh, 560px); }
+  .copy-modal-body { display: flex; min-height: 0; }
+  .copy-message { flex: 1; width: 100%; min-height: 180px; resize: none;
+    box-sizing: border-box; border: 1px solid var(--border); border-radius: 9px;
+    background: #0d1016; color: var(--text); padding: 13px 14px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px; line-height: 1.65; }
+  .copy-message:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
   .modal-load { color: var(--muted); padding: 24px; text-align: center; }
   .modal-err { color: var(--err); padding: 24px; text-align: center; }
   /* lossy export details */
@@ -2496,17 +2543,20 @@ function fillCard(r) {
   logBtn.onclick = () => openLog(r.log_url, r.name + ' · ⏱ ' + r.elapsed_seconds + 's');
   tools.appendChild(logBtn);
 
-  const arkuiSummary = r.arkui_manifest && r.arkui_manifest.summary;
-  if (r.mode === 'mobile' && arkuiSummary && arkuiSummary.metadataPresent) {
+  const arkuiSummary = (r.arkui_manifest && r.arkui_manifest.summary) || {};
+  const arkuiEnabled = Boolean(
+    r.arkui_export_enabled || arkuiSummary.metadataPresent
+  );
+  if (r.mode === 'mobile' && arkuiEnabled) {
     const exportBtn = document.createElement('button');
     const readiness = arkuiSummary.exportReadiness || 'blocked';
-    exportBtn.textContent = readiness === 'blocked' ? 'ArkUI 不可导出' : '下载鸿蒙工程';
+    exportBtn.textContent = readiness === 'blocked' ? '修复并导出' : '下载鸿蒙工程';
     if (!arkuiSummary.exportable) exportBtn.classList.add('export-blocked');
     exportBtn.title = readiness === 'ready'
       ? '在固定 __UIBENCH_MOBILE_VIEWPORT_WIDTH__×__UIBENCH_MOBILE_VIEWPORT_HEIGHT__ 视口固化当前主题的计算样式后导出'
       : (arkuiSummary.exportable
           ? '查看日志中的 ArkUI Manifest 诊断'
-          : '点击查看不可导出的原因');
+          : '点击后自动检测并修复 HTML，修复通过后再导出');
     const lossyBtn = document.createElement('button');
     lossyBtn.className = 'lossy-reasons';
     lossyBtn.style.display = 'none';
@@ -2514,23 +2564,31 @@ function fillCard(r) {
     lossyBtn.title = '查看这次导出无法还原网页效果的具体差异';
     var exportLabelResetTimer = null;
     exportBtn.onclick = async () => {
-      if (!arkuiSummary.exportable) {
-        window.alert(formatArkUiBlockReasons(r.arkui_manifest));
-        return;
-      }
       if (exportLabelResetTimer !== null) {
         window.clearTimeout(exportLabelResetTimer);
         exportLabelResetTimer = null;
       }
-      const oldLabel = exportBtn.textContent;
+      let idleLabel = exportBtn.textContent;
       exportBtn.disabled = true;
       lossyBtn.style.display = 'none';
-      exportBtn.textContent = '导出中…';
+      exportBtn.textContent = '检测并修复…';
       try {
-        exportBtn.textContent = '固化样式…';
-        const snapshot = await captureArkUiSnapshot(r);
+        const prepared = await prepareArkUiExport(r);
+        if (!prepared.exportable) {
+          throw new Error(formatArkUiBlockReasons(prepared.manifest));
+        }
+        const exportResult = Object.assign({}, r, {
+          html: prepared.html,
+          arkui_manifest: prepared.manifest
+        });
+        const repairCount = Array.isArray(prepared.repairs)
+          ? prepared.repairs.length : 0;
+        exportBtn.textContent = repairCount
+          ? '已修复 ' + repairCount + ' 项 · 固化样式…'
+          : '固化样式…';
+        const snapshot = await captureArkUiSnapshot(exportResult);
         exportBtn.textContent = '生成 ArkTS…';
-        const exported = await requestArkUiExport(r, snapshot);
+        const exported = await requestArkUiExport(exportResult, snapshot);
         downloadBase64(
           withDownloadTimestamp(
             exported.bundle.filename || ('Generated_' + r.key + '_HarmonyOS.zip')
@@ -2548,15 +2606,21 @@ function fillCard(r) {
           lossyBtn.style.display = '';
           lossyBtn.onclick = () => openArkUiLossDetails(r.name, exportDiagnostics);
         }
+        idleLabel = '下载鸿蒙工程';
+        exportBtn.classList.remove('export-blocked');
+        exportBtn.title = '再次固化当前主题的计算样式并导出';
         exportBtn.textContent = isLossy ? '已下载（有损）' : '已下载';
         exportLabelResetTimer = window.setTimeout(() => {
           exportLabelResetTimer = null;
-          exportBtn.textContent = oldLabel;
+          exportBtn.textContent = idleLabel;
         }, 1500);
       } catch (error) {
         console.error('ArkUI export failed', error);
-        window.alert('ArkUI 导出失败：' + String(error));
-        exportBtn.textContent = oldLabel;
+        openCopyableMessage(
+          'ArkUI 导出失败 · ' + r.name,
+          'ArkUI 导出失败：\\n\\n' + String(error)
+        );
+        exportBtn.textContent = idleLabel;
       } finally {
         exportBtn.disabled = false;
       }
@@ -3265,6 +3329,73 @@ function closeLog() {
   document.removeEventListener('keydown', _escClose);
 }
 
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const fallback = document.createElement('textarea');
+  fallback.value = text;
+  fallback.readOnly = true;
+  fallback.style.position = 'fixed';
+  fallback.style.opacity = '0';
+  document.body.appendChild(fallback);
+  fallback.select();
+  const copied = document.execCommand('copy');
+  fallback.remove();
+  if (!copied) throw new Error('浏览器未允许写入剪贴板');
+}
+
+function openCopyableMessage(title, message) {
+  modalRoot.innerHTML = '';
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.onclick = (e) => { if (e.target === overlay) closeLog(); };
+  const modal = document.createElement('div');
+  modal.className = 'modal copy-modal';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  const head = document.createElement('div');
+  head.className = 'modal-head';
+  const titleEl = document.createElement('span');
+  titleEl.className = 'm-title';
+  titleEl.textContent = title;
+  const actions = document.createElement('div');
+  actions.className = 'modal-actions';
+  const copyBtn = document.createElement('button');
+  copyBtn.textContent = '复制原因';
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '关闭';
+  closeBtn.onclick = closeLog;
+  actions.append(copyBtn, closeBtn);
+  head.append(titleEl, actions);
+  const bodyEl = document.createElement('div');
+  bodyEl.className = 'modal-body copy-modal-body';
+  const text = document.createElement('textarea');
+  text.className = 'copy-message';
+  text.readOnly = true;
+  text.spellcheck = false;
+  text.value = message;
+  copyBtn.onclick = async () => {
+    try {
+      await copyTextToClipboard(message);
+      copyBtn.textContent = '已复制';
+      window.setTimeout(() => { copyBtn.textContent = '复制原因'; }, 1500);
+    } catch (error) {
+      text.focus();
+      text.select();
+      copyBtn.textContent = '请按 ⌘/Ctrl+C';
+    }
+  };
+  bodyEl.appendChild(text);
+  modal.append(head, bodyEl);
+  overlay.appendChild(modal);
+  modalRoot.appendChild(overlay);
+  document.addEventListener('keydown', _escClose);
+  text.focus();
+  text.select();
+}
+
 // Human-readable explanations for export diagnostics whose message alone
 // does not say what the deviation looks like on device.
 const ARKUI_DIAG_EXPLANATIONS = {
@@ -3507,11 +3638,7 @@ function formatArkUiBlockReasons(manifest) {
   if (!reasons.length) {
     return 'ArkUI 不可导出：原因未包含在生成结果里，完整诊断见「查看日志」。';
   }
-  const shown = reasons.slice(0, 8).map((text, index) => (index + 1) + '. ' + text);
-  if (reasons.length > shown.length) {
-    shown.push('… 以及另外 ' + (reasons.length - shown.length)
-      + ' 条，完整诊断见「查看日志」');
-  }
+  const shown = reasons.map((text, index) => (index + 1) + '. ' + text);
   return 'ArkUI 不可导出，原因：\\n\\n' + shown.join('\\n');
 }
 
@@ -3519,7 +3646,9 @@ function describeExportErrorDetails(details) {
   // Screen IR blocks report a diagnostic list; snapshot and canvas gates report
   // a single object whose reason is the only thing that says what to fix.
   if (Array.isArray(details)) {
-    return details.slice(0, 3).map(item => item.message).filter(Boolean).join('；');
+    const errors = details.filter(item => item && item.severity === 'error');
+    return (errors.length ? errors : details)
+      .map(item => item && item.message).filter(Boolean).join('；');
   }
   if (!details || typeof details !== 'object') return '';
   const parts = [];
@@ -3531,6 +3660,31 @@ function describeExportErrorDetails(details) {
   if (details.backgroundColor) parts.push(String(details.backgroundColor));
   if (details.backgroundImage) parts.push(String(details.backgroundImage));
   return parts.join('，');
+}
+
+async function prepareArkUiExport(result) {
+  const response = await fetch('/api/arkui/prepare', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({html: result.html})
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    const error = payload.error || {};
+    const details = describeExportErrorDetails(error.details);
+    throw new Error(
+      (error.message || ('HTTP ' + response.status))
+      + (details ? '：' + details : '')
+    );
+  }
+  if (
+    typeof payload.html !== 'string'
+    || !payload.html.trim()
+    || !payload.manifest
+  ) {
+    throw new Error('ArkUI 修复响应缺少 html 或 manifest');
+  }
+  return payload;
 }
 
 async function requestArkUiExport(result, snapshot) {

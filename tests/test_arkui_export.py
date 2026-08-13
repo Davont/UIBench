@@ -193,6 +193,38 @@ def test_annotated_export_renders_canonical_screen_ir() -> None:
     assert 'Button("提交")' in result["arkTs"]
 
 
+def test_annotated_export_renders_selection_controls_and_tabs() -> None:
+    _require_vendored_converter()
+    result = export_annotated_html(
+        """<!doctype html><html><body>
+        <main data-node-id="page" data-component="column">
+          <input data-node-id="page.check" data-component="checkbox"
+                 type="checkbox" name="consents" value="terms" checked>
+          <input data-node-id="page.radio" data-component="radio"
+                 type="radio" name="theme" value="dark" checked>
+          <button data-node-id="page.button" data-component="button" disabled>保存</button>
+          <div data-node-id="page.tabs" data-component="tabs" data-index="1">
+            <section data-node-id="page.one" data-component="tab-content"
+                     data-tab-bar="概览"></section>
+            <section data-node-id="page.two" data-component="tab-content"
+                     data-tab-bar="设置"></section>
+          </div>
+        </main></body></html>""",
+        page_name="SelectionPage",
+    )
+
+    assert result["quality"]["errors"] == 0
+    assert 'Checkbox({ name: "terms", group: "consents" })' in result["arkTs"]
+    assert ".select(true)" in result["arkTs"]
+    assert 'Radio({ value: "dark", group: "theme" })' in result["arkTs"]
+    assert ".checked(true)" in result["arkTs"]
+    assert 'Button("保存")' in result["arkTs"]
+    assert "Tabs({ index: 1 }) {" in result["arkTs"]
+    assert '.tabBar("概览")' in result["arkTs"]
+    assert '.tabBar("设置")' in result["arkTs"]
+    assert result["arkTs"].count(".enabled(false)") == 1
+
+
 def test_annotated_export_emits_the_canonical_symbol_resource() -> None:
     """A kebab-case annotation must reach ArkTS in its SDK spelling."""
     _require_vendored_converter()

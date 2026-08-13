@@ -283,6 +283,8 @@ def test_every_map_key_is_a_renderable_lucide_name() -> None:
     ("history", "sys.symbol.arrow_counterclockwise_clock"),
     ("thumbs-down", "sys.symbol.hand_thumbsdown"),
     ("battery-full", "sys.symbol.battery_100percent"),
+    ("type", "sys.symbol.textformat_size_square"),
+    ("maximize-2", "sys.symbol.screen_expansion"),
 ])
 def test_curated_additions_resolve_to_their_reviewed_resources(
     lucide_name: str, expected: str,

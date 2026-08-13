@@ -31,7 +31,8 @@
 
 ```text
 column, row, stack, scroll, text, span,
-image, symbol, divider, button, list, list-item, grid, grid-item
+image, symbol, divider, button, list, list-item, grid, grid-item,
+toggle, slider, text-input, search, checkbox, radio, tabs, tab-content
 ```
 
 `list` 期望 `list-item` 子节点，`list-item` 期望出现在 `list` 内且最多包含一个
@@ -60,9 +61,13 @@ ArkUI 的 `List` 默认纵向排列，所以导出会按 computed layout 把 `li
 与 `UIBENCH_ARKUI_GRID_PLACEMENT_UNSUPPORTED` 阻断，不会导出一个放置顺序不同的
 网格。
 
-`checkbox`、`text-input`、`swiper` 等仍保留在 UIBench 规划词汇中，
-但会被标记为 `rendererSupported: false`，不能进入当前导出链路。渲染器扩展
-公共契约后，UIBench 才能同步开放相应 Prompt 能力。
+`checkbox`、`radio`、`tabs`、`tab-content` 已进入当前 Renderer 的允许列表。
+`swiper`、`checkbox-group` 等仍保留在 UIBench 规划词汇中，但会被标记为
+`rendererSupported: false`，不能进入当前导出链路。
+
+原生状态映射包括 Checkbox 的 `name/group/checked/disabled`、Radio 的
+`value/group/checked/disabled`、Tabs 的初始 `index`，以及 TabContent 必填的
+`tabBar`。这些是导出时的静态状态，事件和业务状态仍由宿主 ArkUI 工程绑定。
 
 ## HTML 标注示例
 

@@ -308,6 +308,112 @@ def _color(value: str) -> str | None:
     return f"#{rgb}" if alpha == 255 else f"#{alpha:02X}{rgb}"
 
 
+def _split_css_top_level(value: str, delimiter: str) -> tuple[str, ...]:
+    """Split a computed CSS value without cutting inside functions.
+
+    Chromium serializes shadow colours as ``rgba(...)`` and separates shadow
+    layers with the same comma used inside that colour function.  A small
+    balanced-parenthesis splitter is sufficient for computed values and keeps
+    the shadow parser independent of authored CSS syntax.
+    """
+    parts: list[str] = []
+    start = 0
+    depth = 0
+    for index, character in enumerate(value):
+        if character == "(":
+            depth += 1
+        elif character == ")":
+            depth = max(0, depth - 1)
+        elif character == delimiter and depth == 0:
+            parts.append(value[start:index].strip())
+            start = index + 1
+    parts.append(value[start:].strip())
+    return tuple(part for part in parts if part)
+
+
+def _css_value_tokens(value: str) -> tuple[str, ...]:
+    """Tokenize one computed CSS value on top-level whitespace."""
+    tokens: list[str] = []
+    start: int | None = None
+    depth = 0
+    for index, character in enumerate(value):
+        if character == "(":
+            depth += 1
+        elif character == ")":
+            depth = max(0, depth - 1)
+        if character.isspace() and depth == 0:
+            if start is not None:
+                tokens.append(value[start:index])
+                start = None
+        elif start is None:
+            start = index
+    if start is not None:
+        tokens.append(value[start:])
+    return tuple(tokens)
+
+
+def _css_shadow_length(value: str) -> float | None:
+    """Parse the px lengths emitted by getComputedStyle, including bare zero."""
+    if value.strip() in {"0", "+0", "-0"}:
+        return 0.0
+    return _px(value)
+
+
+def _screen_ir_shadow(
+    value: str,
+) -> tuple[dict[str, object] | None, bool]:
+    """Map the one CSS shadow shape ArkUI renders with the same parameters.
+
+    Screen IR v2 and ArkUI both carry one outer shadow as blur radius, colour,
+    and x/y offsets.  Multiple layers, inset shadows, and non-zero spread have
+    no equivalent in the renderer contract and remain explicitly lossy.
+    The boolean reports whether the CSS value was completely handled; an
+    invisible transparent shadow is handled but produces no modifier.
+    """
+    normalized = value.strip()
+    if normalized.lower() in {"", "none"}:
+        return None, True
+    layers = _split_css_top_level(normalized, ",")
+    if len(layers) != 1:
+        return None, False
+    tokens = _css_value_tokens(layers[0])
+    if any(token.lower() == "inset" for token in tokens):
+        return None, False
+
+    color_indexes = [
+        index for index, token in enumerate(tokens)
+        if classify_css_color(token) != "unsupported"
+    ]
+    if len(color_indexes) != 1:
+        return None, False
+    color_index = color_indexes[0]
+    color_token = tokens[color_index]
+    lengths = tuple(
+        _css_shadow_length(token)
+        for index, token in enumerate(tokens)
+        if index != color_index
+    )
+    if not 2 <= len(lengths) <= 4 or any(item is None for item in lengths):
+        return None, False
+    offset_x, offset_y = lengths[:2]
+    blur = lengths[2] if len(lengths) >= 3 else 0.0
+    spread = lengths[3] if len(lengths) == 4 else 0.0
+    assert offset_x is not None and offset_y is not None
+    assert blur is not None and spread is not None
+    if blur < 0 or spread != 0:
+        return None, False
+    color = _color(color_token)
+    if color is None:
+        # The only supported colour with no emitted value is transparent.
+        return None, classify_css_color(color_token) == "transparent"
+    return {
+        "radius": blur,
+        "color": color,
+        "offsetX": offset_x,
+        "offsetY": offset_y,
+    }, True
+
+
 def normalize_css_color(value: str) -> str | None:
     """Return the canonical ArkUI color for currently supported CSS syntax."""
     return _color(value)
@@ -663,6 +769,56 @@ def _alignment(value: str) -> str | None:
     }.get(value.strip().lower())
 
 
+_MATRIX_TRANSFORM_RE = re.compile(r"^matrix\(([^()]*)\)$", re.IGNORECASE)
+_MATRIX_3D_TRANSFORM_RE = re.compile(
+    r"^matrix3d\(([^()]*)\)$", re.IGNORECASE,
+)
+_TRANSLATE_ONLY_RE = re.compile(
+    r"^(?:translate(?:x|y|3d)?\([^()]*\)\s*)+$", re.IGNORECASE,
+)
+
+
+def _finite_transform_numbers(value: str, expected: int) -> tuple[float, ...] | None:
+    parts = tuple(part.strip() for part in value.split(","))
+    if len(parts) != expected:
+        return None
+    try:
+        numbers = tuple(float(part) for part in parts)
+    except ValueError:
+        return None
+    if not all(math.isfinite(number) for number in numbers):
+        return None
+    return numbers
+
+
+def _is_translation_only_transform(value: str) -> bool:
+    """Whether a computed transform changes position but not box geometry."""
+    normalized = value.strip()
+    matrix = _MATRIX_TRANSFORM_RE.fullmatch(normalized)
+    if matrix is not None:
+        numbers = _finite_transform_numbers(matrix.group(1), 6)
+        return numbers is not None and all(math.isclose(left, right) for left, right in zip(
+            numbers[:4], (1.0, 0.0, 0.0, 1.0), strict=True,
+        ))
+    matrix_3d = _MATRIX_3D_TRANSFORM_RE.fullmatch(normalized)
+    if matrix_3d is not None:
+        numbers = _finite_transform_numbers(matrix_3d.group(1), 16)
+        if numbers is None:
+            return False
+        expected = (
+            1.0, 0.0, 0.0, 0.0,
+            0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            numbers[12], numbers[13], numbers[14], 1.0,
+        )
+        return all(
+            math.isclose(left, right)
+            for left, right in zip(numbers, expected, strict=True)
+        )
+    # Tests and non-Chromium bridges may preserve the authored spelling.
+    return _TRANSLATE_ONLY_RE.fullmatch(normalized) is not None
+
+
 # Alignments equivalent to ArkUI List/Grid's only behaviour: entries pack
 # from the main-axis start and the generated ListItem/GridItem stretches
 # across the cross axis. Anything else moves content on device.
@@ -824,6 +980,7 @@ def screen_ir_styles(
     flex_item_parent_verified: bool = False,
     flex_container_scrolls_main_axis: bool = False,
     button_renders_direct_label: bool = False,
+    baseline_alignment_is_baked: bool = False,
 ) -> tuple[dict[str, object], tuple[str, ...]]:
     """Map only CSS values with a direct Screen IR v2 representation."""
     style = snapshot.computed
@@ -877,7 +1034,9 @@ def screen_ir_styles(
         # ArkUI gives Button its own padding, corner radius and fill, so for
         # that component alone "zero" and "unspecified" are different claims
         # and every one of them has to be stated.
-        states_platform_defaults = component_name == "Button"
+        states_platform_defaults = component_name in {
+            "Button", "TextInput", "Search", "Checkbox", "Radio",
+        }
         padding = _edges((
             style.padding_top, style.padding_right,
             style.padding_bottom, style.padding_left,
@@ -1002,6 +1161,7 @@ def screen_ir_styles(
         align = {
             "normal": "Start",
             "stretch": "Start",
+            **({"baseline": "Start"} if baseline_alignment_is_baked else {}),
         }.get(style.align_items, _alignment(style.align_items))
         if justify is not None:
             result["justifyContent"] = justify
@@ -1030,7 +1190,9 @@ def screen_ir_styles(
             if css_value.strip().lower() not in _PACKED_START_ALIGNMENTS:
                 lossy.append(f"{css_name}:{css_value}")
 
-    if component_name in {"Text", "Span", "Button", "SymbolGlyph"}:
+    if component_name in {
+        "Text", "Span", "Button", "SymbolGlyph", "TextInput", "Search",
+    }:
         font_size = _px(style.font_size)
         font_color = _color(style.color)
         font_weight = _font_weight(style.font_weight)
@@ -1081,10 +1243,21 @@ def screen_ir_styles(
         result["backgroundImage"] = background_image_source
     elif style.background_image and style.background_image != "none":
         lossy.append("background-image")
-    if style.box_shadow and style.box_shadow != "none":
+    shadow, shadow_is_supported = _screen_ir_shadow(style.box_shadow)
+    if shadow is not None:
+        result["shadow"] = shadow
+    elif not shadow_is_supported:
         lossy.append("box-shadow")
     if style.transform and style.transform != "none":
-        lossy.append("transform")
+        # getBoundingClientRect already includes transforms.  For an absolute
+        # node the adapter emits that rectangle as left/top, so a pure
+        # translation is fully baked into the ArkUI position modifier.
+        translation_is_baked = (
+            style.position.strip().lower() == "absolute"
+            and _is_translation_only_transform(style.transform)
+        )
+        if not translation_is_baked:
+            lossy.append("transform")
     if style.filter and style.filter != "none":
         lossy.append("filter")
     if style.backdrop_filter and style.backdrop_filter != "none":

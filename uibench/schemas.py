@@ -91,6 +91,12 @@ class GenerateRequest(BaseModel):
     image_source: ImageSource = ""
 
 
+class ArkUiPrepareRequest(BaseModel):
+    """HTML that must be repaired before its browser snapshot is captured."""
+
+    html: str = Field(min_length=1, max_length=2_000_000)
+
+
 class ArkUiExportRequest(BaseModel):
     """One bounded HTML-to-ArkUI export request."""
 

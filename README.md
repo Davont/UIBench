@@ -267,14 +267,18 @@ Token 源文件位于 `uibench/design_tokens/tokens.json`；四个风格必须�
 ### 可选 ArkUI 工程导出
 
 移动端模式可勾选“生成 ArkUI 可导出元数据”。开启后，模型只使用当前
-`html-to-arkui` 公共契约已支持的 14 个组件：`Column`、`Row`、`Stack`、
+`html-to-arkui` 公共契约已支持的 22 个组件：`Column`、`Row`、`Stack`、
 `Scroll`、`Text`、`Span`、`Image`、`SymbolGlyph`、`Divider`、`Button`、
-`List`、`ListItem`、`Grid`、`GridItem`。`List` 只接受 `ListItem` 子节点，
+`List`、`ListItem`、`Grid`、`GridItem`、`Toggle`、`Slider`、`TextInput`、`Search`、
+`Checkbox`、`Radio`、`Tabs`、`TabContent`。
+`List` 只接受 `ListItem` 子节点，
 `ListItem` 最多包含一个已标注组件子节点，条目间距写在 `List` 上；横向列表按
 浏览器实际主轴导出为 `.listDirection(Axis.Horizontal)`，无需额外标注。`Grid`
 只接受 `GridItem` 子节点，轨道与间距从浏览器实测的 `grid-template-*` / `gap`
 冻结为 `.columnsTemplate()` 等修饰器，显式跨行列（`col-span-*` 等）不支持并会
-阻断导出。表单输入等规划组件暂不允许导出。
+阻断导出。原生表单、选择和页签组件会把 HTML 的初始值、禁用状态、分组及页签文字写入
+Screen IR；
+双向状态与事件绑定仍由宿主工程负责。
 
 转换器已作为包含全部运行依赖的固定 `.tgz` 放在
 `vendor/html-to-arkui/`，安装 UIBench 时执行：

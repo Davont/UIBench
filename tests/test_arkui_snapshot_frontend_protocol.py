@@ -134,16 +134,18 @@ def test_download_does_not_fall_back_to_null_snapshot() -> None:
     html = app_mod.INDEX_HTML
     assert "snapshot = null" not in html
     assert "ArkUI browser snapshot unavailable" not in html
-    assert "const snapshot = await captureArkUiSnapshot(r)" in html
+    assert "const prepared = await prepareArkUiExport(r)" in html
+    assert "const snapshot = await captureArkUiSnapshot(exportResult)" in html
     assert "console.error('ArkUI export failed', error)" in html
-    assert "window.alert('ArkUI 导出失败：' + String(error))" in html
+    assert "'ArkUI 导出失败 · ' + r.name" in html
+    assert "'ArkUI 导出失败：\\n\\n' + String(error)" in html
     assert "window.clearTimeout(exportLabelResetTimer)" in html
 
 
 def test_export_failure_surfaces_the_reason_not_just_the_headline() -> None:
     """Canvas and snapshot gates report an object whose reason is the fix."""
     describe = _function_source(
-        "describeExportErrorDetails", "requestArkUiExport",
+        "describeExportErrorDetails", "prepareArkUiExport",
     )
 
     assert "Array.isArray(details)" in describe
@@ -154,18 +156,26 @@ def test_export_failure_surfaces_the_reason_not_just_the_headline() -> None:
     assert "describeExportErrorDetails(error.details)" in request
 
 
-def test_blocked_export_button_explains_why_on_click() -> None:
-    """A disabled button swallows clicks, so the blocked state stays
-    clickable and the click lists the blocking diagnostics."""
+def test_blocked_export_button_repairs_before_capture() -> None:
+    """Generation-time blockers remain clickable and enter the same
+    prepare -> repaired capture -> export pipeline as clean results."""
     fill_card = _function_source("fillCard", "normalizeDesignTokenClassName")
 
     assert "exportBtn.disabled = !arkuiSummary.exportable" not in fill_card
     assert "exportBtn.classList.add('export-blocked')" in fill_card
-    assert "点击查看不可导出的原因" in fill_card
-    assert "window.alert(formatArkUiBlockReasons(r.arkui_manifest))" in fill_card
-    # The blocked branch answers before any export work starts.
-    assert (fill_card.index("formatArkUiBlockReasons")
-            < fill_card.index("captureArkUiSnapshot"))
+    assert "'修复并导出'" in fill_card
+    assert "点击后自动检测并修复" in fill_card
+    assert "const prepared = await prepareArkUiExport(r)" in fill_card
+    assert "const exportResult = Object.assign({}, r" in fill_card
+    assert "r.html = prepared.html" not in fill_card
+    assert "previewEntry.html = prepared.html" not in fill_card
+    assert "formatArkUiBlockReasons(prepared.manifest)" in fill_card
+    assert "window.alert(" not in fill_card
+    assert (
+        fill_card.index("prepareArkUiExport(r)")
+        < fill_card.index("captureArkUiSnapshot(exportResult)")
+        < fill_card.index("requestArkUiExport(exportResult, snapshot)")
+    )
     assert ".tools button.export-blocked" in app_mod.INDEX_HTML
 
     reasons = _function_source(
@@ -178,6 +188,27 @@ def test_blocked_export_button_explains_why_on_click() -> None:
     assert "'ARKUI_COMPONENT_NOT_RENDERER_SUPPORTED'" in reasons
     assert "summary.rootComponents !== 1" in reasons
     assert "查看日志" in reasons
+
+
+def test_prepare_request_returns_repaired_html_for_snapshot() -> None:
+    prepare = _function_source("prepareArkUiExport", "requestArkUiExport")
+
+    assert "fetch('/api/arkui/prepare'" in prepare
+    assert "html: result.html" in prepare
+    assert "payload.html" in prepare
+    assert "payload.manifest" in prepare
+
+
+def test_blocked_export_reason_dialog_is_selectable_and_copyable() -> None:
+    dialog = _function_source("openCopyableMessage", "groupArkUiDiagnostics")
+
+    assert "document.createElement('textarea')" in dialog
+    assert "text.readOnly = true" in dialog
+    assert "text.select()" in dialog
+    assert "copyBtn.textContent = '复制原因'" in dialog
+    assert "copyTextToClipboard(message)" in dialog
+    assert "modal.setAttribute('role', 'dialog')" in dialog
+    assert ".copy-message" in app_mod.INDEX_HTML
 
 
 def test_lossy_download_surfaces_warning_details_in_page() -> None:

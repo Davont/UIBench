@@ -1,9 +1,11 @@
 """Extract and validate ArkUI-oriented metadata from generated HTML."""
 from __future__ import annotations
 
+import math
 import re
 from collections import Counter
 from dataclasses import dataclass, replace
+from html import escape as html_escape
 from html.parser import HTMLParser
 from typing import Literal
 
@@ -28,6 +30,8 @@ _NODE_ID_RE = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
 _ROLE_RE = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 _GENERATED_NODE_ID_ATTR = "data-uibench-generated-node-id"
 _BUTTON_LABEL_REPAIR = "button-label"
+_LAYOUT_WRAPPER_REPAIR = "layout-wrapper"
+_EXPORT_NODE_ID_REPAIR = "export-repair"
 _VOID_TAGS = frozenset({
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
     "meta", "param", "source", "track", "wbr",
@@ -438,6 +442,11 @@ def _native_component(tag: str, attrs: dict[str, str]) -> str | None:
         return None
 
     input_type = attrs.get("type", "text").strip().lower()
+    if (
+        input_type == "checkbox"
+        and attrs.get("data-component", "").strip().lower() == "toggle"
+    ):
+        return "toggle"
     return {
         "button": "button",
         "checkbox": "checkbox",
@@ -624,6 +633,442 @@ def repair_missing_component_node_ids(html: str) -> str:
     return parser.repaired_html(html)
 
 
+@dataclass(frozen=True)
+class ArkUiHtmlRepair:
+    """One deterministic source repair applied before browser capture."""
+
+    code: str
+    message: str
+    node_id: str | None = None
+    component: str | None = None
+
+    def to_dict(self) -> dict[str, str | None]:
+        return {
+            "code": self.code,
+            "message": self.message,
+            "nodeId": self.node_id,
+            "component": self.component,
+        }
+
+
+@dataclass(frozen=True)
+class ArkUiHtmlRepairResult:
+    """HTML prepared for capture together with an auditable repair list."""
+
+    html: str
+    repairs: tuple[ArkUiHtmlRepair, ...]
+
+    @property
+    def changed(self) -> bool:
+        return bool(self.repairs)
+
+
+@dataclass
+class _ExportRepairElement:
+    tag: str
+    attrs: list[tuple[str, str | None]]
+    parent_index: int | None
+    start_offset: int
+    end_offset: int
+    raw_start_tag: str
+    in_body: bool
+    component: str | None
+    children: list[int]
+    has_direct_text: bool = False
+
+
+_EXPORT_WRAPPER_TAGS = frozenset({
+    "a", "article", "aside", "body", "div", "fieldset", "figcaption",
+    "figure", "footer", "form", "header", "label", "li", "main", "nav",
+    "ol", "p", "section", "span", "ul",
+    *_HEADING_TAGS,
+})
+_TEXT_WRAPPER_TAGS = frozenset({
+    "figcaption", "h1", "h2", "h3", "h4", "h5", "h6", "label", "p",
+})
+
+
+def _attribute_map(
+    attrs: list[tuple[str, str | None]],
+) -> dict[str, str]:
+    return {name.lower(): value or "" for name, value in attrs}
+
+
+def _set_repair_attribute(
+    attrs: list[tuple[str, str | None]],
+    name: str,
+    value: str,
+) -> None:
+    normalized = name.lower()
+    first: int | None = None
+    for index in range(len(attrs) - 1, -1, -1):
+        if attrs[index][0].lower() != normalized:
+            continue
+        if first is None:
+            first = index
+            attrs[index] = (normalized, value)
+        else:
+            del attrs[index]
+    if first is None:
+        attrs.append((normalized, value))
+
+
+def _render_repaired_start_tag(
+    element: _ExportRepairElement,
+    attrs: list[tuple[str, str | None]],
+) -> str:
+    pieces = [f"<{element.tag}"]
+    for name, value in attrs:
+        pieces.append(f" {name}")
+        if value is not None:
+            pieces.append(f'="{html_escape(value, quote=True)}"')
+    closing = " />" if element.raw_start_tag.rstrip().endswith("/>") else ">"
+    pieces.append(closing)
+    return "".join(pieces)
+
+
+class _ExportRepairParser(HTMLParser):
+    """Build the authored DOM paths needed for deterministic source repair."""
+
+    def __init__(self, html: str) -> None:
+        super().__init__(convert_charrefs=True)
+        self.registry = load_component_registry()
+        self.elements: list[_ExportRepairElement] = []
+        self.frames: list[int] = []
+        self.document = _DocumentStructureState()
+        self.line_offsets: list[int] = []
+        offset = 0
+        for line in html.splitlines(keepends=True):
+            self.line_offsets.append(offset)
+            offset += len(line)
+        if not self.line_offsets:
+            self.line_offsets.append(0)
+
+    def _start_offset(self) -> int:
+        line, column = self.getpos()
+        return self.line_offsets[line - 1] + column
+
+    def _close_implied_frames(self, incoming: str) -> None:
+        cut = _implied_end_cut(
+            [self.elements[index].tag for index in self.frames],
+            incoming,
+        )
+        if cut is not None:
+            del self.frames[cut:]
+
+    def handle_starttag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
+        normalized_tag = tag.lower()
+        process, head_cut = self.document.prepare_start(
+            normalized_tag,
+            [self.elements[index].tag for index in self.frames],
+        )
+        if not process:
+            return
+        if head_cut is not None:
+            del self.frames[head_cut:]
+        self._close_implied_frames(normalized_tag)
+        raw_start_tag = self.get_starttag_text() or f"<{normalized_tag}>"
+        attributes = _attribute_map(attrs)
+        explicit = attributes.get("data-component", "").strip().lower()
+        component = (
+            explicit
+            if explicit in self.registry.components
+            else _native_component(normalized_tag, attributes)
+        )
+        parent_index = self.frames[-1] if self.frames else None
+        start_offset = self._start_offset()
+        index = len(self.elements)
+        self.elements.append(_ExportRepairElement(
+            tag=normalized_tag,
+            attrs=list(attrs),
+            parent_index=parent_index,
+            start_offset=start_offset,
+            end_offset=start_offset + len(raw_start_tag),
+            raw_start_tag=raw_start_tag,
+            in_body=self.document.body_started,
+            component=component,
+            children=[],
+        ))
+        if parent_index is not None:
+            self.elements[parent_index].children.append(index)
+        if normalized_tag not in _VOID_TAGS:
+            self.frames.append(index)
+
+    def handle_startendtag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
+        self.handle_starttag(tag, attrs)
+        normalized = tag.lower()
+        if normalized not in _VOID_TAGS:
+            _set_text_mode_for_slash_start(self, normalized)
+
+    def handle_endtag(self, tag: str) -> None:
+        normalized = tag.lower()
+        self.document.observe_end(
+            normalized,
+            [self.elements[index].tag for index in self.frames],
+        )
+        for index in range(len(self.frames) - 1, -1, -1):
+            if self.elements[self.frames[index]].tag == normalized:
+                del self.frames[index:]
+                return
+
+    def handle_data(self, data: str) -> None:
+        if self.frames and data.strip(" \t\r\n\f"):
+            self.elements[self.frames[-1]].has_direct_text = True
+
+
+def _class_tokens(element: _ExportRepairElement) -> list[str]:
+    return _attribute_map(element.attrs).get("class", "").split()
+
+
+def _has_positioned_descendant(
+    elements: list[_ExportRepairElement],
+    index: int,
+) -> bool:
+    pending = list(elements[index].children)
+    while pending:
+        child_index = pending.pop()
+        child = elements[child_index]
+        tokens = set(_class_tokens(child))
+        if "absolute" in tokens or "fixed" in tokens:
+            return True
+        pending.extend(child.children)
+    return False
+
+
+def _wrapper_component(
+    elements: list[_ExportRepairElement],
+    index: int,
+    parent_component: str | None,
+) -> str:
+    element = elements[index]
+    tokens = set(_class_tokens(element))
+    if parent_component == "list":
+        return "list-item"
+    if parent_component == "grid":
+        return "grid-item"
+    if element.tag in {"ul", "ol"}:
+        return "list"
+    if element.tag == "li":
+        return "list-item" if parent_component == "list" else "column"
+    if element.tag in _TEXT_WRAPPER_TAGS:
+        return "text"
+    if element.tag == "span" and parent_component == "text":
+        return "span"
+    if "grid" in tokens or "inline-grid" in tokens:
+        return "grid"
+    if (
+        "relative" in tokens
+        and _has_positioned_descendant(elements, index)
+    ):
+        return "stack"
+    if "flex-col" in tokens or any(
+        token.startswith("space-y-") for token in tokens
+    ):
+        return "column"
+    if (
+        "flex-row" in tokens
+        or "flex" in tokens
+        or "inline-flex" in tokens
+        or any(token.startswith("space-x-") for token in tokens)
+    ):
+        return "row"
+    return "column"
+
+
+def _allocate_repair_node_id(
+    used_ids: set[str],
+    parent_id: str | None,
+    segment: str,
+) -> str:
+    safe_segment = re.sub(r"[^a-z0-9]+", "-", segment.lower()).strip("-")
+    safe_segment = safe_segment or "content"
+    base = f"{parent_id}.{safe_segment}" if parent_id else "page"
+    if len(base) > 190:
+        base = base[:190].rstrip("._-")
+    candidate = base
+    suffix = 2
+    while candidate in used_ids:
+        tail = f"-{suffix}"
+        candidate = base[:200 - len(tail)].rstrip("._-") + tail
+        suffix += 1
+    used_ids.add(candidate)
+    return candidate
+
+
+def _repair_export_structure(
+    html: str,
+) -> ArkUiHtmlRepairResult:
+    parser = _ExportRepairParser(html)
+    parser.feed(html)
+    parser.close()
+    elements = parser.elements
+    has_component_below = [False] * len(elements)
+    for index in range(len(elements) - 1, -1, -1):
+        has_component_below[index] = any(
+            elements[child].component is not None
+            or has_component_below[child]
+            for child in elements[index].children
+        )
+
+    wrapper_indices = {
+        index
+        for index, element in enumerate(elements)
+        if (
+            element.in_body
+            and element.tag in _EXPORT_WRAPPER_TAGS
+            and element.tag != "body"
+            and element.component is None
+            and has_component_below[index]
+            and any(
+                elements[ancestor].component is not None
+                for ancestor in _element_ancestors(elements, index)
+            )
+        )
+    }
+    component_like = {
+        index
+        for index, element in enumerate(elements)
+        if element.component is not None or index in wrapper_indices
+    }
+
+    id_counts = Counter(
+        node_id
+        for element in elements
+        if (
+            (node_id := _attribute_map(element.attrs)
+             .get("data-node-id", "").strip())
+        )
+    )
+    used_ids = set(id_counts)
+    effective_components: dict[int, str] = {}
+    effective_ids: dict[int, str] = {}
+    seen_ids: Counter[str] = Counter()
+    replacements: list[tuple[int, int, str]] = []
+    repairs: list[ArkUiHtmlRepair] = []
+
+    for index, element in enumerate(elements):
+        if index not in component_like:
+            continue
+        parent_index = next(
+            (
+                ancestor
+                for ancestor in _element_ancestors(elements, index)
+                if ancestor in effective_components
+            ),
+            None,
+        )
+        parent_component = (
+            effective_components[parent_index]
+            if parent_index is not None else None
+        )
+        component = (
+            element.component
+            or _wrapper_component(elements, index, parent_component)
+        )
+        effective_components[index] = component
+        attrs = list(element.attrs)
+        attributes = _attribute_map(attrs)
+        authored_id = attributes.get("data-node-id", "").strip()
+        keep_authored_id = bool(
+            authored_id
+            and _NODE_ID_RE.fullmatch(authored_id)
+            and seen_ids[authored_id] == 0
+        )
+        if authored_id:
+            seen_ids[authored_id] += 1
+        if keep_authored_id:
+            node_id = authored_id
+        else:
+            parent_id = (
+                effective_ids[parent_index]
+                if parent_index is not None else None
+            )
+            segment = (
+                "content"
+                if index in wrapper_indices else component
+            )
+            node_id = _allocate_repair_node_id(used_ids, parent_id, segment)
+            _set_repair_attribute(attrs, "data-node-id", node_id)
+            _set_repair_attribute(
+                attrs, _GENERATED_NODE_ID_ATTR, _EXPORT_NODE_ID_REPAIR,
+            )
+            if index not in wrapper_indices:
+                repairs.append(ArkUiHtmlRepair(
+                    code="ARKUI_NODE_ID_REPAIRED",
+                    message=(
+                        f"Generated stable data-node-id {node_id!r} for "
+                        f"{component!r}"
+                    ),
+                    node_id=node_id,
+                    component=component,
+                ))
+        effective_ids[index] = node_id
+
+        if index in wrapper_indices:
+            _set_repair_attribute(attrs, "data-component", component)
+            _set_repair_attribute(
+                attrs, _GENERATED_NODE_ID_ATTR, _LAYOUT_WRAPPER_REPAIR,
+            )
+            repairs.append(ArkUiHtmlRepair(
+                code="ARKUI_UNANNOTATED_WRAPPER_REPAIRED",
+                message=(
+                    f"Annotated <{element.tag}> as {component!r} so its "
+                    "DOM and ArkUI parent trees stay identical"
+                ),
+                node_id=node_id,
+                component=component,
+            ))
+
+        if attrs != element.attrs:
+            replacements.append((
+                element.start_offset,
+                element.end_offset,
+                _render_repaired_start_tag(element, attrs),
+            ))
+
+    repaired = html
+    for start, end, replacement in sorted(replacements, reverse=True):
+        repaired = repaired[:start] + replacement + repaired[end:]
+    return ArkUiHtmlRepairResult(html=repaired, repairs=tuple(repairs))
+
+
+def _element_ancestors(
+    elements: list[_ExportRepairElement],
+    index: int,
+):
+    parent_index = elements[index].parent_index
+    while parent_index is not None:
+        yield parent_index
+        parent_index = elements[parent_index].parent_index
+
+
+def repair_arkui_export_html(html: str) -> ArkUiHtmlRepairResult:
+    """Prepare generated HTML for a browser-verified ArkUI export.
+
+    The repair is intentionally deterministic: it adds stable IDs and fills
+    unannotated DOM paths with layout components, but it never removes visible
+    content or bypasses the later browser snapshot and Screen IR validators.
+    """
+    if not isinstance(html, str):
+        raise TypeError("html must be a string")
+    conservative = repair_missing_component_node_ids(html)
+    structured = _repair_export_structure(conservative)
+    repairs = list(structured.repairs)
+    if conservative != html:
+        repairs.insert(0, ArkUiHtmlRepair(
+            code="ARKUI_BUTTON_LABEL_NODE_ID_REPAIRED",
+            message="Generated stable node IDs for unambiguous button labels",
+        ))
+    return ArkUiHtmlRepairResult(
+        html=structured.html,
+        repairs=tuple(repairs),
+    )
+
+
 def _metadata(attrs: dict[str, str]) -> tuple[tuple[str, str], ...]:
     return tuple(sorted(
         (name, value)
@@ -640,7 +1085,8 @@ def _metadata(attrs: dict[str, str]) -> tuple[tuple[str, str], ...]:
 def _relevant_attributes(attrs: dict[str, str]) -> tuple[tuple[str, str], ...]:
     names = {
         "alt", "aria-label", "checked", "disabled", "name", "src",
-        "title", "type", "value",
+        "title", "type", "value", "placeholder", "readonly", "min", "max",
+        "step",
     }
     return tuple(sorted(
         (name, value) for name, value in attrs.items() if name in names
@@ -1217,6 +1663,43 @@ class _ComponentMetadataParser(HTMLParser):
                     line=node.line,
                     column=node.column,
                 )
+            if node.component == "slider":
+                attributes = dict(node.attributes)
+                for attribute in ("value", "min", "max", "step"):
+                    raw_value = attributes.get(attribute)
+                    if raw_value is None:
+                        continue
+                    try:
+                        parsed = float(raw_value)
+                    except ValueError:
+                        parsed = float("nan")
+                    if not math.isfinite(parsed):
+                        self._diagnostic(
+                            "ARKUI_CONTROL_VALUE_INVALID",
+                            "error",
+                            f"slider {attribute!r} must be a finite number",
+                            node_id=node.node_id,
+                            component=node.component,
+                            line=node.line,
+                            column=node.column,
+                        )
+            if node.component == "tabs":
+                raw_index = dict(node.metadata).get("data-index")
+                if raw_index is not None:
+                    try:
+                        parsed_index = int(raw_index)
+                    except ValueError:
+                        parsed_index = -1
+                    if str(parsed_index) != raw_index.strip() or parsed_index < 0:
+                        self._diagnostic(
+                            "ARKUI_CONTROL_VALUE_INVALID",
+                            "error",
+                            "tabs 'data-index' must be a non-negative integer",
+                            node_id=node.node_id,
+                            component=node.component,
+                            line=node.line,
+                            column=node.column,
+                        )
         return ComponentMetadataReport(
             nodes=tuple(self.nodes),
             diagnostics=tuple(sorted(

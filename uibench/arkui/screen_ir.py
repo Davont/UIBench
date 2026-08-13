@@ -121,6 +121,102 @@ def _component_direction(component_name: str) -> Literal["row", "column"] | None
     return None
 
 
+def _computed_px(value: str) -> float | None:
+    """Parse a browser-computed px length used for geometry baking."""
+    normalized = value.strip().lower()
+    if not normalized:
+        return 0.0
+    if not normalized.endswith("px"):
+        return None
+    try:
+        parsed = float(normalized[:-2])
+    except ValueError:
+        return None
+    if not math.isfinite(parsed) or abs(parsed) > 100_000:
+        return None
+    return round(parsed, 4)
+
+
+def _row_baseline_offsets(
+    parent_index: int,
+    report: ComponentMetadataReport,
+    children_by_parent: dict[int, list[int]],
+    snapshot_by_id: dict[str, BrowserNodeSnapshot],
+) -> dict[str, float] | None:
+    """Freeze one browser baseline row into Start alignment plus top margins.
+
+    ArkUI Row has no baseline enum.  The snapshot already freezes every child
+    box, so Start alignment with the measured border-box y offset reproduces
+    the same rendered geometry.  Fail closed if any in-flow child lacks the
+    direct-parent evidence needed to make that adjustment safely.
+    """
+    parent = report.nodes[parent_index]
+    if parent.node_id is None:
+        return None
+    parent_browser = snapshot_by_id.get(parent.node_id)
+    if parent_browser is None:
+        return None
+    style = parent_browser.computed
+    if style.align_items.strip().lower() != "baseline":
+        return None
+    border_top = _computed_px(style.border_top_width)
+    padding_top = _computed_px(style.padding_top)
+    if border_top is None or padding_top is None:
+        return None
+    content_top = parent_browser.bbox[1] + border_top + padding_top
+    offsets: dict[str, float] = {}
+    for child_index in children_by_parent.get(parent_index, []):
+        child = report.nodes[child_index]
+        if child.node_id is None:
+            return None
+        child_browser = snapshot_by_id.get(child.node_id)
+        if child_browser is None:
+            return None
+        if not child_browser.visible:
+            continue
+        if child_browser.computed.position.strip().lower() in {
+            "absolute", "fixed",
+        }:
+            # Out-of-flow children do not participate in flex baseline layout.
+            continue
+        if (
+            child_browser.direct_parent_node_id != parent.node_id
+            or child_browser.is_flex_item is not True
+        ):
+            return None
+        offset = round(child_browser.bbox[1] - content_top, 4)
+        if not math.isfinite(offset) or abs(offset) > 100_000:
+            return None
+        offsets[child.node_id] = 0.0 if abs(offset) < 0.0001 else offset
+    return offsets
+
+
+def _set_margin_top(styles: dict[str, object], top: float) -> None:
+    """Set one measured top margin while preserving the other CSS margins."""
+    current = styles.get("margin")
+    if isinstance(current, (int, float)):
+        edges = {name: float(current) for name in (
+            "top", "right", "bottom", "left",
+        )}
+    elif isinstance(current, dict):
+        edges = {
+            name: float(current.get(name, 0))
+            for name in ("top", "right", "bottom", "left")
+        }
+    else:
+        edges = {name: 0.0 for name in (
+            "top", "right", "bottom", "left",
+        )}
+    edges["top"] = top
+    values = tuple(edges.values())
+    if not any(values):
+        styles.pop("margin", None)
+    elif len(set(values)) == 1:
+        styles["margin"] = values[0]
+    else:
+        styles["margin"] = edges
+
+
 def _browser_container_component(browser_node: BrowserNodeSnapshot) -> str | None:
     """Return the ArkUI container the browser actually laid out.
 
@@ -420,6 +516,49 @@ def _to_ir_node(
             result["props"] = {"alt": attributes["alt"]}
     elif node.arkui_component == "SymbolGlyph":
         result["props"] = {"symbol": metadata["data-symbol"]}
+    elif node.arkui_component in {
+        "Toggle", "Slider", "TextInput", "Search", "Checkbox", "Radio",
+    }:
+        props: dict[str, object] = {}
+        if node.arkui_component == "Toggle":
+            props["checked"] = "checked" in attributes
+        elif node.arkui_component == "Slider":
+            for attribute in ("value", "min", "max", "step"):
+                raw_value = attributes.get(attribute)
+                if raw_value is None:
+                    continue
+                parsed = float(raw_value)
+                props[attribute] = (
+                    int(parsed) if parsed.is_integer() else round(parsed, 6)
+                )
+        elif node.arkui_component in {"TextInput", "Search"}:
+            if "value" in attributes:
+                props["value"] = attributes["value"]
+            if "placeholder" in attributes:
+                props["placeholder"] = attributes["placeholder"]
+            if node.arkui_component == "TextInput" and "readonly" in attributes:
+                props["readOnly"] = True
+        elif node.arkui_component == "Checkbox":
+            props["name"] = attributes.get("value") or node.node_id
+            if attributes.get("name"):
+                props["group"] = attributes["name"]
+            props["checked"] = "checked" in attributes
+        else:
+            props["value"] = attributes.get("value") or node.node_id
+            props["group"] = attributes.get("name") or node.node_id
+            props["checked"] = "checked" in attributes
+        if "disabled" in attributes:
+            props["disabled"] = True
+        if props:
+            result["props"] = props
+    elif node.arkui_component == "Button" and "disabled" in attributes:
+        result["props"] = {"disabled": True}
+    elif node.arkui_component == "Tabs":
+        raw_index = metadata.get("data-index")
+        if raw_index is not None:
+            result["props"] = {"index": int(raw_index)}
+    elif node.arkui_component == "TabContent":
+        result["props"] = {"tabBar": metadata["data-tab-bar"]}
     styles = styles_by_id.get(node.node_id)
     if styles:
         result["styles"] = styles
@@ -620,6 +759,7 @@ def build_screen_ir(
     snapshot_by_id: dict[str, BrowserNodeSnapshot] = {}
     styles_by_id: dict[str, dict[str, object]] = {}
     generated_text_styles_by_id: dict[str, dict[str, object]] = {}
+    baseline_offsets_by_id: dict[str, float] = {}
     component_overrides: dict[int, str] = {}
     document_scroll_root_id: str | None = None
     included_indices = frozenset(range(len(report.nodes)))
@@ -868,6 +1008,18 @@ def build_screen_ir(
                     parent.arkui_component == "Scroll"
                     and parent_direction == "column"
                 )
+            baseline_offsets = (
+                _row_baseline_offsets(
+                    index,
+                    report,
+                    children_by_parent,
+                    snapshot_by_id,
+                )
+                if effective_component == "Row"
+                else None
+            )
+            if baseline_offsets is not None:
+                baseline_offsets_by_id.update(baseline_offsets)
             styles, lossy_properties = screen_ir_styles(
                 effective_component,
                 browser_node,
@@ -878,6 +1030,7 @@ def build_screen_ir(
                 flex_item_parent_verified=flex_item_parent_verified,
                 flex_container_scrolls_main_axis=flex_container_scrolls_main_axis,
                 button_renders_direct_label=bool(node.text_content),
+                baseline_alignment_is_baked=(baseline_offsets is not None),
             )
             if node.mixed_symbol_content:
                 text_styles, text_lossy_properties = screen_ir_styles(
@@ -909,6 +1062,10 @@ def build_screen_ir(
                     message=f"Computed style cannot be represented exactly: {property_name}",
                     node_id=node.node_id,
                 ))
+        for node_id, margin_top in baseline_offsets_by_id.items():
+            child_styles = styles_by_id.get(node_id)
+            if child_styles is not None:
+                _set_margin_top(child_styles, margin_top)
         included_indices = frozenset(
             index for index in range(len(report.nodes))
             if index not in hidden_indices
