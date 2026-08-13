@@ -1,4 +1,4 @@
-"""Offline tests for the optional Unsplash MCP boundary."""
+"""Offline tests for the image tool boundary (local gallery + Unsplash MCP)."""
 from types import SimpleNamespace
 
 import pytest
@@ -6,7 +6,7 @@ import pytest
 import uibench.image_tools as image_tools_mod
 from uibench.image_tools import (
     ImageToolError,
-    UNSPLASH_TOOL,
+    IMAGE_SEARCH_TOOL,
     _parse_mcp_text,
     _sanitize_photos,
     _should_stop_image_batch,
@@ -202,7 +202,7 @@ def test_approved_image_urls_are_exact_tool_results() -> None:
 
 
 def test_tool_schema_requests_named_photo_batch() -> None:
-    parameters = UNSPLASH_TOOL["function"]["parameters"]
+    parameters = IMAGE_SEARCH_TOOL["function"]["parameters"]
     assert parameters["required"] == ["requests"]
     requests = parameters["properties"]["requests"]
     assert requests["maxItems"] == 8
@@ -303,6 +303,7 @@ def test_image_tool_accepts_windows_virtualenv_python(monkeypatch, tmp_path) -> 
     )
     monkeypatch.setattr(image_tools_mod, "MCP_SERVER", server)
     monkeypatch.setattr(image_tools_mod.settings, "image_tools_enabled", True)
+    monkeypatch.setattr(image_tools_mod.settings, "image_source", "unsplash")
     monkeypatch.setenv("UNSPLASH_ACCESS_KEY", "test-key")
 
     assert image_tools_mod.image_tool_available() is True

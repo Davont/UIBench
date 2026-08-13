@@ -40,6 +40,13 @@ class Settings:
         self.image_tools_enabled: bool = bool(
             options.get("image_tools_enabled", True)
         )
+        # "local": offline gallery built by tools/build_gallery.py (default).
+        # "unsplash": live search through the optional local MCP server.
+        self.image_source: str = str(
+            options.get("image_source", "local")
+        ).strip().lower()
+        if self.image_source not in {"local", "unsplash"}:
+            self.image_source = "local"
         self.image_tool_timeout: float = float(
             options.get("image_tool_timeout", 90)
         )

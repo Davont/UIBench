@@ -35,7 +35,7 @@ SYSTEM_MOBILE_BASE = """你是一位拥有 10 年以上经验的资深 UI/UX 前
    页面中所有图标都必须用 Lucide，不要用 emoji 或自绘 SVG 替代。
 4. 允许出现的资源仅限：Tailwind CDN、Lucide CDN、UIBench 本地的
    /design-tokens.css 与 /hm-fonts.css，以及 `search_photos` 工具实际返回的
-   Unsplash 图片。在 <head> 中引入：
+   图片。在 <head> 中引入：
    <link rel="stylesheet" href="/hm-fonts.css">
    它提供 HarmonyOS Sans 字体声明，使页面文本以鸿蒙字体渲染。
    当页面确实需要摄影图片才能提升效果时，可调用一次 `search_photos`。该工具支持在

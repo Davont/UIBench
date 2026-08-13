@@ -42,7 +42,7 @@ React、Ant Design、ECharts 与企业级中后台界面。你的目标是：根
    - ECharts：<script src="https://unpkg.com/echarts@5/dist/echarts.min.js"></script>
    - Lucide：<script src="https://unpkg.com/lucide@__LUCIDE_VERSION__"></script>
    - Babel standalone：<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-   除上述外，只允许使用 `search_photos` 工具实际返回的 Unsplash 图片。
+   除上述外，只允许使用 `search_photos` 工具实际返回的图片。
    当页面确实需要摄影图片时，可调用一次工具，并在 `requests` 中为 Banner 及主要
    可见内容卡片分别提交具名 slot/query（通常 4–6 个，禁止只搜一个笼统关键词）。
    使用简洁英文关键词，PC 端优先 `landscape` 或 `squarish`。只能引用返回的

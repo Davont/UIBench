@@ -1,0 +1,155 @@
+# ============================================================
+# 本地图库的唯一数据源定义（与运行时代码完全解耦）。
+#
+#   python tools/build_gallery.py            # 全量构建
+#   python tools/build_gallery.py -c food    # 只重建某分类
+#   python tools/build_gallery.py --refresh-manifest  # 只刷词表，不联网
+#
+# 修改分类 / 搜索词 / 匹配关键词后重跑脚本即可，无需改任何代码。
+# 运行时只读取脚本生成的 assets/gallery/manifest.json。
+#
+# 字段说明：
+#   match_keywords  运行时把模型的 query/slot 匹配到分类用的词表，
+#                   英文按整词匹配，中文按子串匹配（兜底槽位规划可能
+#                   把中文需求原文拼进 query）。
+#   searches        建库时向 Unsplash 发起的搜索；count 为该词入库张数。
+#                   候选会按点赞数排序取最高质量的图，搜索词偏向
+#                   影棚光 / 电影感 / 编辑风等高质感摄影表述。
+# ============================================================
+
+options:
+  # 每个搜索词额外抓取的候选倍数（脚本内至少拉 24 张按点赞数精选）
+  candidate_factor: 2
+
+# query 匹配不到任何分类时按此顺序兜底（取每类中未用过的图）
+fallback_categories: [life, nature, product]
+
+categories:
+  avatar:
+    label: 头像人像
+    match_keywords: [
+      avatar, portrait, person, face, headshot, profile, user, people,
+      man, woman, girl, boy, customer, member, human, model, character,
+      头像, 人像, 肖像, 用户, 会员, 人物,
+    ]
+    searches:
+      - {query: "professional business headshot studio lighting", orientation: portrait, count: 5}
+      - {query: "editorial portrait dramatic studio light", orientation: portrait, count: 5}
+      - {query: "confident person portrait natural window light", orientation: squarish, count: 5}
+
+  food:
+    label: 美食
+    match_keywords: [
+      food, dish, meal, restaurant, cuisine, menu, dessert, cake, coffee,
+      latte, drink, breakfast, lunch, dinner, noodles, pizza, burger,
+      sushi, salad, fruit, cooking, kitchen, bakery, tea,
+      美食, 菜品, 餐厅, 菜单, 甜品, 咖啡, 奶茶, 外卖, 烘焙, 饮品,
+    ]
+    searches:
+      - {query: "fine dining gourmet dish dark moody plating", orientation: landscape, count: 5}
+      - {query: "ramen noodles bowl overhead", orientation: squarish, count: 5}
+      - {query: "specialty coffee latte art cafe editorial", orientation: squarish, count: 5}
+
+  product:
+    label: 商品
+    match_keywords: [
+      product, ecommerce, shop, store, headphones, earbuds, smartwatch,
+      watch, sneakers, shoes, bag, cosmetics, skincare, perfume, bottle,
+      gadget, camera, sale, cart, brand, packaging, fashion, clothing,
+      商品, 电商, 购物, 耳机, 手表, 球鞋, 包包, 化妆品, 香水, 服饰,
+    ]
+    searches:
+      - {query: "wireless headphones studio product", orientation: squarish, count: 4}
+      - {query: "luxury watch product photography dramatic light", orientation: squarish, count: 4}
+      - {query: "premium cosmetics skincare studio minimal pastel", orientation: squarish, count: 4}
+      - {query: "sneakers product photography studio", orientation: landscape, count: 3}
+
+  tech:
+    label: 科技
+    match_keywords: [
+      tech, technology, laptop, computer, smartphone, phone, screen, code,
+      digital, ai, robot, data, futuristic, circuit, keyboard, developer,
+      software, startup, innovation, electronics,
+      科技, 数码, 电脑, 手机, 程序, 人工智能, 机器人, 芯片,
+    ]
+    searches:
+      - {query: "laptop workspace dark minimal", orientation: landscape, count: 4}
+      - {query: "smartphone product dark background", orientation: squarish, count: 4}
+      - {query: "futuristic abstract technology neon 3d render", orientation: landscape, count: 4}
+
+  travel:
+    label: 旅行酒店
+    match_keywords: [
+      travel, hotel, resort, vacation, beach, trip, tourism, destination,
+      landmark, city, island, pool, room, suite, booking, flight, luggage,
+      journey, adventure, sea,
+      旅行, 旅游, 酒店, 民宿, 度假, 海边, 沙滩, 景点, 机票, 房间,
+    ]
+    searches:
+      - {query: "luxury resort infinity pool ocean sunset", orientation: landscape, count: 5}
+      - {query: "overwater bungalow aerial", orientation: landscape, count: 5}
+      - {query: "boutique hotel suite interior design elegant", orientation: squarish, count: 5}
+
+  nature:
+    label: 自然
+    match_keywords: [
+      nature, mountain, forest, landscape, sunrise, sunset, sky, lake,
+      river, ocean, waves, flowers, plant, green, snow, autumn, outdoor,
+      hiking, waterfall, desert,
+      自然, 风景, 山, 森林, 日出, 日落, 湖, 海洋, 花, 植物,
+    ]
+    searches:
+      - {query: "epic mountain peak golden hour dramatic clouds", orientation: landscape, count: 4}
+      - {query: "misty forest sunbeam cinematic light", orientation: portrait, count: 4}
+      - {query: "turquoise ocean waves aerial minimal", orientation: landscape, count: 4}
+
+  life:
+    label: 生活
+    match_keywords: [
+      lifestyle, life, home, family, friends, weekend, hobby, reading,
+      music, fitness, yoga, running, sport, party, wedding, shopping,
+      street, urban, cozy, interior, editorial,
+      生活, 日常, 家居, 朋友, 健身, 运动, 婚礼, 逛街,
+    ]
+    searches:
+      - {query: "editorial lifestyle friends golden hour rooftop", orientation: landscape, count: 4}
+      - {query: "cozy scandinavian home interior soft morning light", orientation: squarish, count: 4}
+      - {query: "athlete running sunrise cinematic silhouette", orientation: portrait, count: 4}
+
+  office:
+    label: 办公
+    match_keywords: [
+      office, work, business, meeting, team, desk, workspace, corporate,
+      startup, colleague, presentation, finance, document, laptop-work,
+      collaboration, conference, professional,
+      办公, 会议, 团队, 职场, 商务, 工位, 协作, 汇报,
+    ]
+    searches:
+      - {query: "modern office interior architecture natural light", orientation: landscape, count: 4}
+      - {query: "minimal designer desk setup aesthetic clean", orientation: landscape, count: 3}
+      - {query: "team meeting modern office", orientation: squarish, count: 3}
+
+  animal:
+    label: 动物
+    match_keywords: [
+      animal, pet, dog, cat, puppy, kitten, bird, wildlife, zoo, cute,
+      rabbit, panda, horse, fish, veterinary, adoption,
+      动物, 宠物, 狗, 猫, 鸟, 兔, 熊猫, 萌宠, 领养,
+    ]
+    searches:
+      - {query: "dog portrait studio lighting", orientation: squarish, count: 4}
+      - {query: "elegant cat portrait studio dramatic lighting", orientation: squarish, count: 3}
+      - {query: "majestic wild animal golden hour cinematic", orientation: landscape, count: 3}
+
+  art:
+    label: 艺术
+    match_keywords: [
+      art, artwork, painting, gallery, museum, sculpture, abstract,
+      illustration, design, exhibition, artist, canvas, poster, culture,
+      creative, aesthetic,
+      艺术, 画廊, 展览, 绘画, 雕塑, 抽象, 作品, 博物馆,
+    ]
+    searches:
+      - {query: "abstract painting texture vibrant contemporary art", orientation: portrait, count: 4}
+      - {query: "modern art gallery exhibition white wall minimal", orientation: landscape, count: 3}
+      - {query: "classical sculpture dramatic museum lighting", orientation: portrait, count: 3}

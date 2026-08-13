@@ -73,7 +73,7 @@ def _openai_response(content: str, reasoning: str, finish_reason: str,
 @pytest.fixture(autouse=True)
 def _disable_image_tools(monkeypatch):
     """Keep the baseline suite offline even when local MCP config exists."""
-    monkeypatch.setattr(app_mod, "image_tool_available", lambda: False)
+    monkeypatch.setattr(app_mod, "image_tool_available", lambda source=None: False)
 
 
 @pytest.fixture()
@@ -865,7 +865,7 @@ def test_openai_image_tool_loop(monkeypatch, tmp_path) -> None:
         return SimpleNamespace(root_client=SimpleNamespace(
             chat=SimpleNamespace(completions=SimpleNamespace(create=_create))))
 
-    async def _search(arguments, *, max_requests, progress=None):
+    async def _search(arguments, *, max_requests, progress=None, source=None):
         assert max_requests == 6
         assert [item["query"] for item in arguments["requests"]] == [
             "tropical beach resort", "summer beach bag product",
@@ -908,8 +908,8 @@ def test_openai_image_tool_loop(monkeypatch, tmp_path) -> None:
         assert image_url in html and second_image_url in html
         return 2
 
-    monkeypatch.setattr(app_mod, "image_tool_available", lambda: True)
-    monkeypatch.setattr(app_mod, "call_unsplash_mcp_batch", _search)
+    monkeypatch.setattr(app_mod, "image_tool_available", lambda source=None: True)
+    monkeypatch.setattr(app_mod, "call_image_search_batch", _search)
     monkeypatch.setattr(app_mod, "track_used_photos", _track)
     monkeypatch.setattr(app_mod, "chat_model_for", _factory)
     monkeypatch.setattr(app_mod, "LOGS_DIR", tmp_path / "logs")
@@ -924,7 +924,7 @@ def test_openai_image_tool_loop(monkeypatch, tmp_path) -> None:
 
     result = _first_result(messages)
     assert len(calls) == 2
-    assert calls[0]["tools"] == [app_mod.UNSPLASH_TOOL]
+    assert calls[0]["tools"] == [app_mod.IMAGE_SEARCH_TOOL]
     assert calls[0]["tool_choice"] == "required"
     assert calls[1]["tool_choice"] == "none"
     assert calls[1]["messages"][-2]["role"] == "assistant"
@@ -945,6 +945,169 @@ def test_openai_image_tool_loop(monkeypatch, tmp_path) -> None:
     assert "searching_images" in [
         event["stage"] for event in _progress(messages, "0")
     ]
+
+
+def test_generate_request_overrides_image_source(monkeypatch, tmp_path) -> None:
+    """The per-run image_source toggle reaches the search boundary and result."""
+    from uibench.schemas import ModelConfig
+
+    image_url = "https://images.unsplash.com/photo-a"
+    second_url = "https://images.unsplash.com/photo-b"
+    final_html = (
+        '<!DOCTYPE html><html><head></head><body>'
+        f'<img src="{image_url}"><img src="{second_url}"></body></html>'
+    )
+    responses = [
+        _openai_response("", "", "stop"),
+        _openai_response(final_html, "", "stop"),
+    ]
+    calls: list[dict] = []
+
+    def _factory(*args, **kwargs):
+        def _create(**call_kwargs):
+            calls.append(call_kwargs)
+            return responses[len(calls) - 1]
+        return SimpleNamespace(root_client=SimpleNamespace(
+            chat=SimpleNamespace(completions=SimpleNamespace(create=_create))))
+
+    seen_sources: list[str | None] = []
+
+    async def _search(arguments, *, max_requests, progress=None, source=None):
+        seen_sources.append(source)
+        return [
+            {
+                "id": "photo-a", "slot": "hero", "query": "beach hero",
+                "urls": {"small": image_url}, "width": 1080, "height": 720,
+            },
+            {
+                "id": "photo-b", "slot": "detail", "query": "beach detail",
+                "urls": {"small": second_url}, "width": 1080, "height": 1080,
+            },
+        ]
+
+    available_sources: list[str | None] = []
+
+    def _available(source=None):
+        available_sources.append(source)
+        return True
+
+    monkeypatch.setattr(app_mod, "image_tool_available", _available)
+    monkeypatch.setattr(app_mod, "call_image_search_batch", _search)
+    monkeypatch.setattr(app_mod, "chat_model_for", _factory)
+    monkeypatch.setattr(app_mod, "LOGS_DIR", tmp_path / "logs")
+    monkeypatch.setattr(app_mod, "load_model_registry", lambda: [
+        ModelConfig(id="switch-model", provider="openai", api_key="sk-test")
+    ])
+
+    with TestClient(app_mod.app) as client:
+        messages = _parse_stream(client.post(
+            "/api/generate",
+            json={"prompt": "海边度假详情页", "image_source": "unsplash"},
+        ))
+
+    result = _first_result(messages)
+    assert result["status"] == "success"
+    assert result["image_source"] == "unsplash"
+    assert seen_sources == ["unsplash"]
+    assert available_sources and available_sources[0] == "unsplash"
+
+
+def test_openai_tool_choice_required_downgrades_to_auto(monkeypatch, tmp_path) -> None:
+    """Gateways rejecting tool_choice="required" retry once with "auto"."""
+    from uibench.schemas import ModelConfig
+
+    image_url = "https://images.unsplash.com/photo-test"
+    second_image_url = "https://images.unsplash.com/photo-bag"
+    tool_call = SimpleNamespace(
+        id="call_image_1",
+        function=SimpleNamespace(
+            name="search_photos",
+            arguments=json.dumps({
+                "requests": [
+                    {"slot": "hero-banner", "query": "tropical beach resort"},
+                    {"slot": "beach-bag", "query": "summer beach bag product"},
+                ],
+            }),
+        ),
+    )
+    final_html = (
+        '<!DOCTYPE html><html><head></head><body>'
+        f'<img src="{image_url}" alt="Beach">'
+        f'<img src="{second_image_url}" alt="Bag">'
+        '</body></html>'
+    )
+    responses = [
+        _openai_response("", "", "tool_calls", tool_calls=[tool_call]),
+        _openai_response(final_html, "", "stop"),
+    ]
+    calls: list[dict] = []
+
+    def _factory(*args, **kwargs):
+        def _create(**call_kwargs):
+            calls.append(call_kwargs)
+            if len(calls) == 1:
+                assert call_kwargs["tool_choice"] == "required"
+                raise RuntimeError(
+                    "Error code: 400 - {'error': {'code': 'InvalidParameter', "
+                    "'message': 'A parameter specified in the request is not "
+                    "valid'}}"
+                )
+            return responses[len(calls) - 2]
+        return SimpleNamespace(root_client=SimpleNamespace(
+            chat=SimpleNamespace(completions=SimpleNamespace(create=_create))))
+
+    async def _search(arguments, *, max_requests, progress=None, source=None):
+        return [
+            {
+                "id": "photo-test",
+                "slot": "hero-banner",
+                "query": "tropical beach resort",
+                "description": "A tropical beach",
+                "urls": {"small": image_url, "regular": image_url + "?w=1080"},
+                "width": 1080,
+                "height": 1620,
+                "photographer": "Example",
+                "photographer_url": "",
+                "download_location": "",
+            },
+            {
+                "id": "photo-bag",
+                "slot": "beach-bag",
+                "query": "summer beach bag product",
+                "description": "A beach bag",
+                "urls": {
+                    "small": second_image_url,
+                    "regular": second_image_url + "?w=1080",
+                },
+                "width": 1080,
+                "height": 1080,
+                "photographer": "Example",
+                "photographer_url": "",
+                "download_location": "",
+            },
+        ]
+
+    monkeypatch.setattr(app_mod, "image_tool_available", lambda source=None: True)
+    monkeypatch.setattr(app_mod, "call_image_search_batch", _search)
+    monkeypatch.setattr(app_mod, "chat_model_for", _factory)
+    monkeypatch.setattr(app_mod, "LOGS_DIR", tmp_path / "logs")
+    monkeypatch.setattr(app_mod, "load_model_registry", lambda: [
+        ModelConfig(id="kimi-like", provider="openai", api_key="sk-test")
+    ])
+
+    with TestClient(app_mod.app) as client:
+        messages = _parse_stream(client.post(
+            "/api/generate", json={"prompt": "海边度假详情页"}
+        ))
+
+    result = _first_result(messages)
+    assert len(calls) == 3
+    assert calls[0]["tool_choice"] == "required"
+    assert calls[1]["tool_choice"] == "auto"
+    assert calls[2]["tool_choice"] == "none"
+    assert result["error"] is None
+    assert result["status"] == "success"
+    assert result["image_used"] == 2
 
 
 def test_product_prompt_enforces_fallback_slots_and_repairs_image_usage(
@@ -992,7 +1155,7 @@ def test_product_prompt_enforces_fallback_slots_and_repairs_image_usage(
         return SimpleNamespace(root_client=SimpleNamespace(
             chat=SimpleNamespace(completions=SimpleNamespace(create=_create))))
 
-    async def _search(arguments, *, max_requests, progress=None):
+    async def _search(arguments, *, max_requests, progress=None, source=None):
         requests = arguments["requests"]
         assert max_requests == 6
         assert [item["slot"] for item in requests[:4]] == [
@@ -1026,8 +1189,8 @@ def test_product_prompt_enforces_fallback_slots_and_repairs_image_usage(
         assert all(url in html for url in photo_urls)
         return 4
 
-    monkeypatch.setattr(app_mod, "image_tool_available", lambda: True)
-    monkeypatch.setattr(app_mod, "call_unsplash_mcp_batch", _search)
+    monkeypatch.setattr(app_mod, "image_tool_available", lambda source=None: True)
+    monkeypatch.setattr(app_mod, "call_image_search_batch", _search)
     monkeypatch.setattr(app_mod, "track_used_photos", _track)
     monkeypatch.setattr(app_mod, "chat_model_for", _factory)
     monkeypatch.setattr(app_mod, "LOGS_DIR", tmp_path / "logs")
@@ -1069,7 +1232,7 @@ def test_run_image_batch_cache_deduplicates_parallel_models(monkeypatch) -> None
         "orientation": "landscape",
     }]
 
-    async def _search(arguments, *, max_requests, progress=None):
+    async def _search(arguments, *, max_requests, progress=None, source=None):
         calls.append((arguments["requests"], max_requests))
         await asyncio.sleep(0)
         if progress is not None:
@@ -1084,7 +1247,7 @@ def test_run_image_batch_cache_deduplicates_parallel_models(monkeypatch) -> None
             cache.search(requests, max_requests=6),
         )
 
-    monkeypatch.setattr(app_mod, "call_unsplash_mcp_batch", _search)
+    monkeypatch.setattr(app_mod, "call_image_search_batch", _search)
     results = asyncio.run(_exercise())
     assert len(calls) == 1
     assert len(results) == 3
@@ -1221,8 +1384,8 @@ def test_image_search_failure_is_degraded_not_success(monkeypatch, tmp_path) -> 
     async def _search(*args, **kwargs):
         raise ImageToolError("403 Forbidden: Rate Limit Exceeded")
 
-    monkeypatch.setattr(app_mod, "image_tool_available", lambda: True)
-    monkeypatch.setattr(app_mod, "call_unsplash_mcp_batch", _search)
+    monkeypatch.setattr(app_mod, "image_tool_available", lambda source=None: True)
+    monkeypatch.setattr(app_mod, "call_image_search_batch", _search)
     monkeypatch.setattr(app_mod, "chat_model_for", _factory)
     monkeypatch.setattr(app_mod, "LOGS_DIR", tmp_path / "logs")
     monkeypatch.setattr(app_mod, "load_model_registry", lambda: [
@@ -1268,7 +1431,7 @@ def test_non_openai_provider_preplans_required_images(monkeypatch, tmp_path) -> 
 
     searches: list[list[dict]] = []
 
-    async def _search(arguments, *, max_requests, progress=None):
+    async def _search(arguments, *, max_requests, progress=None, source=None):
         searches.append(arguments["requests"])
         if progress is not None:
             for index, request in enumerate(arguments["requests"]):
@@ -1286,8 +1449,8 @@ def test_non_openai_provider_preplans_required_images(monkeypatch, tmp_path) -> 
     async def _track(photos, html):
         return 1
 
-    monkeypatch.setattr(app_mod, "image_tool_available", lambda: True)
-    monkeypatch.setattr(app_mod, "call_unsplash_mcp_batch", _search)
+    monkeypatch.setattr(app_mod, "image_tool_available", lambda source=None: True)
+    monkeypatch.setattr(app_mod, "call_image_search_batch", _search)
     monkeypatch.setattr(app_mod, "track_used_photos", _track)
     monkeypatch.setattr(app_mod, "chat_model_for", lambda *_: FakeProviderChat())
     monkeypatch.setattr(app_mod, "LOGS_DIR", tmp_path / "logs")
@@ -1424,7 +1587,7 @@ def test_used_unsplash_image_without_attribution_is_allowed(
         return SimpleNamespace(root_client=SimpleNamespace(
             chat=SimpleNamespace(completions=SimpleNamespace(create=_create))))
 
-    async def _search(arguments, *, max_requests, progress=None):
+    async def _search(arguments, *, max_requests, progress=None, source=None):
         return [{
             "id": "no-credit",
             "slot": "hero",
@@ -1435,8 +1598,8 @@ def test_used_unsplash_image_without_attribution_is_allowed(
             "download_location": "https://api.unsplash.com/photos/no-credit/download",
         }]
 
-    monkeypatch.setattr(app_mod, "image_tool_available", lambda: True)
-    monkeypatch.setattr(app_mod, "call_unsplash_mcp_batch", _search)
+    monkeypatch.setattr(app_mod, "image_tool_available", lambda source=None: True)
+    monkeypatch.setattr(app_mod, "call_image_search_batch", _search)
     monkeypatch.setattr(app_mod, "chat_model_for", _factory)
     monkeypatch.setattr(app_mod, "LOGS_DIR", tmp_path / "logs")
     monkeypatch.setattr(app_mod, "load_model_registry", lambda: [
@@ -1494,7 +1657,7 @@ def test_tool_model_invented_image_url_warns_without_blocking_preview(
         return SimpleNamespace(root_client=SimpleNamespace(
             chat=SimpleNamespace(completions=SimpleNamespace(create=_create))))
 
-    async def _search(arguments, *, max_requests, progress=None):
+    async def _search(arguments, *, max_requests, progress=None, source=None):
         return [{
             "id": "approved",
             "slot": "profile-avatar",
@@ -1505,8 +1668,8 @@ def test_tool_model_invented_image_url_warns_without_blocking_preview(
             "download_location": "https://api.unsplash.com/photos/approved/download",
         }]
 
-    monkeypatch.setattr(app_mod, "image_tool_available", lambda: True)
-    monkeypatch.setattr(app_mod, "call_unsplash_mcp_batch", _search)
+    monkeypatch.setattr(app_mod, "image_tool_available", lambda source=None: True)
+    monkeypatch.setattr(app_mod, "call_image_search_batch", _search)
     monkeypatch.setattr(app_mod, "chat_model_for", _factory)
     monkeypatch.setattr(app_mod, "LOGS_DIR", tmp_path / "logs")
     monkeypatch.setattr(app_mod, "load_model_registry", lambda: [
@@ -1542,7 +1705,7 @@ def test_image_tool_can_be_declined(monkeypatch, tmp_path) -> None:
         return SimpleNamespace(root_client=SimpleNamespace(
             chat=SimpleNamespace(completions=SimpleNamespace(create=_create))))
 
-    monkeypatch.setattr(app_mod, "image_tool_available", lambda: True)
+    monkeypatch.setattr(app_mod, "image_tool_available", lambda source=None: True)
     monkeypatch.setattr(app_mod, "chat_model_for", _factory)
     monkeypatch.setattr(app_mod, "LOGS_DIR", tmp_path / "logs")
     monkeypatch.setattr(app_mod, "load_model_registry", lambda: [

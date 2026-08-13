@@ -10,11 +10,18 @@
 # ============================================================
 
 # --- run options ---
-# max_tokens / request_timeout 留空即不限制（用模型自身默认）
+# max_tokens / request_timeout 留空即不限制（用模型自身默认）。
+# 注意：很多网关的默认输出上限只有 ~4k token，不够生成完整页面，会触发
+# finish_reason=length 截断；建议显式设置 max_tokens: 16384。
 options:
   temperature: 0.0
-  # 可选：安装本地 Unsplash MCP 并设置 UNSPLASH_ACCESS_KEY 后启用图片工具。
+  max_tokens: 16384
   image_tools_enabled: true
+  # 图片来源（页面上的“离线图库 / 在线搜索”开关可按次覆盖此默认值）：
+  #   local    本地离线图库（默认）。先运行 python tools/build_gallery.py 建库，
+  #            分类与搜索词在 tools/gallery_topics.yaml 里维护。
+  #   unsplash 实时搜索。需安装 .mcp/unsplash-mcp-server 并配置 UNSPLASH_ACCESS_KEY。
+  image_source: local
   image_tool_timeout: 90
   # 单次工具调用可按语义槽位获取的图片数（1-8）。
   image_tool_max_assets: 6

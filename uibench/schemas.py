@@ -11,6 +11,8 @@ Provider = Literal["openai", "anthropic", "google", "deepseek"]
 Mode = Literal["mobile", "pc"]
 ResultStatus = Literal["success", "degraded", "failed"]
 ArkUiExportMode = Literal["annotated", "generic"]
+# "" means "use options.image_source from config/models.yaml".
+ImageSource = Literal["", "local", "unsplash"]
 
 
 class ModelConfig(BaseModel):
@@ -67,6 +69,7 @@ class GenerationResult(BaseModel):
     image_tracked: int = 0
     image_repaired: bool = False
     image_error: str = ""
+    image_source: str = ""
     arkui_export_enabled: bool = False
     arkui_manifest: dict[str, object] = Field(default_factory=dict)
     log_url: str = ""
@@ -80,6 +83,9 @@ class GenerateRequest(BaseModel):
     prompt: str = Field(min_length=1)
     mode: Mode = "mobile"
     arkui_export_enabled: bool = False
+    # Per-run override of the configured photo source (offline gallery vs
+    # live Unsplash search); empty keeps the config default.
+    image_source: ImageSource = ""
 
 
 class ArkUiExportRequest(BaseModel):

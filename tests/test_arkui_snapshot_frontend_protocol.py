@@ -306,6 +306,32 @@ def test_snapshot_runtime_preserves_canvas_and_promotes_only_a_plain_color() -> 
     assert "computed.backgroundColor = canvasBackground.backgroundColor" in runtime
 
 
+def test_snapshot_runtime_can_read_local_gallery_photos() -> None:
+    """The offline gallery is served over http from this same server, and the
+    capture frame is sandboxed without allow-same-origin, so the asset reader
+    must accept http and request it through CORS. Otherwise every exported
+    project ships without the photos the page actually renders."""
+    runtime = _function_source("arkuiSnapshotRuntime", "arkuiSnapshotBootstrap")
+
+    assert "var networkProtocols = ['https:', 'http:']" in runtime
+    assert "networkProtocols.concat(['data:', 'blob:'])" in runtime
+    assert "mode: networkProtocols.includes(parsed.protocol) ? 'cors'" in runtime
+    assert "mode: parsed.protocol === 'https:' ? 'cors'" not in runtime
+
+
+def test_gallery_static_mount_allows_opaque_origin_reads() -> None:
+    from fastapi.testclient import TestClient
+
+    photos = sorted(app_mod.GALLERY_DIR.rglob("*.jpg"))
+    if not photos:  # gallery not built in this environment
+        return
+    relative = photos[0].relative_to(app_mod.GALLERY_DIR).as_posix()
+    with TestClient(app_mod.app) as client:
+        response = client.get(f"/gallery/{relative}")
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == "*"
+
+
 def test_snapshot_runtime_visibility_includes_ancestor_render_state() -> None:
     runtime = _function_source("arkuiSnapshotRuntime", "arkuiSnapshotBootstrap")
 

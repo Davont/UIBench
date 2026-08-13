@@ -26,8 +26,9 @@ UIBench 只干一件事：
 - **逐模型容错**：某个模型缺 key 或报错，只在该卡片上显示错误，不影响其他模型。
 - **多风格主题 Token**：移动端新生成结果使用统一的语义 Design Token，同一份 HTML
   可以在 HarmonyOS、Spotify、Netflix、Notion 之间迁移，并切换白天/黑夜。
-- **AI 可选真实图片**：模型可按需调用本地 Unsplash MCP 搜图，获取结果后再生成
-  HTML；不需要图片或工具失败时自动使用 Token 占位，不影响页面生成。
+- **AI 可选真实图片**：模型可按需调用 `search_photos` 获取摄影图片，默认走
+  完全离线的本地分类图库（毫秒级、可复现、无外网依赖），也可切换为 Unsplash
+  MCP 实时搜索；不需要图片或工具失败时自动使用 Token 占位，不影响页面生成。
 
 ---
 
@@ -41,8 +42,11 @@ UIBench/
 ├── package-lock.json          # 可复现、可离线的 Node 安装锁
 ├── vendor/html-to-arkui/      # 内置转换器 tgz、哈希及来源清单
 ├── app.py                     # FastAPI 应用 + 单页 UI（核心入口）
+├── assets/gallery/            # 本地图库（生成物，Git 忽略，可随时重建）
 ├── tools/
-│   └── arkui-export.mjs       # html-to-arkui JSON 子进程桥
+│   ├── arkui-export.mjs       # html-to-arkui JSON 子进程桥
+│   ├── gallery_topics.yaml    # 图库分类/搜索词/匹配词（纯数据）
+│   └── build_gallery.py       # 一次性建库脚本（Unsplash → assets/gallery）
 ├── config/
 │   ├── __init__.py
 │   ├── settings.py            # 读取 models.yaml 的运行参数
@@ -51,7 +55,8 @@ UIBench/
 │   ├── __init__.py
 │   ├── schemas.py             # pydantic 数据模型
 │   ├── models.py              # LangChain 聊天模型工厂
-│   ├── image_tools.py         # 跨供应商图片规划 + Unsplash MCP 客户端
+│   ├── image_tools.py         # 图片工具契约 + 双源分发（本地图库 / Unsplash MCP）
+│   ├── local_gallery.py       # 本地图库 manifest 加载与关键词匹配
 │   ├── prompts.py             # 移动端 UI 生成 Prompt
 │   ├── pc.py                  # PC 端 Prompt 与渲染适配
 │   ├── arkui/                 # UIBench 标注、Screen IR 与 ArkTS 导出适配层
@@ -157,48 +162,61 @@ URL 解析：`base_url`。某个模型若 key 缺失或被端点拒绝，只在�
 
 ---
 
-## Unsplash MCP 图片接入（可选）
+## 图片素材（本地图库为主，Unsplash 实时搜索备选）
 
-UIBench 使用社区项目
-[`hellokaton/unsplash-mcp-server`](https://github.com/hellokaton/unsplash-mcp-server)
-执行搜图。MCP 通过 stdio 运行，**无需手动常驻启动**：当 OpenAI 兼容模型发起
-`search_photos`，或其他供应商命中明确的图片需求时，UIBench 会自动启动子进程、搜图、回传结果，
-调用结束后自动退出。
+模型通过统一的 `search_photos` 工具按具名槽位申请图片；图片来自哪个源由
+`config/models.yaml` 的 `options.image_source` 决定（页面顶部还有
+“离线图库 / 在线搜索”开关，可按次覆盖该默认值，选择会记忆在浏览器里；
+每张结果卡片会标注本次用的是“本地图片”还是“在线图片”），模型侧无感知：
+
+- **`local`（默认，推荐）**：完全离线的本地分类图库。搜索毫秒级返回，页面渲染时
+  图片走同源 `/gallery/...`，不依赖外网、无 API 限流，同一需求每次拿到的图片
+  确定，方便模型间公平对比。
+- **`unsplash`**：通过本地 stdio MCP 实时搜索 Unsplash，图片更贴合具体需求，
+  但受网络与 50 次/小时配额限制。
+
+### 构建本地图库（一次性）
+
+分类、搜索词与匹配关键词全部维护在 `tools/gallery_topics.yaml`（纯数据，
+与运行时代码解耦）；脚本从 Unsplash 拉图并生成
+`assets/gallery/manifest.json`，运行时只读这份 manifest：
 
 ```bash
-# 1. 把 MCP 安装在已忽略的本地目录
+# .env 写入 UNSPLASH_ACCESS_KEY（只有建库需要，运行时不需要）
+python tools/build_gallery.py               # 全量建库（默认 10 类约 120 张 / 20+MB）
+python tools/build_gallery.py -c food       # 只重建某分类
+python tools/build_gallery.py --refresh-manifest  # 只按 yaml 更新匹配词，不联网
+```
+
+图库目录被 Git 忽略，可随时重建；想扩充分类或调整匹配词，改 yaml 重跑即可，
+无需改代码。
+
+### Unsplash 实时搜索（可选备选）
+
+```bash
 git clone https://github.com/hellokaton/unsplash-mcp-server.git \
   .mcp/unsplash-mcp-server
 uv sync --project .mcp/unsplash-mcp-server
-
-# 2. 在项目根目录 .env 中写入 Unsplash Access Key
-UNSPLASH_ACCESS_KEY=your_access_key
+# .env: UNSPLASH_ACCESS_KEY=your_access_key
+# config/models.yaml: options.image_source: unsplash
 ```
 
-然后在 `config/models.yaml` 的 `options` 中开启：
+### 行为约定（两种源一致）
 
-```yaml
-image_tools_enabled: true
-image_tool_timeout: 90
-image_tool_max_assets: 6
-```
-
-启动 UIBench 后，普通页面由模型判断是否需要摄影图片；商城、餐饮、酒店等图片密集
-场景会由应用强制建立图片槽位。完整链路是：
+普通页面由模型判断是否需要摄影图片；商城、餐饮、酒店等图片密集场景会由应用
+强制建立图片槽位。完整链路是：
 
 ```text
-用户需求 → 模型/应用规划图片槽位 → UIBench 启动 MCP → Unsplash 批量搜索
-         → 同轮模型共享图片库 → 模型输出 HTML → 使用不足时自动修复一次
+用户需求 → 模型/应用规划图片槽位 → 图片源解析（本地 manifest 匹配 / MCP 搜索）
+         → 同轮模型共享图片批次 → 模型输出 HTML → 使用不足时自动修复一次
 ```
 
-UIBench 优先使用图片工具返回的 `images.unsplash.com` HTTPS 图片。每个模型最多发起一次
-`search_photos` 工具调用，但可在一次调用中按具名视觉槽位批量搜索最多
-`image_tool_max_assets` 张图片。同一次对比运行会复用相同批次，避免五个模型重复消耗
-Unsplash 配额；模型必须把返回图片用于对应槽位。摄影师信息缺失不会阻止图片生成或
-页面预览。模型自行生成远程图片 URL、动态图片绑定或图片数量不足时只显示“图片异常”
-告警，仍会保留并渲染完整 HTML，不设置预览阻断门槛。需求中明确写出的数量（如“生成
-5 张肖像图”）会直接成为槽位数量，并受
-`image_tool_max_assets` 上限约束。Access Key、
+每个模型最多发起一次 `search_photos` 工具调用，可在一次调用中按具名视觉槽位
+批量获取最多 `image_tool_max_assets` 张图片。同一次对比运行复用相同批次；模型
+必须把返回图片用于对应槽位，只能引用工具返回的 URL。模型自行编造图片 URL、
+动态图片绑定或图片数量不足时只显示“图片异常”告警，仍会保留并渲染完整 HTML，
+不设置预览阻断门槛。需求中明确写出的数量（如“生成 5 张肖像图”）会直接成为
+槽位数量，并受 `image_tool_max_assets` 上限约束。Access Key、图库目录、
 MCP 目录和真实模型配置均被 Git 忽略，不会提交到 fork 仓库。
 
 ---

@@ -26,6 +26,7 @@ from fastapi.responses import (
     Response,
     StreamingResponse,
 )
+from fastapi.staticfiles import StaticFiles
 from langchain_core.messages import HumanMessage
 
 from config import settings
@@ -53,17 +54,20 @@ from uibench.design_tokens import (
 )
 from uibench.models import chat_model_for, load_model_registry
 from uibench.image_tools import (
-    UNSPLASH_TOOL,
+    IMAGE_SEARCH_TOOL,
     approved_image_urls,
-    call_unsplash_mcp_batch,
+    call_image_search_batch,
     distinct_used_photos,
     image_resource_urls,
     image_tool_available,
     image_tool_result_for_model,
+    image_tool_unavailable_reason,
     image_search_requests,
+    resolve_image_source,
     track_used_photos,
     unresolved_image_bindings,
 )
+from uibench.local_gallery import GALLERY_DIR
 from uibench.pc import inject_pc_bootstrap
 from uibench.prompts import prompt_for
 from uibench.schemas import (
@@ -74,6 +78,31 @@ from uibench.schemas import (
 )
 
 app = FastAPI(title="UIBench", version="0.5.0")
+
+
+class _CorsStaticFiles(StaticFiles):
+    """Static files readable from the sandboxed, opaque-origin capture iframe.
+
+    The ArkUI snapshot iframe has no allow-same-origin, so even a /gallery
+    path is a cross-origin fetch for it. Without these headers the exporter
+    silently drops every photo and ships a project with no media.
+    """
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers.update(_GALLERY_CORS)
+        return response
+
+
+_GALLERY_CORS = {"Access-Control-Allow-Origin": "*"}
+# The offline photo gallery (assets/gallery) renders inside srcdoc iframes via
+# same-origin /gallery/... URLs. check_dir=False lets the server start before
+# tools/build_gallery.py has been run for the first time.
+app.mount(
+    "/gallery",
+    _CorsStaticFiles(directory=GALLERY_DIR, check_dir=False),
+    name="gallery",
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 LOGS_DIR = PROJECT_ROOT / "logs"
@@ -126,7 +155,7 @@ ImageProgressCallback = Callable[[int, int, str], Awaitable[None]]
 
 
 class RunImageBatchCache:
-    """Deduplicate identical Unsplash batches across models in one run."""
+    """Deduplicate identical image batches across models in one run."""
 
     def __init__(self) -> None:
         self._lock = asyncio.Lock()
@@ -150,9 +179,14 @@ class RunImageBatchCache:
     async def search(
         self, requests: list[dict], *, max_requests: int,
         progress: ImageProgressCallback | None = None,
+        source: str | None = None,
     ) -> list[dict]:
         key = json.dumps(
-            {"requests": requests, "max_requests": max_requests},
+            {
+                "requests": requests,
+                "max_requests": max_requests,
+                "source": resolve_image_source(source),
+            },
             ensure_ascii=False,
             sort_keys=True,
         )
@@ -163,12 +197,13 @@ class RunImageBatchCache:
                 state = self._state.get(key)
             task = self._tasks.get(key)
             if task is None:
-                task = asyncio.create_task(call_unsplash_mcp_batch(
+                task = asyncio.create_task(call_image_search_batch(
                     {"requests": requests},
                     max_requests=max_requests,
                     progress=lambda completed, total, slot: self._broadcast(
                         key, completed, total, slot
                     ),
+                    source=source,
                 ))
                 self._tasks[key] = task
         if progress is not None and state is not None:
@@ -343,6 +378,20 @@ def _tooling_not_supported(exc: Exception) -> bool:
         "unrecognized", "not allowed",
     ))
     return mentions_tooling and rejected
+
+
+def _tool_choice_rejected(exc: Exception) -> bool:
+    """Detect gateways that reject tool_choice="required" with a vague 400.
+
+    The Ark coding gateway (e.g. Kimi) accepts tools with tool_choice="auto"
+    but returns a generic InvalidParameter error for "required". Downgrading
+    is safe: the application still enforces photo slots through the
+    deterministic fallback plan when a model skips the tool call.
+    """
+    text = str(exc).lower()
+    if "tool_choice" in text:
+        return True
+    return "invalid" in text and "parameter" in text
 
 
 def _minimum_photo_slots(prompt_text: str) -> int:
@@ -712,9 +761,11 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
                         arkui_export_enabled: bool = False,
                         progress: ProgressCallback | None = None,
                         image_cache: RunImageBatchCache | None = None,
+                        image_source: str = "",
                         ) -> GenerationResult:
     """Call one model (in a worker thread) and return its rendered result."""
     start = time.perf_counter()
+    effective_image_source = resolve_image_source(image_source or None)
 
     async def report(stage: str, message: str) -> None:
         """Emit a safe lifecycle summary without exposing model reasoning."""
@@ -784,12 +835,14 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
                     requests,
                     max_requests=settings.image_tool_max_assets,
                     progress=image_progress,
+                    source=effective_image_source,
                 )
             else:
-                photos = await call_unsplash_mcp_batch(
+                photos = await call_image_search_batch(
                     {"requests": requests},
                     max_requests=settings.image_tool_max_assets,
                     progress=image_progress,
+                    source=effective_image_source,
                 )
             image_photos.extend(photos)
             result_text = image_tool_result_for_model(photos)
@@ -819,9 +872,9 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
             mode,
             arkui_export_enabled=arkui_export_enabled,
         ).invoke({"prompt": prompt_text})
-        images_available = image_tool_available()
+        images_available = image_tool_available(effective_image_source)
         if minimum_photo_slots and not images_available:
-            image_error = "图片工具未安装、未启用或缺少 UNSPLASH_ACCESS_KEY"
+            image_error = image_tool_unavailable_reason(effective_image_source)
         await report("generating", "正在请求模型，等待生成")
 
         # For OpenAI-compatible models, call the underlying openai client
@@ -848,7 +901,7 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
                 kwargs["reasoning_effort"] = effort
                 kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
             if images_available:
-                kwargs["tools"] = [UNSPLASH_TOOL]
+                kwargs["tools"] = [IMAGE_SEARCH_TOOL]
                 kwargs["tool_choice"] = (
                     "required" if minimum_photo_slots else "auto"
                 )
@@ -858,16 +911,35 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
                 )
             except Exception as exc:
                 # Some OpenAI-compatible providers implement chat completions
-                # but not function calling. Fall back only for an explicit
-                # tooling rejection; authentication/network/model errors must
+                # but not function calling, and some reject only
+                # tool_choice="required". Fall back progressively for explicit
+                # tooling rejections; authentication/network/model errors must
                 # remain visible to the user.
-                if not ("tools" in kwargs and _tooling_not_supported(exc)):
+                if (
+                    kwargs.get("tool_choice") == "required"
+                    and _tool_choice_rejected(exc)
+                ):
+                    kwargs["tool_choice"] = "auto"
+                    try:
+                        raw = await asyncio.to_thread(
+                            root_client.chat.completions.create, **kwargs
+                        )
+                    except Exception as auto_exc:
+                        if not _tooling_not_supported(auto_exc):
+                            raise
+                        kwargs.pop("tools", None)
+                        kwargs.pop("tool_choice", None)
+                        raw = await asyncio.to_thread(
+                            root_client.chat.completions.create, **kwargs
+                        )
+                elif "tools" in kwargs and _tooling_not_supported(exc):
+                    kwargs.pop("tools", None)
+                    kwargs.pop("tool_choice", None)
+                    raw = await asyncio.to_thread(
+                        root_client.chat.completions.create, **kwargs
+                    )
+                else:
                     raise
-                kwargs.pop("tools", None)
-                kwargs.pop("tool_choice", None)
-                raw = await asyncio.to_thread(
-                    root_client.chat.completions.create, **kwargs
-                )
 
             generation_messages = list(oai_messages)
             await report("processing", "已收到模型响应，正在整理 HTML")
@@ -907,8 +979,8 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
                 # model sends one legacy broad query or too few named slots.
                 # Every model in a comparison run uses the same deterministic
                 # plan for required photography. This makes the run-level cache
-                # effective and avoids multiplying Unsplash requests by the
-                # number of models.
+                # effective and avoids multiplying image-source requests by
+                # the number of models.
                 planned_requests: list[dict] = []
                 try:
                     planned_requests = image_search_requests(
@@ -977,11 +1049,16 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
                 final_kwargs = dict(kwargs)
                 final_kwargs["messages"] = generation_messages
                 if tool_payloads:
-                    final_kwargs["tools"] = [UNSPLASH_TOOL]
+                    final_kwargs["tools"] = [IMAGE_SEARCH_TOOL]
                     final_kwargs["tool_choice"] = "none"
                 else:
                     final_kwargs.pop("tools", None)
                     final_kwargs.pop("tool_choice", None)
+                # The second generation is the longest phase of the run. Without
+                # this the card would keep showing the image-search counter for
+                # minutes and look frozen, which is worst with the local gallery
+                # because its search finishes instantly.
+                await report("generating", "图片已就绪，正在生成 HTML")
                 try:
                     raw = await asyncio.to_thread(
                         root_client.chat.completions.create, **final_kwargs
@@ -994,7 +1071,7 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
                     raw = await asyncio.to_thread(
                         root_client.chat.completions.create, **final_kwargs
                     )
-                await report("processing", "已收到图片并正在生成 HTML")
+                await report("processing", "已收到模型响应，正在整理 HTML")
                 final_content, final_reasoning, finish_reason, usage = (
                     _openai_response_parts(raw)
                 )
@@ -1151,6 +1228,7 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
                         + result_text
                     )),
                 ]
+                await report("generating", "图片已就绪，正在生成 HTML")
             response = await asyncio.to_thread(chat.invoke, invoke_messages)
             await report("processing", "已收到模型响应，正在整理 HTML")
             content = _as_text(getattr(response, "content", str(response)))
@@ -1264,6 +1342,7 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
             image_tracked=image_tracked,
             image_repaired=image_repaired,
             image_error=image_error,
+            image_source=effective_image_source,
             arkui_export_enabled=(mode == "mobile" and arkui_export_enabled),
             arkui_manifest=arkui_manifest,
             log_url=f"/api/log/{run_id}/{key}",
@@ -1310,6 +1389,7 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
             image_tracked=image_tracked,
             image_repaired=image_repaired,
             image_error=image_error,
+            image_source=effective_image_source,
             arkui_export_enabled=(mode == "mobile" and arkui_export_enabled),
             arkui_manifest=arkui_manifest,
             log_url=f"/api/log/{run_id}/{key}",
@@ -1375,6 +1455,7 @@ async def generate(req: GenerateRequest):
                 req.arkui_export_enabled,
                 progress=progress,
                 image_cache=image_cache,
+                image_source=req.image_source,
             )
             await queue.put({"type": "result", "result": result})
 
@@ -1875,6 +1956,12 @@ INDEX_HTML = """<!DOCTYPE html>
       <button type="button" data-hm-symbol="lucide" class="active">Lucide 图标</button>
       <button type="button" data-hm-symbol="harmony">鸿蒙图标</button>
     </div>
+    <div class="seg image-source" id="image-source" aria-label="图片来源">
+      <button type="button" data-image-source="local" class="active"
+        title="从本地图库取图：毫秒级、可复现、无外网依赖">离线图库</button>
+      <button type="button" data-image-source="unsplash"
+        title="实时搜索 Unsplash：更贴合需求，但依赖网络与 API 配额">在线搜索</button>
+    </div>
     <label class="arkui-option" id="arkui-option">
       <input id="arkui-export" type="checkbox">
       生成 ArkUI 可导出元数据
@@ -1897,6 +1984,7 @@ const modeEl = document.getElementById('mode');
 const themeEl = document.getElementById('theme');
 const tokenThemeEl = document.getElementById('token-theme');
 const hmSymbolModeEl = document.getElementById('hm-symbol-mode');
+const imageSourceEl = document.getElementById('image-source');
 const arkuiOptionEl = document.getElementById('arkui-option');
 const arkuiExportEl = document.getElementById('arkui-export');
 
@@ -1912,6 +2000,24 @@ let currentTokenTheme = tokenThemes.includes(savedTokenTheme) ? savedTokenTheme 
 // mode paints the exact device glyphs the export will produce. Snapshot
 // capture always forces the HarmonyOS mode regardless of this toggle.
 let hmSymbolPreview = localStorage.getItem('uibench-preview-hm-symbol') === 'harmony';
+// Photo source toggle: offline gallery (default) vs live Unsplash search.
+// Falls back to the server-configured default until the user picks one.
+const imageSources = ['local', 'unsplash'];
+const savedImageSource = localStorage.getItem('uibench-image-source');
+let currentImageSource = imageSources.includes(savedImageSource)
+  ? savedImageSource
+  : ('__UIBENCH_IMAGE_SOURCE__' === 'unsplash' ? 'unsplash' : 'local');
+function setImageSource(source) {
+  currentImageSource = source;
+  localStorage.setItem('uibench-image-source', source);
+  imageSourceEl.querySelectorAll('button').forEach(b => {
+    b.classList.toggle('active', b.dataset.imageSource === source);
+  });
+}
+imageSourceEl.querySelectorAll('button').forEach(b => {
+  b.addEventListener('click', () => setImageSource(b.dataset.imageSource));
+});
+setImageSource(currentImageSource);
 const pcFrames = [];  // [{wrap, iframe}] to rescale on resize
 const previewFrames = [];  // mobile frames rerendered when mode/design system changes
 const cardTimers = new Map();
@@ -1940,10 +2046,11 @@ function formatSeconds(seconds) {
 
 function resultTimeSuffix(result) {
   const parts = [];
+  const sourceLabel = result.image_source === 'unsplash' ? '在线' : '本地';
   if (Number(result.image_required) > 0) {
-    parts.push('图片 ' + Number(result.image_used || 0) + '/' + Number(result.image_required));
+    parts.push(sourceLabel + '图片 ' + Number(result.image_used || 0) + '/' + Number(result.image_required));
   } else if (Number(result.image_count) > 0) {
-    parts.push('Unsplash ' + result.image_count + ' 张');
+    parts.push(sourceLabel + '图片 ' + result.image_count + ' 张');
   }
   if (result.image_repaired) parts.push('图片已修复');
   if (result.image_error) parts.push('图片检索失败');
@@ -2243,7 +2350,8 @@ form.addEventListener('submit', async (e) => {
       body: JSON.stringify({
         prompt,
         mode: currentMode,
-        arkui_export_enabled: currentMode === 'mobile' && arkuiExportEl.checked
+        arkui_export_enabled: currentMode === 'mobile' && arkuiExportEl.checked,
+        image_source: currentImageSource
       })
     });
     if (!resp.ok) {
@@ -2851,7 +2959,11 @@ function arkuiSnapshotRuntime(captureSession) {
 
   async function fetchAssetBytes(source) {
     var parsed = new URL(source, document.baseURI);
-    if (!['https:', 'data:', 'blob:'].includes(parsed.protocol)) {
+    // http: covers the local gallery served by UIBench itself over
+    // http://127.0.0.1. This frame is sandboxed without allow-same-origin,
+    // so every network read is cross-origin and must go through CORS.
+    var networkProtocols = ['https:', 'http:'];
+    if (!networkProtocols.concat(['data:', 'blob:']).includes(parsed.protocol)) {
       throw new Error('unsupported resource protocol');
     }
     var controller = new AbortController();
@@ -2859,7 +2971,7 @@ function arkuiSnapshotRuntime(captureSession) {
     try {
       var response = await fetch(parsed.href, {
         credentials: 'omit',
-        mode: parsed.protocol === 'https:' ? 'cors' : 'same-origin',
+        mode: networkProtocols.includes(parsed.protocol) ? 'cors' : 'same-origin',
         referrerPolicy: 'no-referrer',
         signal: controller.signal
       });
@@ -3476,6 +3588,7 @@ INDEX_HTML = (
         "__UIBENCH_MOBILE_VIEWPORT_HEIGHT__",
         str(MOBILE_VIEWPORT_HEIGHT),
     )
+    .replace("__UIBENCH_IMAGE_SOURCE__", settings.image_source)
 )
 
 

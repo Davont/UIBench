@@ -1,4 +1,14 @@
-"""Optional Unsplash image tool backed by a local stdio MCP server."""
+"""Photo search tool for generated pages.
+
+Two interchangeable sources sit behind one ``search_photos`` tool contract:
+
+- ``local`` (default): the categorized offline gallery built by
+  ``tools/build_gallery.py`` (see ``uibench.local_gallery``).
+- ``unsplash``: the optional stdio MCP server calling the Unsplash API.
+
+``options.image_source`` in ``config/models.yaml`` selects the source; the
+model-facing schema and photo payload shape are identical for both.
+"""
 from __future__ import annotations
 
 import asyncio
@@ -24,6 +34,11 @@ except ImportError:
     pass
 
 from config import settings
+from uibench.local_gallery import (
+    GALLERY_URL_PREFIX,
+    gallery_available,
+    search_gallery_photos,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MCP_ROOT = PROJECT_ROOT / ".mcp" / "unsplash-mcp-server"
@@ -33,16 +48,17 @@ MCP_PYTHON_CANDIDATES = (
     MCP_ROOT / ".venv" / "Scripts" / "python.exe",
 )
 
-UNSPLASH_TOOL = {
+IMAGE_SEARCH_TOOL = {
     "type": "function",
     "function": {
         "name": "search_photos",
         "description": (
-            "Search Unsplash for multiple named visual slots in one call. When a UI "
-            "contains a hero plus product/content cards, request a separate slot for "
-            "each major visible photo (for example hero-banner, wireless-headphones, "
-            "smartwatch). Use concise English queries. Do not call for icons, charts, "
-            "decorative gradients, or when photography is unnecessary."
+            "Search the curated photo library for multiple named visual slots in one "
+            "call. When a UI contains a hero plus product/content cards, request a "
+            "separate slot for each major visible photo (for example hero-banner, "
+            "wireless-headphones, smartwatch). Use concise English queries. Do not "
+            "call for icons, charts, decorative gradients, or when photography is "
+            "unnecessary."
         ),
         "parameters": {
             "type": "object",
@@ -188,6 +204,11 @@ def _is_remote_url(value: str) -> bool:
     return value.startswith(("https://", "http://", "//"))
 
 
+def _is_audited_image_url(value: str) -> bool:
+    """URLs the audit tracks: remote resources plus local gallery paths."""
+    return _is_remote_url(value) or value.startswith(GALLERY_URL_PREFIX)
+
+
 def _balanced_js_object(source: str, start: int) -> str | None:
     """Return one JS object literal, or None when it cannot be proven bounded."""
     if start >= len(source) or source[start] != "{":
@@ -321,7 +342,7 @@ def unresolved_image_bindings(html: str) -> tuple[str, ...]:
 
 
 def image_resource_urls(html: str) -> set[str]:
-    """Return remote URLs used in image-bearing HTML/CSS contexts.
+    """Return remote/gallery URLs used in image-bearing HTML/CSS contexts.
 
     This deliberately ignores ordinary links, comments, and script ``src``
     attributes so a URL only counts when the generated page would render it as
@@ -335,11 +356,11 @@ def image_resource_urls(html: str) -> set[str]:
         values = value.split(",") if name == "srcset" else [value]
         for candidate in values:
             url = candidate.strip().split(maxsplit=1)[0]
-            if _is_remote_url(url):
+            if _is_audited_image_url(url):
                 urls.add(url)
     for match in _CSS_URL_RE.finditer(_without_html_comments(html)):
         value = unescape(match.group("value").strip().strip("'\""))
-        if _is_remote_url(value):
+        if _is_audited_image_url(value):
             urls.add(value)
     return urls
 
@@ -351,7 +372,7 @@ def approved_image_urls(photos: list[dict[str, Any]]) -> set[str]:
         for photo in photos
         for name, url in (photo.get("urls") or {}).items()
         if name in {"small", "regular"}
-        if str(url).startswith("https://")
+        if str(url).startswith(("https://", GALLERY_URL_PREFIX))
     }
 
 
@@ -388,6 +409,8 @@ def distinct_used_photos(
 
 
 def _canonical_image_asset(value: str) -> str:
+    if value.startswith(GALLERY_URL_PREFIX):
+        return value.split("?", 1)[0]
     parsed = urlparse("https:" + value if value.startswith("//") else value)
     host = (parsed.hostname or "").lower()
     if host not in _IMAGE_HOSTS or not parsed.path:
@@ -449,14 +472,38 @@ def image_search_requests(
     return requests
 
 
-def image_tool_available() -> bool:
-    """Return whether local configuration is sufficient to offer the tool."""
+def unsplash_mcp_available() -> bool:
+    """Return whether the optional Unsplash MCP source is installed."""
     return bool(
-        settings.image_tools_enabled
-        and os.environ.get("UNSPLASH_ACCESS_KEY")
+        os.environ.get("UNSPLASH_ACCESS_KEY")
         and any(candidate.is_file() for candidate in MCP_PYTHON_CANDIDATES)
         and MCP_SERVER.is_file()
     )
+
+
+def resolve_image_source(source: str | None = None) -> str:
+    """Return the effective photo source: per-run override or config default."""
+    if source in {"local", "unsplash"}:
+        return source
+    return settings.image_source
+
+
+def image_tool_available(source: str | None = None) -> bool:
+    """Return whether the requested image source can serve photos."""
+    if not settings.image_tools_enabled:
+        return False
+    if resolve_image_source(source) == "local":
+        return gallery_available()
+    return unsplash_mcp_available()
+
+
+def image_tool_unavailable_reason(source: str | None = None) -> str:
+    """User-facing explanation for a disabled image tool."""
+    if resolve_image_source(source) == "local":
+        return (
+            "本地图库未构建：先运行 python tools/build_gallery.py 拉取图片"
+        )
+    return "图片工具未安装、未启用或缺少 UNSPLASH_ACCESS_KEY"
 
 
 def _mcp_python() -> Path:
@@ -628,6 +675,30 @@ async def call_unsplash_mcp_batch(
     return await _call_unsplash_requests(
         requests, one_per_slot=True, progress=progress
     )
+
+
+async def call_image_search_batch(
+    arguments: dict[str, Any], *, max_requests: int,
+    progress: ImageSearchProgress | None = None,
+    source: str | None = None,
+) -> list[dict[str, Any]]:
+    """Resolve one named batch through the requested image source."""
+    if resolve_image_source(source) != "local":
+        return await call_unsplash_mcp_batch(
+            arguments, max_requests=max_requests, progress=progress,
+        )
+    requests = image_search_requests(arguments, max_requests=max_requests)
+    photos = search_gallery_photos(requests, max_requests=max_requests)
+    if progress is not None and requests:
+        try:
+            await progress(len(requests), len(requests), requests[-1]["slot"])
+        except Exception:
+            pass
+    if not photos:
+        raise ImageToolError(
+            "本地图库为空或不可读；运行 python tools/build_gallery.py 重建"
+        )
+    return photos
 
 
 async def _call_unsplash_requests(

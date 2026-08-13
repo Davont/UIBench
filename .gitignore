@@ -19,6 +19,9 @@ env/
 .env
 .mcp/
 
+# Local photo gallery (rebuild any time: python tools/build_gallery.py)
+assets/gallery/
+
 # Real model config (contains API keys) - use models.example.yaml as template
 config/models.yaml
 
