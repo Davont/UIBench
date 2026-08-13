@@ -246,6 +246,46 @@ def _grid_entry_children(
     return wrapped
 
 
+def _wrap_document_scroll(
+    screen_ir: dict[str, object], root_node_id: str,
+) -> None:
+    """Give a document-scrolled page the Scroll ArkUI needs to reproduce it.
+
+    A viewport-spanning page root taller than the captured viewport means the
+    browser scrolled the document itself. ArkUI has no document scroll: the
+    page root is pinned to the window, so the overflow would simply be
+    clipped. The root keeps its size and background; its inner layout moves
+    onto a generated content node inside a generated Scroll, which is exactly
+    how such a page is written by hand.
+    """
+    ui = screen_ir["ui"]
+    assert isinstance(ui, dict)
+    root_styles = dict(ui.get("styles") or {})
+    content_styles: dict[str, object] = {"width": "100%"}
+    for key in ("padding", "space", "justifyContent", "alignItems"):
+        if key in root_styles:
+            content_styles[key] = root_styles.pop(key)
+    content: dict[str, object] = {
+        "componentName": ui["componentName"],
+        # Screen IR node ids allow ':', UIBench data-node-id does not, so
+        # these can never collide with an authored id.
+        "meta": {"nodeId": f"{root_node_id}:content"},
+        "styles": content_styles,
+    }
+    if ui.get("children"):
+        content["children"] = ui["children"]
+    if root_styles:
+        ui["styles"] = root_styles
+    else:
+        ui.pop("styles", None)
+    ui["children"] = [{
+        "componentName": "Scroll",
+        "meta": {"nodeId": f"{root_node_id}:scroll"},
+        "styles": {"width": "100%", "height": "100%"},
+        "children": [content],
+    }]
+
+
 def _single_slot_children(
     component_name: str,
     node_id: str,
@@ -581,6 +621,7 @@ def build_screen_ir(
     styles_by_id: dict[str, dict[str, object]] = {}
     generated_text_styles_by_id: dict[str, dict[str, object]] = {}
     component_overrides: dict[int, str] = {}
+    document_scroll_root_id: str | None = None
     included_indices = frozenset(range(len(report.nodes)))
     for parent_index, parent in enumerate(report.nodes):
         if not parent.mixed_symbol_content:
@@ -878,14 +919,15 @@ def build_screen_ir(
             if root_node_id is not None
             else None
         )
+        root_component_name = component_overrides.get(
+            roots[0], report.nodes[roots[0]].arkui_component
+        )
         if (
             root_node_id is not None
             and root_browser_node is not None
             and root_node_id in styles_by_id
             and is_viewport_page_root(
-                component_overrides.get(
-                    roots[0], report.nodes[roots[0]].arkui_component
-                ),
+                root_component_name,
                 root_browser_node,
                 snapshot,
             )
@@ -907,6 +949,25 @@ def build_screen_ir(
                 )
                 if canvas_color is not None:
                     styles_by_id[root_node_id]["backgroundColor"] = canvas_color
+            if (
+                root_component_name in {"Column", "Stack"}
+                and root_browser_node.bbox[3]
+                > snapshot.viewport_height + _VIEWPORT_EDGE_TOLERANCE
+            ):
+                # A root taller than the viewport is the browser's document
+                # scroll; ArkUI clips instead, so the page needs a Scroll.
+                # (A List root scrolls by itself and a Scroll root already
+                # is one, which is why only plain containers qualify.)
+                document_scroll_root_id = root_node_id
+                diagnostics.append(ScreenIrAdapterDiagnostic(
+                    code="UIBENCH_ARKUI_DOCUMENT_SCROLL_SYNTHESIZED",
+                    severity="notice",
+                    message=(
+                        "The browser scrolls this page as a document; the "
+                        "page content was exported inside a generated Scroll"
+                    ),
+                    node_id=root_node_id,
+                ))
         if roots[0] not in included_indices:
             diagnostics.append(ScreenIrAdapterDiagnostic(
                 code="UIBENCH_BROWSER_SNAPSHOT_ROOT_NOT_VISIBLE",
@@ -967,6 +1028,8 @@ def build_screen_ir(
             generated_text_styles_by_id,
         ),
     }
+    if document_scroll_root_id is not None:
+        _wrap_document_scroll(screen_ir, document_scroll_root_id)
     readiness: AdapterReadiness = (
         "lossy"
         if any(item.severity == "warning" for item in diagnostics)

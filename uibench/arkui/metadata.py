@@ -1003,13 +1003,30 @@ class _ComponentMetadataParser(HTMLParser):
             )
             component = None
         elif explicit_value and native_value and explicit_value != native_value:
-            self._diagnostic(
-                "ARKUI_COMPONENT_TAG_CONFLICT",
-                "error",
-                f"<{normalized_tag}> implies {native_value!r}, not {explicit_value!r}",
-                node_id=attributes.get("data-node-id") or None,
-                component=explicit_value,
-            )
+            if explicit_value == "list-item":
+                # A native control annotated as list-item has exactly one
+                # reading: the tag is evidence for what the element is, and
+                # its entry-ness is supplied by the generated ListItem that
+                # Screen IR wraps around plain list children anyway.
+                self._diagnostic(
+                    "ARKUI_LIST_ITEM_READ_AS_NATIVE",
+                    "notice",
+                    f"<{normalized_tag}> annotated as list-item was exported "
+                    f"as {native_value!r}; the list entry itself comes from "
+                    "a generated list-item",
+                    node_id=attributes.get("data-node-id") or None,
+                    component=explicit_value,
+                )
+                component = native_value
+            else:
+                self._diagnostic(
+                    "ARKUI_COMPONENT_TAG_CONFLICT",
+                    "error",
+                    f"<{normalized_tag}> implies {native_value!r}, "
+                    f"not {explicit_value!r}",
+                    node_id=attributes.get("data-node-id") or None,
+                    component=explicit_value,
+                )
 
         if component is not None:
             definition = self.registry.components[component]

@@ -59,7 +59,10 @@ MOBILE_ARKUI_METADATA_INSTRUCTIONS = f"""
   裸写 `flex` 等同于 `flex-row`：图标底座这类只把一个元素居中的方块容器如果写的是
   `flex items-center justify-center`，实际方向就是 row，要标 row 而不是 column。
 - 存在覆盖或绝对定位的容器标为 stack；普通长内容用 scroll 包裹一个实际布局容器，scroll
-  最多只能有一个已标注组件子节点。
+  最多只能有一个已标注组件子节点。scroll 的位置取决于页面形态：有固定顶栏或底部
+  Tab 的页面，scroll 必须放在中间正文区（`flex-1 overflow-y-auto`），固定栏留在
+  scroll 外面，否则它们会跟着内容滚走；整页一起滚动的页面把 scroll 作为根的唯一
+  内容容器；内容确定不超过一屏的页面可以不用 scroll。
 - 同类条目重复出现的列表标为 list，纵向列表和横滑列表都适用：导出按浏览器实际方向
   生成，不需要标注方向，但 list 元素本身要写出真实布局 class（横滑写 `flex flex-row`），
   不要用 `flex-row-reverse` 这类无法表达的方向。每一条用一个 list-item 包起来。

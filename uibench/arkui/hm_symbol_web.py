@@ -4,13 +4,69 @@ The shim replaces the Lucide CDN script inside rendered pages. It keeps the
 authored ``<i data-lucide>`` elements (annotations, node ids and classes stay
 untouched for the snapshot pipeline) and paints each icon exactly the way the
 exported ArkUI project will: exact and near resolutions render the device
-glyph from the extracted ``HMSymbolVF.ttf``; misses stay an empty box of the
+glyph from the extracted HM Symbol font; misses stay an empty box of the
 same size. If the font or manifest is unavailable the shim falls back to the
 real pinned Lucide build, so pages never lose icons outright.
 """
 from __future__ import annotations
 
-from uibench.arkui.symbols import pinned_lucide_version
+import re
+
+from uibench.arkui.symbols import HM_SYMBOL_FONT_FILE, pinned_lucide_version
+
+# The generated pages declare 'HarmonyOS Sans SC' first in --dt-font-family,
+# but without a served font file the browser silently falls back to the host
+# system face (PingFang on macOS), so text metrics drift from the device.
+# Both previewer faces are variable fonts (wght 40-900) repackaged as woff2
+# at extraction time, so one @font-face with a weight range restores every
+# weight the pages use.
+HM_TEXT_FONTS: tuple[tuple[str, str], ...] = (
+    ("HarmonyOS Sans SC", "HarmonyOS_Sans_SC.woff2"),
+    ("HarmonyOS Sans", "HarmonyOS_Sans.woff2"),
+)
+
+
+_HM_FONTS_LINK = '<link rel="stylesheet" href="/hm-fonts.css">'
+_HEAD_TAG_RE = re.compile(r"<head\b[^>]*>", re.IGNORECASE)
+
+
+def inject_hm_fonts_link(html: str) -> str:
+    """Bake the HarmonyOS text-font stylesheet link into a document.
+
+    Generated pages are told to carry the link themselves; this keeps legacy
+    documents on the same footing. The stylesheet is empty when the fonts are
+    not extracted, so the link never breaks a page.
+    """
+    if "hm-fonts.css" in html.lower():
+        return html
+    head = _HEAD_TAG_RE.search(html)
+    if head:
+        return html[:head.end()] + _HM_FONTS_LINK + html[head.end():]
+    return _HM_FONTS_LINK + html
+
+
+def hm_fonts_css() -> str:
+    """Render @font-face rules for the locally extracted HarmonyOS text fonts.
+
+    Only faces that were actually extracted are declared; with none present
+    the stylesheet is empty and pages keep today's system-font fallback.
+    ``font-display: block`` keeps the capture path deterministic: the
+    snapshot runtime already awaits ``document.fonts.ready``.
+    """
+    assets = HM_SYMBOL_FONT_FILE.parent
+    rules = [
+        (
+            "@font-face {\n"
+            f"  font-family: '{family}';\n"
+            f"  src: url('/hm-fonts/{filename}') format('woff2');\n"
+            "  font-weight: 100 900;\n"
+            "  font-display: block;\n"
+            "}"
+        )
+        for family, filename in HM_TEXT_FONTS
+        if (assets / filename).is_file()
+    ]
+    return "\n".join(rules) + ("\n" if rules else "")
 
 # Lucide draws its icons with stroke-width 2 on a 24-unit grid (a stroke
 # ratio of 2/24 = 0.0833 em); the HM Symbol default weight measures 0.0620 em
@@ -36,7 +92,9 @@ _SHIM_TEMPLATE = r"""(function () {
 
   function loadAssets() {
     if (assetsPromise) return assetsPromise;
-    var face = new FontFace(FONT_FAMILY, 'url(/hm-symbol/font.ttf)');
+    var face = new FontFace(
+      FONT_FAMILY, 'url(/hm-symbol/font.woff2) format("woff2")'
+    );
     assetsPromise = Promise.all([
       fetch('/hm-symbol/manifest.json').then(function (response) {
         if (!response.ok) throw new Error('manifest ' + response.status);
@@ -119,4 +177,10 @@ def hm_symbol_shim_js() -> str:
     )
 
 
-__all__ = ["HM_SYMBOL_GLYPH_WEIGHT", "hm_symbol_shim_js"]
+__all__ = [
+    "HM_SYMBOL_GLYPH_WEIGHT",
+    "HM_TEXT_FONTS",
+    "hm_fonts_css",
+    "hm_symbol_shim_js",
+    "inject_hm_fonts_link",
+]

@@ -106,6 +106,8 @@ ArkUI 的 `List` 默认纵向排列，所以导出会按 computed layout 把 `li
 | `list` 直接子节点不是 `list-item` | 每个条目包进一层生成的 `ListItem`，几何不变 | `ARKUI_LIST_CHILD_WRAPPED_AS_ITEM` | notice |
 | `grid` 直接子节点不是 `grid-item` | 每个格子包进一层生成的 `GridItem`，几何不变 | `ARKUI_GRID_CHILD_WRAPPED_AS_ITEM` | notice |
 | `list-item` 不在 `list` 内 | 按 `column` 导出 | `ARKUI_LIST_ITEM_PROMOTED_TO_COLUMN` | notice |
+| 原生控件标成 `list-item`（如 `<button>`） | 按标签原生组件导出，条目由生成的 `ListItem` 承担 | `ARKUI_LIST_ITEM_READ_AS_NATIVE` | notice |
+| 页面靠文档滚动（Column/Stack 根比视口高） | 根内生成 `Scroll` 包裹内容，根保留尺寸与背景 | `UIBENCH_ARKUI_DOCUMENT_SCROLL_SYNTHESIZED` | notice |
 | `Row`/`Column` 与 computed 方向不符 | 按浏览器实际方向导出 | `UIBENCH_ARKUI_LAYOUT_FOLLOWS_BROWSER` | notice |
 | `span` 不在 `text` 内 | 按 `text` 导出 | `ARKUI_SPAN_PROMOTED_TO_TEXT` | notice |
 | `text` 直接包含 `symbol`，且 computed layout 是普通 flex 行/列 | 父节点按实际方向改为 `Row`/`Column`，原始文字片段生成独立 `Text` | `ARKUI_TEXT_SYMBOL_LAYOUT_ADAPTED` | notice |
@@ -290,7 +292,7 @@ python tools/export-hm-symbol-assets.py
 加载器的硬性不变量是：精确表与近似表的**每个映射目标都必须可渲染**，否则拒绝
 加载。
 
-渲染链路：`app.py` 提供 `GET /hm-symbol/font.ttf`、`GET /hm-symbol/manifest.json`
+渲染链路：`app.py` 提供 `GET /hm-symbol/font.woff2`、`GET /hm-symbol/manifest.json`
 （对每个可渲染的 `data-lucide` 值给出 `exact`/`near`/`miss` 三态与码点，与导出解析
 完全同源）与 `GET /hm-symbol.js`。shim 接管 `lucide.createIcons`，**就地**改写
 `<i data-lucide>`：命中画 HM 字形（颜色随 CSS `color`、大小随元素盒、字重随可变
@@ -305,6 +307,16 @@ python tools/export-hm-symbol-assets.py
 `font-weight` 写为经核对的等效值（`HM_SYMBOL_GLYPH_WEIGHT = 600`），快照将其作为
 computed 证据捕获，导出便发出同样的 `SymbolGlyph` 字重——浏览器与设备从同一常量
 一起变厚，导出器无需任何特判。
+
+文本字体同理：页面的 `--dt-font-family` 首选 `'HarmonyOS Sans SC'`，但浏览器没有
+这个字体文件时会静默回退到宿主系统字体（macOS 上是苹方），字宽、行高与换行点因此
+偏离设备。提取工具读取 previewer 的 `HarmonyOS_Sans_SC.ttf` 与 `HarmonyOS_Sans.ttf`
+（均为 wght 40–900 的可变字体），用 fontTools 重封装为同轴可变 woff2 后**只保留
+woff2**（体积约为 TTF 的一半，如 SC 20MB→12MB、符号字体 3.6MB→1.4MB；旧提取的
+TTF 副本会被清理）。`app.py` 通过 `GET /hm-fonts.css`（`@font-face`，未提取时为空）
+与 `GET /hm-fonts/<file>`（仅白名单文件名）提供；生成的 HTML 在 `<head>` 中自带该
+样式表链接（Prompt 合约），服务端与渲染注入器对老页面兜底——所有字重的文本度量
+随之与设备一致。
 
 两种激活方式：**快照采集会话强制启用**（导出保真的定义）；普通预览由工具栏
 「Lucide 图标 / 鸿蒙图标」开关控制，默认 Lucide（benchmark 页面保持原始渲染）。

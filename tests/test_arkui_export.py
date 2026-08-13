@@ -330,6 +330,60 @@ def test_a_page_taller_than_the_viewport_still_exports(root_background: str) -> 
     assert result["screenIr"]["ui"]["styles"]["height"] == "100%"
 
 
+def test_document_scrolled_page_gains_a_generated_scroll() -> None:
+    """A viewport-spanning root taller than the viewport is the browser's
+    document scroll; ArkUI clips instead, so the export synthesizes one."""
+    _require_vendored_converter()
+    payload = _canvas_promotion_snapshot("rgba(0, 0, 0, 0)")
+    payload["nodes"][0]["bbox"] = [0, 0, 390, 1680]  # type: ignore[index]
+    payload["nodes"][0]["computed"]["height"] = "1680px"  # type: ignore[index]
+
+    result = export_annotated_html(
+        CANVAS_PROMOTION_HTML,
+        page_name="TallScrollPage",
+        snapshot=BrowserSnapshot.model_validate(payload),
+        require_snapshot=True,
+    )
+
+    assert result["quality"]["readiness"] == "ready"
+    assert any(
+        item["code"] == "UIBENCH_ARKUI_DOCUMENT_SCROLL_SYNTHESIZED"
+        for item in result["diagnostics"]
+    )
+    ui = result["screenIr"]["ui"]
+    assert ui["componentName"] == "Column"
+    assert ui["styles"]["height"] == "100%"
+    scroll = ui["children"][0]
+    assert scroll["componentName"] == "Scroll"
+    assert scroll["meta"]["nodeId"] == "page:scroll"
+    content = scroll["children"][0]
+    assert content["meta"]["nodeId"] == "page:content"
+    assert content["children"][0]["componentName"] == "Text"
+    assert "Scroll()" in result["arkTs"]
+
+
+def test_viewport_high_page_keeps_its_root_unwrapped() -> None:
+    """A root that exactly spans the viewport does not scroll the document."""
+    _require_vendored_converter()
+    result = export_annotated_html(
+        CANVAS_PROMOTION_HTML,
+        page_name="ExactViewportPage",
+        snapshot=BrowserSnapshot.model_validate(
+            _canvas_promotion_snapshot("rgba(0, 0, 0, 0)")
+        ),
+        require_snapshot=True,
+    )
+
+    ui = result["screenIr"]["ui"]
+    assert all(
+        child["componentName"] != "Scroll"
+        for child in ui.get("children", [])
+    )
+    assert "UIBENCH_ARKUI_DOCUMENT_SCROLL_SYNTHESIZED" not in {
+        item["code"] for item in result["diagnostics"]
+    }
+
+
 def test_canvas_colour_carried_by_the_root_component_exports() -> None:
     _require_vendored_converter()
     result = export_annotated_html(

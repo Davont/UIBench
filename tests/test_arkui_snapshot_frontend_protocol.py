@@ -30,6 +30,9 @@ def test_hm_symbol_shim_is_forced_for_capture_and_optional_for_preview() -> None
     assert inject.index("if (mode === 'mobile')") < inject.index(
         "var hmSymbolActive"
     )
+    # Text metrics follow the device too: the HarmonyOS faces declared by
+    # --dt-font-family are served locally whenever they were extracted.
+    assert '<link rel="stylesheet" href="/hm-fonts.css">' in inject
 
 
 def test_hm_symbol_shim_substitutes_in_place_and_reports_readiness() -> None:

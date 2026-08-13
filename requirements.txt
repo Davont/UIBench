@@ -16,5 +16,9 @@ mcp>=2.0,<3.0
 fastapi>=0.110
 uvicorn>=0.29
 
+# --- Tooling: HM 字体资产提取（tools/export-hm-symbol-assets.py 的 woff2 转换）---
+fonttools>=4.60
+brotli>=1.1
+
 # --- Test ---
 pytest>=8.0

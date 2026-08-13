@@ -34,9 +34,12 @@ from uibench.arkui.symbols import (  # noqa: E402
 )
 
 DEFAULT_DEVECO_STUDIO = Path("/Applications/DevEco-Studio.app")
-FONT_FILE = Path(
-    "Contents/sdk/default/openharmony/previewer/common/bin/fonts/HMSymbolVF.ttf"
-)
+FONTS_DIR = Path("Contents/sdk/default/openharmony/previewer/common/bin/fonts")
+FONT_FILE = FONTS_DIR / "HMSymbolVF.ttf"
+# The text faces the generated pages declare (`--dt-font-family`); serving
+# them locally makes browser text metrics match the device, weights included
+# (both are variable fonts with a wght axis).
+TEXT_FONT_FILES = ("HarmonyOS_Sans_SC.ttf", "HarmonyOS_Sans.ttf")
 SDK_PACKAGE = Path("Contents/sdk/default/sdk-pkg.json")
 _NAME_ID_VERSION = 5
 # A few registry names coincide with TrueType's standard Macintosh glyph
@@ -52,6 +55,19 @@ _STANDARD_INDEX_NAMES: dict[int, str] = {
     239: "minus",
     240: "multiply",
 }
+
+
+def _to_woff2(font_bytes: bytes) -> bytes:
+    """Repackage one font as woff2 without touching glyphs or variation axes."""
+    from io import BytesIO
+
+    from fontTools.ttLib import TTFont
+
+    font = TTFont(BytesIO(font_bytes))
+    font.flavor = "woff2"
+    buffer = BytesIO()
+    font.save(buffer)
+    return buffer.getvalue()
 
 
 def _atomic_write(path: Path, content: bytes) -> None:
@@ -257,13 +273,31 @@ def export_hm_symbol_assets(
         output,
         (json.dumps(document, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
     )
-    # The font itself stays out of git: it is the developer's local SDK asset,
-    # copied next to the code purely so the web app can serve it.
-    _atomic_write(font_output, data)
+    # The fonts themselves stay out of git: they are the developer's local
+    # SDK assets, repackaged next to the code purely so the web app can serve
+    # them. Only variable woff2 is kept (same glyphs and weight axis as the
+    # SDK TTF sources at roughly half the bytes); stale TTF copies from
+    # earlier extractions are removed.
+    _atomic_write(font_output, _to_woff2(data))
+    font_output.with_suffix(".ttf").unlink(missing_ok=True)
+    text_fonts: list[str] = []
+    for filename in TEXT_FONT_FILES:
+        source_file = studio / FONTS_DIR / filename
+        if not source_file.is_file():
+            raise FileNotFoundError(
+                f"HarmonyOS text font not found at {source_file}"
+            )
+        woff2_name = Path(filename).with_suffix(".woff2").name
+        _atomic_write(
+            font_output.parent / woff2_name, _to_woff2(source_file.read_bytes())
+        )
+        (font_output.parent / filename).unlink(missing_ok=True)
+        text_fonts.append(woff2_name)
     return {
         "ok": True,
         "font": str(font_output),
-        "fontBytes": len(data),
+        "fontBytes": font_output.stat().st_size,
+        "textFonts": text_fonts,
         "output": str(output),
         "codepoints": len(codepoints),
         "source": document["source"],

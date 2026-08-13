@@ -553,19 +553,70 @@ def test_hm_symbol_manifest_reports_all_three_statuses(client) -> None:
     assert icons["banknote"] == {"status": "miss"}
 
 
-def test_hm_symbol_font_serves_bytes_or_fails_closed(client, monkeypatch) -> None:
-    resp = client.get("/hm-symbol/font.ttf")
+def test_hm_text_fonts_css_declares_extracted_faces(client, monkeypatch) -> None:
+    """Pages declare 'HarmonyOS Sans SC' first; the stylesheet makes the
+    browser actually render it instead of the host system fallback."""
+    resp = client.get("/hm-fonts.css")
+    assert resp.status_code == 200
+    if "@font-face" in resp.text:
+        assert "'HarmonyOS Sans SC'" in resp.text
+        assert "font-weight: 100 900;" in resp.text
+        assert "/hm-fonts/HarmonyOS_Sans_SC.woff2" in resp.text
+        # woff2-only serving: no TTF source is ever declared.
+        assert "truetype" not in resp.text
+
+    # Without extracted fonts the stylesheet is empty, never broken rules.
+    import uibench.arkui.hm_symbol_web as hm_symbol_web
+
+    monkeypatch.setattr(
+        hm_symbol_web,
+        "HM_SYMBOL_FONT_FILE",
+        Path("/nonexistent/HMSymbolVF.woff2"),
+    )
+    resp = client.get("/hm-fonts.css")
+    assert resp.status_code == 200
+    assert resp.text == ""
+
+
+def test_generated_mobile_html_carries_the_hm_fonts_link() -> None:
+    """The artifact itself declares the HarmonyOS faces; injection is only
+    the fallback for documents that lack the link."""
+    html = "<html><head><title>x</title></head><body></body></html>"
+    out = app_mod.inject_for_render(html, "mobile")
+    assert out.count("/hm-fonts.css") == 1
+    # Idempotent: documents that already carry the link stay untouched.
+    assert app_mod.inject_for_render(out, "mobile").count("/hm-fonts.css") == 1
+
+    from uibench.prompts import SYSTEM_MOBILE
+
+    assert '<link rel="stylesheet" href="/hm-fonts.css">' in SYSTEM_MOBILE
+
+
+def test_hm_text_font_route_only_serves_the_known_faces(client) -> None:
+    resp = client.get("/hm-fonts/HarmonyOS_Sans_SC.woff2")
     if resp.status_code == 200:
-        assert resp.headers["content-type"].startswith("font/ttf")
+        assert resp.headers["content-type"].startswith("font/woff2")
         assert resp.headers["access-control-allow-origin"] == "*"
-        assert resp.content[:4] in (b"\x00\x01\x00\x00", b"true", b"OTTO")
+
+    # TTF copies are no longer kept or served; woff2 is the only format.
+    assert client.get("/hm-fonts/HarmonyOS_Sans_SC.ttf").status_code == 404
+    assert client.get("/hm-fonts/evil.woff2").status_code == 404
+    assert client.get("/hm-fonts/..%2Fsymbol_registry.json").status_code == 404
+
+
+def test_hm_symbol_font_serves_bytes_or_fails_closed(client, monkeypatch) -> None:
+    resp = client.get("/hm-symbol/font.woff2")
+    if resp.status_code == 200:
+        assert resp.headers["content-type"].startswith("font/woff2")
+        assert resp.headers["access-control-allow-origin"] == "*"
+        assert resp.content[:4] == b"wOF2"
 
     # Without the locally extracted font the endpoint refuses with guidance
     # instead of serving nothing; the shim then falls back to Lucide.
     monkeypatch.setattr(
-        app_mod, "HM_SYMBOL_FONT_FILE", Path("/nonexistent/HMSymbolVF.ttf")
+        app_mod, "HM_SYMBOL_FONT_FILE", Path("/nonexistent/HMSymbolVF.woff2")
     )
-    resp = client.get("/hm-symbol/font.ttf")
+    resp = client.get("/hm-symbol/font.woff2")
     assert resp.status_code == 404
     assert "export-hm-symbol-assets" in resp.json()["error"]
 

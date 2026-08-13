@@ -38,7 +38,12 @@ from uibench.arkui.exporter import (
     export_annotated_html,
     export_generic_html,
 )
-from uibench.arkui.hm_symbol_web import hm_symbol_shim_js
+from uibench.arkui.hm_symbol_web import (
+    HM_TEXT_FONTS,
+    hm_fonts_css,
+    hm_symbol_shim_js,
+    inject_hm_fonts_link,
+)
 from uibench.arkui.symbols import HM_SYMBOL_FONT_FILE, hm_symbol_manifest
 from uibench.design_tokens import (
     DEFAULT_TOKEN_THEME,
@@ -1526,25 +1531,54 @@ def hm_symbol_manifest_json():
     )
 
 
-@app.get("/hm-symbol/font.ttf")
-def hm_symbol_font():
-    """Serve the locally extracted preview font; 404 keeps Lucide fallback."""
-    if not HM_SYMBOL_FONT_FILE.is_file():
+def _serve_font_file(font_file):
+    if not font_file.is_file():
         return JSONResponse(
             {
                 "error": (
-                    "HM Symbol 字体尚未提取；运行 "
+                    "HM 字体尚未提取；运行 "
                     "python tools/export-hm-symbol-assets.py"
                 ),
             },
             status_code=404,
             headers=_HM_SYMBOL_CORS,
         )
+    media_type = (
+        "font/woff2" if font_file.suffix == ".woff2" else "font/ttf"
+    )
     return Response(
-        HM_SYMBOL_FONT_FILE.read_bytes(),
-        media_type="font/ttf",
+        font_file.read_bytes(),
+        media_type=media_type,
         headers={**_HM_SYMBOL_CORS, "Cache-Control": "max-age=3600"},
     )
+
+
+@app.get("/hm-symbol/font.woff2")
+def hm_symbol_font():
+    """Serve the locally extracted symbol font; 404 keeps Lucide fallback."""
+    return _serve_font_file(HM_SYMBOL_FONT_FILE)
+
+
+@app.get("/hm-fonts.css", response_class=PlainTextResponse)
+def hm_fonts_stylesheet():
+    """Declare @font-face for extracted HarmonyOS text fonts (may be empty)."""
+    return PlainTextResponse(
+        hm_fonts_css(),
+        media_type="text/css; charset=utf-8",
+        headers={**_HM_SYMBOL_CORS, "Cache-Control": "no-store"},
+    )
+
+
+@app.get("/hm-fonts/{filename}")
+def hm_text_font(filename: str):
+    """Serve one locally extracted HarmonyOS text font by exact name."""
+    if filename not in {name for _, name in HM_TEXT_FONTS}:
+        return JSONResponse(
+            {"error": "字体不存在或尚未提取"},
+            status_code=404,
+            headers=_HM_SYMBOL_CORS,
+        )
+    return _serve_font_file(HM_SYMBOL_FONT_FILE.parent / filename)
 
 
 @app.post("/api/arkui/export")
@@ -1623,6 +1657,7 @@ def inject_for_render(
     html = inject_shared_css(html)
     if mode == "mobile":
         html = inject_design_tokens(html, theme, token_theme)
+        html = inject_hm_fonts_link(html)
     else:
         html = inject_pc_bootstrap(html)
     return html
@@ -2998,6 +3033,12 @@ function injectForRender(html, mode, theme, tokenTheme, arkuiCaptureSession) {
   if (mode === 'mobile') {
     if (low.indexOf('design-tokens.css') === -1) {
       link += '<link rel="stylesheet" href="/design-tokens.css">';
+    }
+    // Generated pages carry this link themselves; legacy documents get the
+    // HarmonyOS text faces injected. The stylesheet is empty when the fonts
+    // are not extracted, so pages keep the system-font fallback.
+    if (low.indexOf('hm-fonts.css') === -1) {
+      link += '<link rel="stylesheet" href="/hm-fonts.css">';
     }
   }
   var idx = low.indexOf('<head>');

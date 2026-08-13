@@ -653,6 +653,52 @@ def test_wrapped_list_entries_reach_screen_ir_inside_generated_items() -> None:
     assert children[2]["meta"]["nodeId"] == "page.about"
 
 
+def test_native_button_annotated_as_list_item_reads_as_button() -> None:
+    """The tag is evidence for what the element is; its entry-ness comes from
+    the ListItem that Screen IR generates around plain list children."""
+    report = analyze_component_metadata("""
+      <section data-node-id="page" data-component="list">
+        <button data-node-id="page.entry" data-component="list-item">
+          <div data-node-id="page.entry.line" data-component="row"
+               class="flex flex-row">
+            <span data-node-id="page.entry.label" data-component="text">帮助</span>
+          </div>
+        </button>
+      </section>
+    """)
+    entry = next(node for node in report.nodes if node.node_id == "page.entry")
+
+    assert not report.errors
+    assert not report.warnings
+    assert report.export_readiness == "ready"
+    assert entry.component == "button"
+    assert entry.arkui_component == "Button"
+    assert [item.code for item in report.notices] == [
+        "ARKUI_LIST_CHILD_WRAPPED_AS_ITEM",
+        "ARKUI_LIST_ITEM_READ_AS_NATIVE",
+    ]
+
+    built = build_screen_ir(report)
+    assert built.screen_ir is not None
+    item = built.screen_ir["ui"]["children"][0]
+    assert item["componentName"] == "ListItem"
+    assert item["meta"]["nodeId"] == "page.entry:item"
+    assert item["children"][0]["componentName"] == "Button"
+
+
+def test_other_tag_conflicts_still_block() -> None:
+    """Only the list-item reading is uniquely determined; a button annotated
+    as an arbitrary container stays contradictory evidence."""
+    report = analyze_component_metadata("""
+      <main data-node-id="page" data-component="column">
+        <button data-node-id="page.box" data-component="row">内容</button>
+      </main>
+    """)
+
+    assert "ARKUI_COMPONENT_TAG_CONFLICT" in _codes(report)
+    assert report.export_readiness == "blocked"
+
+
 def test_list_item_outside_a_list_is_exported_as_column_with_a_notice() -> None:
     """ListItem has no legal form outside List, so the container reading wins."""
     report = analyze_component_metadata("""
