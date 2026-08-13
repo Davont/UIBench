@@ -38,3 +38,7 @@ backup_*/
 
 # Generated visual-regression projects, reports, and device captures
 .artifacts/
+
+# Local HM Symbol font extracted from the developer's own DevEco install
+# (never committed or redistributed; see tools/export-hm-symbol-assets.py)
+uibench/arkui/assets/

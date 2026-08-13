@@ -12,8 +12,11 @@
   以及经过核对的 Lucide 图标对照表。
 - `lucide_registry.json`：从固定版本 lucide npm 包固化的图标名与别名目录，
   用于映射表校验和覆盖率审计。
+- `hm_symbol_codepoints.json`：从本机 previewer 字体固化的资源名→Unicode 码点表，
+  供浏览器直渲设备字形。
 - `components.py`：校验两层契约，只把渲染器真实支持的组件暴露给 Prompt。
 - `symbols.py`：把 `data-symbol` 解析成真实存在的系统资源名。
+- `hm_symbol_web.py`：浏览器端 HM Symbol 渲染 shim（接管 `lucide.createIcons`）。
 - `metadata.py`：提取组件标注，生成 `uibench-component-manifest` 和导出诊断。
 - `snapshot.py`：校验浏览器快照，并把白名单 computed style 映射到 Screen IR styles。
 - `resources.py`：校验浏览器捕获的图片字节，去重并生成完整 HarmonyOS 工程 ZIP。
@@ -268,6 +271,47 @@ chevron_down`、`more-vertical→more`）：审计里单列 `near` 档，不计�
 226/1767 → 360/1767，别名覆盖 59/254；条数与覆盖率一律以
 `tools/audit-lucide-coverage.py` 的输出为准。长尾主要是车机、医疗、体育等鸿蒙确实
 没有对应资源的领域图标。
+
+## HM Symbol 浏览器直渲（WYSIWYG 图标）
+
+DevEco previewer 用 `HMSymbolVF.ttf` 渲染 `SymbolGlyph`，其 `post` 表带有与
+符号注册表一致的资源名。把这份字体提取到本地后，浏览器就能画出与设备完全相同
+的字形——预览与快照里的图标即导出后设备上的图标：
+
+```bash
+python tools/export-hm-symbol-assets.py
+```
+
+该工具从本机 DevEco 复制字体到 git 忽略的 `uibench/arkui/assets/`（**字体不入库、
+不再分发**，与本机签名材料同等对待），并解析 `post`+`cmap` 生成入库的
+`hm_symbol_codepoints.json`（资源名→PUA 码点 + 字体版本 provenance）。previewer
+字体没有字形的少量注册表名（`ohos_*` 旧别名与个别笔误）记录在 `missingFromFont`
+里；`plus`、`minus` 等与 TrueType 标准 Macintosh 字形名重合的条目按标准索引恢复。
+加载器的硬性不变量是：精确表与近似表的**每个映射目标都必须可渲染**，否则拒绝
+加载。
+
+渲染链路：`app.py` 提供 `GET /hm-symbol/font.ttf`、`GET /hm-symbol/manifest.json`
+（对每个可渲染的 `data-lucide` 值给出 `exact`/`near`/`miss` 三态与码点，与导出解析
+完全同源）与 `GET /hm-symbol.js`。shim 接管 `lucide.createIcons`，**就地**改写
+`<i data-lucide>`：命中画 HM 字形（颜色随 CSS `color`、大小随元素盒、字重随可变
+轴，与 `SymbolGlyph` 的 `fontColor/fontSize/fontWeight` 同语义），miss 保持等大空
+占位——浏览器显示的就是导出工程在设备上的样子。元素本身不被替换，`data-node-id`
+与 class 原样保留，快照协议不变；快照运行时在冻结样式前会等待
+`window.__uibenchHmSymbolReady`。
+
+字重等效：Lucide 以 24 网格上 `stroke-width: 2` 绘制（笔画比 0.0833 em），HM 字形
+默认字重实测 0.0620 em（`minus` 字形横杠高 62/1000 em），细 1.34 倍。若字形沿用
+继承的文本字重（通常 400），设备上的图标会明显比网页"瘦"。shim 在画字形时把元素
+`font-weight` 写为经核对的等效值（`HM_SYMBOL_GLYPH_WEIGHT = 600`），快照将其作为
+computed 证据捕获，导出便发出同样的 `SymbolGlyph` 字重——浏览器与设备从同一常量
+一起变厚，导出器无需任何特判。
+
+两种激活方式：**快照采集会话强制启用**（导出保真的定义）；普通预览由工具栏
+「Lucide 图标 / 鸿蒙图标」开关控制，默认 Lucide（benchmark 页面保持原始渲染）。
+字体或 manifest 不可用时（未提取、404），shim 自动回退加载固定版本的 Lucide
+CDN，页面不会缺图标。已知边界：分层多色字形在浏览器按单色渲染（当前导出同样
+只用单色主张）；capture iframe 为不透明源，两个端点都带 CORS 头，这是必要行为
+而非放宽。
 
 ## 两种输出契约
 

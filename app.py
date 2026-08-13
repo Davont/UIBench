@@ -19,7 +19,13 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import (
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+    Response,
+    StreamingResponse,
+)
 from langchain_core.messages import HumanMessage
 
 from config import settings
@@ -32,6 +38,8 @@ from uibench.arkui.exporter import (
     export_annotated_html,
     export_generic_html,
 )
+from uibench.arkui.hm_symbol_web import hm_symbol_shim_js
+from uibench.arkui.symbols import HM_SYMBOL_FONT_FILE, hm_symbol_manifest
 from uibench.design_tokens import (
     DEFAULT_TOKEN_THEME,
     inject_design_tokens,
@@ -1494,6 +1502,51 @@ def design_tokens():
     return JSONResponse(load_tokens())
 
 
+# The capture iframe is sandboxed without allow-same-origin, so its requests
+# arrive from an opaque origin; fonts and fetch() both require CORS headers.
+_HM_SYMBOL_CORS = {"Access-Control-Allow-Origin": "*"}
+
+
+@app.get("/hm-symbol.js", response_class=PlainTextResponse)
+def hm_symbol_shim():
+    """Serve the createIcons-compatible shim that paints device glyphs."""
+    return PlainTextResponse(
+        hm_symbol_shim_js(),
+        media_type="text/javascript; charset=utf-8",
+        headers=_HM_SYMBOL_CORS,
+    )
+
+
+@app.get("/hm-symbol/manifest.json")
+def hm_symbol_manifest_json():
+    """Classify every renderable data-lucide value with its device glyph."""
+    return JSONResponse(
+        hm_symbol_manifest(),
+        headers={**_HM_SYMBOL_CORS, "Cache-Control": "no-store"},
+    )
+
+
+@app.get("/hm-symbol/font.ttf")
+def hm_symbol_font():
+    """Serve the locally extracted preview font; 404 keeps Lucide fallback."""
+    if not HM_SYMBOL_FONT_FILE.is_file():
+        return JSONResponse(
+            {
+                "error": (
+                    "HM Symbol 字体尚未提取；运行 "
+                    "python tools/export-hm-symbol-assets.py"
+                ),
+            },
+            status_code=404,
+            headers=_HM_SYMBOL_CORS,
+        )
+    return Response(
+        HM_SYMBOL_FONT_FILE.read_bytes(),
+        media_type="font/ttf",
+        headers={**_HM_SYMBOL_CORS, "Cache-Control": "max-age=3600"},
+    )
+
+
 @app.post("/api/arkui/export")
 async def export_arkui(req: ArkUiExportRequest):
     """Export annotated or legacy HTML through the platform converter."""
@@ -1783,6 +1836,10 @@ INDEX_HTML = """<!DOCTYPE html>
       <button type="button" data-token-theme="netflix">Netflix</button>
       <button type="button" data-token-theme="notion">Notion</button>
     </div>
+    <div class="seg hm-symbol" id="hm-symbol-mode" aria-label="移动端图标渲染">
+      <button type="button" data-hm-symbol="lucide" class="active">Lucide 图标</button>
+      <button type="button" data-hm-symbol="harmony">鸿蒙图标</button>
+    </div>
     <label class="arkui-option" id="arkui-option">
       <input id="arkui-export" type="checkbox">
       生成 ArkUI 可导出元数据
@@ -1804,6 +1861,7 @@ const modalRoot = document.getElementById('modal-root');
 const modeEl = document.getElementById('mode');
 const themeEl = document.getElementById('theme');
 const tokenThemeEl = document.getElementById('token-theme');
+const hmSymbolModeEl = document.getElementById('hm-symbol-mode');
 const arkuiOptionEl = document.getElementById('arkui-option');
 const arkuiExportEl = document.getElementById('arkui-export');
 
@@ -1815,6 +1873,10 @@ let currentTheme = localStorage.getItem('uibench-preview-theme') === 'dark' ? 'd
 const tokenThemes = ['harmonyos', 'spotify', 'netflix', 'notion'];
 const savedTokenTheme = localStorage.getItem('uibench-preview-token-theme');
 let currentTokenTheme = tokenThemes.includes(savedTokenTheme) ? savedTokenTheme : 'harmonyos';
+// Preview icon rendering: Lucide keeps the benchmark look; the HarmonyOS
+// mode paints the exact device glyphs the export will produce. Snapshot
+// capture always forces the HarmonyOS mode regardless of this toggle.
+let hmSymbolPreview = localStorage.getItem('uibench-preview-hm-symbol') === 'harmony';
 const pcFrames = [];  // [{wrap, iframe}] to rescale on resize
 const previewFrames = [];  // mobile frames rerendered when mode/design system changes
 const cardTimers = new Map();
@@ -2001,6 +2063,27 @@ function setTokenTheme(tokenTheme) {
 tokenThemeEl.querySelectorAll('button').forEach(b => {
   b.addEventListener('click', () => setTokenTheme(b.dataset.tokenTheme));
 });
+
+function setHmSymbolPreview(value) {
+  hmSymbolPreview = value === 'harmony';
+  localStorage.setItem(
+    'uibench-preview-hm-symbol', hmSymbolPreview ? 'harmony' : 'lucide'
+  );
+  hmSymbolModeEl.querySelectorAll('button').forEach(b => {
+    b.classList.toggle(
+      'active', (b.dataset.hmSymbol === 'harmony') === hmSymbolPreview
+    );
+  });
+  previewFrames.forEach(entry => {
+    entry.iframe.srcdoc = injectForRender(
+      entry.html, entry.mode, currentTheme, currentTokenTheme
+    );
+  });
+}
+hmSymbolModeEl.querySelectorAll('button').forEach(b => {
+  b.addEventListener('click', () => setHmSymbolPreview(b.dataset.hmSymbol));
+});
+setHmSymbolPreview(hmSymbolPreview ? 'harmony' : 'lucide');
 setTokenTheme(currentTokenTheme);
 setTheme(currentTheme);
 
@@ -2488,6 +2571,11 @@ function arkuiSnapshotRuntime(captureSession) {
   }
 
   async function settleResources() {
+    if (window.__uibenchHmSymbolReady) {
+      // Glyph substitution must finish before styles are frozen, or the
+      // captured font evidence would describe the un-substituted page.
+      await boundedWait(window.__uibenchHmSymbolReady, 3000);
+    }
     if (document.fonts && document.fonts.ready) {
       await boundedWait(document.fonts.ready, 1800);
     }
@@ -2892,6 +2980,19 @@ function injectForRender(html, mode, theme, tokenTheme, arkuiCaptureSession) {
       }
       return '<html' + attrs + '>';
     });
+  }
+  if (mode === 'mobile') {
+    var hmSymbolActive = hmSymbolPreview
+      || (typeof arkuiCaptureSession === 'string' && arkuiCaptureSession);
+    if (hmSymbolActive) {
+      // The shim takes over lucide.createIcons and paints the exact device
+      // glyphs (or export placeholders); the CDN build must not race it.
+      html = html.replace(
+        /<script[^>]*src=["']https?:\\/\\/unpkg\\.com\\/lucide@[^"']*["'][^>]*>\\s*<\\/script>/gi,
+        ''
+      );
+      link += '<scr' + 'ipt src="/hm-symbol.js"></scr' + 'ipt>';
+    }
   }
   var low = html.toLowerCase();
   if (mode === 'mobile') {

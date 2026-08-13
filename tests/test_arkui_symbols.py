@@ -312,6 +312,61 @@ def test_lucide_registry_rejects_an_alias_to_an_unknown_icon(tmp_path) -> None:
         load_lucide_registry.cache_clear()
 
 
+def test_hm_symbol_codepoints_cover_every_mapping_target() -> None:
+    """A reviewed mapping the browser font cannot paint would break WYSIWYG."""
+    from uibench.arkui.symbols import load_hm_symbol_codepoints
+
+    registry = load_symbol_registry()
+    table = load_hm_symbol_codepoints()
+    targets = set(registry.lucide_symbol_map.values()) | set(
+        registry.lucide_symbol_near_map.values()
+    )
+
+    assert targets <= set(table.codepoints)
+    assert all(0 < value <= 0x10FFFF for value in table.codepoints.values())
+    assert table.font_version != "unknown"
+
+
+def test_hm_symbol_codepoints_file_is_canonical_and_sorted() -> None:
+    from uibench.arkui.symbols import HM_SYMBOL_CODEPOINTS_FILE
+
+    payload = json.loads(HM_SYMBOL_CODEPOINTS_FILE.read_text(encoding="utf-8"))
+
+    assert payload["kind"] == "uibench-hm-symbol-codepoints"
+    assert list(payload["codepoints"]) == sorted(payload["codepoints"])
+    # Names the previewer font cannot render are recorded, never silent.
+    assert isinstance(payload["missingFromFont"], list)
+    assert set(payload["missingFromFont"]).isdisjoint(payload["codepoints"])
+    assert payload["source"]["font"] == "HMSymbolVF.ttf"
+
+
+def test_hm_symbol_manifest_mirrors_the_export_resolution() -> None:
+    from uibench.arkui.symbols import (
+        hm_symbol_manifest,
+        load_hm_symbol_codepoints,
+        load_lucide_registry,
+    )
+
+    manifest = hm_symbol_manifest()
+    lucide = load_lucide_registry()
+    codepoints = load_hm_symbol_codepoints().codepoints
+
+    assert len(manifest["icons"]) == len(lucide.icons) + len(lucide.aliases)
+    assert manifest["icons"]["bell"] == {
+        "status": "exact",
+        "symbol": "sys.symbol.bell",
+        "codepoint": codepoints["bell"],
+    }
+    globe = manifest["icons"]["globe"]
+    assert globe["status"] == "near"
+    assert globe["symbol"] == "sys.symbol.worldclock"
+    assert manifest["icons"]["banknote"] == {"status": "miss"}
+    # plus/minus live at standard Macintosh post indices; the extraction must
+    # still recover their glyphs or two very common icons would degrade.
+    assert manifest["icons"]["plus"]["codepoint"] == codepoints["plus"]
+    assert manifest["icons"]["minus"]["codepoint"] == codepoints["minus"]
+
+
 def test_coverage_classification_follows_the_real_resolution_path() -> None:
     from tools.lucide_coverage import classify_lucide_name
 

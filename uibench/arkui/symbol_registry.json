@@ -118,6 +118,7 @@
     "eye": "eye",
     "eye-off": "eye_slash",
     "file": "doc",
+    "file-clock": "doc_text_badge_clock",
     "file-text": "doc_text",
     "film": "film",
     "filter": "funnel",
@@ -4117,6 +4118,7 @@
     "chevrons-right": "chevron_right",
     "chevrons-up": "chevron_up_2",
     "ellipsis-vertical": "more",
+    "folder-x": "folder",
     "globe": "worldclock",
     "grid-2x2": "dot_grid_2x2",
     "lamp": "lamp_desk_fill",
@@ -4125,9 +4127,11 @@
     "more-vertical": "more",
     "picture-in-picture": "picture_on_square",
     "picture-in-picture-2": "picture_on_square",
+    "pie-chart": "data",
     "satellite-dish": "satellite",
     "signal-high": "signal",
     "signal-low": "signal",
-    "signal-medium": "signal"
+    "signal-medium": "signal",
+    "sparkles": "wand_and_stars"
   }
 }

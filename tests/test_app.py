@@ -1,6 +1,7 @@
 """End-to-end API tests using fake chat models (no API keys needed)."""
 import asyncio
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -531,6 +532,42 @@ def test_shared_css(client) -> None:
     assert resp.status_code == 200
     assert "scrollbar-width" in resp.text
     assert "::-webkit-scrollbar" in resp.text
+
+
+def test_hm_symbol_shim_is_served_with_cors(client) -> None:
+    """The capture iframe has an opaque origin, so CORS is load-bearing."""
+    resp = client.get("/hm-symbol.js")
+    assert resp.status_code == 200
+    assert resp.headers["access-control-allow-origin"] == "*"
+    assert "window.lucide = { createIcons: createIcons };" in resp.text
+    assert "window.__uibenchHmSymbolReady" in resp.text
+
+
+def test_hm_symbol_manifest_reports_all_three_statuses(client) -> None:
+    resp = client.get("/hm-symbol/manifest.json")
+    assert resp.status_code == 200
+    assert resp.headers["access-control-allow-origin"] == "*"
+    icons = resp.json()["icons"]
+    assert icons["bell"]["status"] == "exact"
+    assert icons["globe"]["status"] == "near"
+    assert icons["banknote"] == {"status": "miss"}
+
+
+def test_hm_symbol_font_serves_bytes_or_fails_closed(client, monkeypatch) -> None:
+    resp = client.get("/hm-symbol/font.ttf")
+    if resp.status_code == 200:
+        assert resp.headers["content-type"].startswith("font/ttf")
+        assert resp.headers["access-control-allow-origin"] == "*"
+        assert resp.content[:4] in (b"\x00\x01\x00\x00", b"true", b"OTTO")
+
+    # Without the locally extracted font the endpoint refuses with guidance
+    # instead of serving nothing; the shim then falls back to Lucide.
+    monkeypatch.setattr(
+        app_mod, "HM_SYMBOL_FONT_FILE", Path("/nonexistent/HMSymbolVF.ttf")
+    )
+    resp = client.get("/hm-symbol/font.ttf")
+    assert resp.status_code == 404
+    assert "export-hm-symbol-assets" in resp.json()["error"]
 
 
 def test_inject_shared_css_into_head() -> None:

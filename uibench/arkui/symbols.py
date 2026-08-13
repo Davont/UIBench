@@ -19,6 +19,9 @@ SYMBOL_REGISTRY_FILE = Path(__file__).with_name("symbol_registry.json")
 SYMBOL_REGISTRY_VERSION = 1
 LUCIDE_REGISTRY_FILE = Path(__file__).with_name("lucide_registry.json")
 LUCIDE_REGISTRY_VERSION = 1
+HM_SYMBOL_CODEPOINTS_FILE = Path(__file__).with_name("hm_symbol_codepoints.json")
+HM_SYMBOL_CODEPOINTS_VERSION = 1
+HM_SYMBOL_FONT_FILE = Path(__file__).with_name("assets") / "HMSymbolVF.ttf"
 SYSTEM_SYMBOL_PREFIX = "sys.symbol."
 APP_SYMBOL_PREFIX = "app.symbol."
 MAX_SYMBOL_SUGGESTIONS = 3
@@ -38,6 +41,10 @@ class SymbolRegistryError(RuntimeError):
 
 class LucideRegistryError(RuntimeError):
     """Raised when the frozen Lucide icon registry is missing or inconsistent."""
+
+
+class HmSymbolCodepointsError(RuntimeError):
+    """Raised when the frozen HM Symbol codepoint table is missing or broken."""
 
 
 @dataclass(frozen=True)
@@ -432,6 +439,108 @@ def lucide_symbol_near_table() -> dict[str, str]:
     return dict(load_symbol_registry().lucide_symbol_near_map)
 
 
+@dataclass(frozen=True)
+class HmSymbolCodepoints:
+    """Frozen join of canonical symbol names onto HM Symbol font codepoints."""
+
+    registry_version: int
+    source: dict[str, object]
+    codepoints: dict[str, int]
+
+    @property
+    def font_version(self) -> str:
+        return str(self.source.get("fontVersion") or "unknown")
+
+
+@lru_cache(maxsize=1)
+def load_hm_symbol_codepoints() -> HmSymbolCodepoints:
+    """Load and validate the frozen HM Symbol codepoint table once."""
+    if not HM_SYMBOL_CODEPOINTS_FILE.is_file():
+        raise HmSymbolCodepointsError(
+            f"HM Symbol codepoints not found at {HM_SYMBOL_CODEPOINTS_FILE}; "
+            "run tools/export-hm-symbol-assets.py against a local DevEco SDK"
+        )
+    with HM_SYMBOL_CODEPOINTS_FILE.open("r", encoding="utf-8") as stream:
+        payload = json.load(stream)
+    if not isinstance(payload, dict):
+        raise HmSymbolCodepointsError("codepoint table must contain an object")
+    if payload.get("registryVersion") != HM_SYMBOL_CODEPOINTS_VERSION:
+        raise HmSymbolCodepointsError(
+            "codepoint table version "
+            f"{payload.get('registryVersion')!r} is not supported"
+        )
+    raw = payload.get("codepoints")
+    if not isinstance(raw, dict) or not raw:
+        raise HmSymbolCodepointsError("codepoint table has no codepoints object")
+    codepoints: dict[str, int] = {}
+    for name, value in sorted(raw.items()):
+        if not isinstance(name, str) or not _CANONICAL_NAME_RE.fullmatch(name):
+            raise HmSymbolCodepointsError(f"invalid symbol name: {name!r}")
+        if (
+            not isinstance(value, int) or isinstance(value, bool)
+            or not 0 < value <= 0x10FFFF
+        ):
+            raise HmSymbolCodepointsError(
+                f"symbol {name!r} has no valid unicode codepoint"
+            )
+        codepoints[name] = value
+    # A handful of legacy/typo registry names have no previewer glyph, which
+    # is tolerable; every reviewed mapping target must be renderable though,
+    # or the browser could not mirror what the export produces.
+    registry = load_symbol_registry()
+    targets = set(registry.lucide_symbol_map.values()) | set(
+        registry.lucide_symbol_near_map.values()
+    )
+    unrenderable = sorted(targets - set(codepoints))
+    if unrenderable:
+        raise HmSymbolCodepointsError(
+            "codepoint table cannot render reviewed mapping targets: "
+            + ", ".join(unrenderable[:5])
+        )
+    source = payload.get("source")
+    return HmSymbolCodepoints(
+        registry_version=HM_SYMBOL_CODEPOINTS_VERSION,
+        source=source if isinstance(source, dict) else {},
+        codepoints=codepoints,
+    )
+
+
+@lru_cache(maxsize=1)
+def hm_symbol_manifest() -> dict[str, object]:
+    """Build the browser manifest: every renderable ``data-lucide`` value
+    classified through the same tiers the export uses, joined with the font
+    codepoint the glyph lives at.
+
+    The near tier is included so the browser shows exactly the glyph (or the
+    empty placeholder) that the exported project will show on device.
+    """
+    registry = load_symbol_registry()
+    lucide = load_lucide_registry()
+    codepoints = load_hm_symbol_codepoints()
+    icons: dict[str, dict[str, object]] = {}
+    for name in sorted(lucide.icons | set(lucide.aliases)):
+        symbol = registry.lucide_symbol_map.get(name)
+        if symbol is None:
+            symbol = registry.resolve_name(normalize_symbol_name(name))
+        if symbol is not None:
+            status = "exact"
+        else:
+            symbol = registry.lucide_symbol_near_map.get(name)
+            status = "near" if symbol is not None else "miss"
+        entry: dict[str, object] = {"status": status}
+        if symbol is not None:
+            entry["symbol"] = f"{SYSTEM_SYMBOL_PREFIX}{symbol}"
+            entry["codepoint"] = codepoints.codepoints[symbol]
+        icons[name] = entry
+    return {
+        "kind": "uibench-hm-symbol-manifest",
+        "manifestVersion": 1,
+        "lucideVersion": pinned_lucide_version(),
+        "fontVersion": codepoints.font_version,
+        "icons": icons,
+    }
+
+
 def format_lucide_symbol_table(*, indent: str = "  ", width: int = 78) -> str:
     """Render the mapping as compact prompt lines."""
     entries = [
@@ -454,6 +563,11 @@ def format_lucide_symbol_table(*, indent: str = "  ", width: int = 78) -> str:
 
 __all__ = [
     "APP_SYMBOL_PREFIX",
+    "HM_SYMBOL_CODEPOINTS_FILE",
+    "HM_SYMBOL_CODEPOINTS_VERSION",
+    "HM_SYMBOL_FONT_FILE",
+    "HmSymbolCodepoints",
+    "HmSymbolCodepointsError",
     "LUCIDE_NAME_RE",
     "LUCIDE_REGISTRY_FILE",
     "LUCIDE_REGISTRY_VERSION",
@@ -469,7 +583,9 @@ __all__ = [
     "SymbolStatus",
     "canonical_symbol",
     "format_lucide_symbol_table",
+    "hm_symbol_manifest",
     "is_known_lucide_icon",
+    "load_hm_symbol_codepoints",
     "load_lucide_registry",
     "load_symbol_registry",
     "lucide_pascal_name",

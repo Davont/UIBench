@@ -13,6 +13,75 @@ def _function_source(name: str, next_name: str) -> str:
     return html[start:end]
 
 
+def test_hm_symbol_shim_is_forced_for_capture_and_optional_for_preview() -> None:
+    """Snapshot capture always paints device glyphs; the preview only does so
+    when the user flips the toggle, keeping the benchmark look by default."""
+    inject = _function_source("injectForRender", "injectPcBootstrap")
+
+    assert "hmSymbolPreview" in inject
+    assert (
+        "typeof arkuiCaptureSession === 'string' && arkuiCaptureSession"
+        in inject
+    )
+    # The pinned CDN build must not race the shim for lucide.createIcons.
+    assert "unpkg\\.com\\/lucide@" in inject
+    assert '/hm-symbol.js' in inject
+    # Only mobile pages participate; PC keeps its own stack untouched.
+    assert inject.index("if (mode === 'mobile')") < inject.index(
+        "var hmSymbolActive"
+    )
+
+
+def test_hm_symbol_shim_substitutes_in_place_and_reports_readiness() -> None:
+    """The shim must keep the authored elements so data-node-id, classes and
+    computed color/size evidence stay valid for the snapshot pipeline."""
+    from uibench.arkui.hm_symbol_web import hm_symbol_shim_js
+    from uibench.arkui.symbols import pinned_lucide_version
+
+    shim = hm_symbol_shim_js()
+
+    assert "'i[data-lucide]'" in shim
+    assert "String.fromCodePoint" in shim
+    assert "textContent" in shim
+    assert "data-hm-symbol" in shim
+    # In-place painting: no element replacement or removal.
+    assert "replaceWith" not in shim
+    assert "removeChild" not in shim
+    assert "remove()" not in shim
+    # Substitution is awaitable and failure falls back to the pinned Lucide.
+    assert "window.__uibenchHmSymbolReady" in shim
+    assert f"https://unpkg.com/lucide@{pinned_lucide_version()}" in shim
+    assert "FontFace" in shim
+
+
+def test_hm_symbol_glyphs_carry_the_lucide_equivalent_weight() -> None:
+    """HM glyphs at the inherited text weight look thinner than Lucide's
+    stroke-2 drawing; the shim writes the reviewed equivalent weight onto the
+    element so the snapshot captures it and the export emits the same
+    SymbolGlyph weight."""
+    from uibench.arkui.hm_symbol_web import (
+        HM_SYMBOL_GLYPH_WEIGHT,
+        hm_symbol_shim_js,
+    )
+
+    shim = hm_symbol_shim_js()
+
+    assert f"element.style.fontWeight = '{HM_SYMBOL_GLYPH_WEIGHT}'" in shim
+    assert "__GLYPH_WEIGHT__" not in shim
+    # The weight is applied before the glyph character is written, and only
+    # on the glyph branch: placeholders keep the element untouched.
+    glyph_branch = shim.index("element.style.fontWeight")
+    assert glyph_branch < shim.index("String.fromCodePoint")
+
+
+def test_snapshot_runtime_waits_for_glyph_substitution_before_capture() -> None:
+    runtime = _function_source("arkuiSnapshotRuntime", "arkuiSnapshotBootstrap")
+
+    substitution = runtime.index("window.__uibenchHmSymbolReady")
+    fonts = runtime.index("document.fonts.ready")
+    assert substitution < fonts
+
+
 def test_snapshot_runtime_announces_session_ready_after_listener_registration() -> None:
     runtime = _function_source(
         "arkuiSnapshotRuntime", "arkuiSnapshotBootstrap",
