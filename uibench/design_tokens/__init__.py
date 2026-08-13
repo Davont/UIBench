@@ -61,6 +61,8 @@ DESIGN_TOKEN_CLASSES = frozenset({
     "dt-p-card",
     "dt-p-page",
     "dt-placeholder-secondary",
+    "dt-px-page",
+    "dt-py-page",
     "dt-rounded-card",
     "dt-rounded-control",
     "dt-rounded-pill",
@@ -322,6 +324,14 @@ def render_token_css(tokens: dict[str, Any] | None = None) -> str:
             "}",
             ".dt-text-caption { font-size: var(--dt-font-size-caption) !important; }",
             ".dt-p-page { padding: var(--dt-space-page) !important; }",
+            ".dt-px-page {",
+            "  padding-left: var(--dt-space-page) !important;",
+            "  padding-right: var(--dt-space-page) !important;",
+            "}",
+            ".dt-py-page {",
+            "  padding-top: var(--dt-space-page) !important;",
+            "  padding-bottom: var(--dt-space-page) !important;",
+            "}",
             ".dt-p-card { padding: var(--dt-space-card) !important; }",
             ".dt-gap-section { gap: var(--dt-space-section) !important; }",
             ".dt-gap-item { gap: var(--dt-space-item) !important; }",
@@ -631,8 +641,10 @@ MOBILE_TOKEN_INSTRUCTIONS = """
 - 页面根容器使用 `dt-bg-canvas dt-text-primary dt-font`；卡片优先组合
   `dt-bg-surface dt-rounded-card dt-p-card`，不要为了装饰给每张卡片默认添加边框或阴影；
   只有确实需要层级或边界时才增加 `dt-shadow-surface` 或 `border dt-border-outline`。
-- 主要间距与形状使用共享类：dt-p-page / dt-p-card / dt-gap-section / dt-gap-item /
-  dt-gap-compact / dt-rounded-card / dt-rounded-control / dt-rounded-pill。
+- 主要间距与形状使用共享类：dt-p-page / dt-px-page / dt-py-page / dt-p-card /
+  dt-gap-section / dt-gap-item / dt-gap-compact / dt-rounded-card /
+  dt-rounded-control / dt-rounded-pill。页面左右安全边距用 dt-px-page，纵向节奏
+  自行用 Tailwind 的 pt-*/pb-* 控制；只需要横向内边距时不要退回四边的 dt-p-page。
 - `dt-*` 是完整的普通 CSS 类名，不是 Tailwind 类：禁止添加 `hover:`、`active:`、
   `focus:`、`placeholder:` 等前缀，也禁止添加 `/10`、`/90` 等透明度后缀。
   例如直接写 `dt-interaction-hover`、`dt-focus`、`dt-placeholder-secondary`、

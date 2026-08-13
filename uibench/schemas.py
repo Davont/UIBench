@@ -70,6 +70,9 @@ class GenerationResult(BaseModel):
     image_repaired: bool = False
     image_error: str = ""
     image_source: str = ""
+    # dt-* classes the model invented: they match no CSS rule, so that styling
+    # is silently dropped from the rendered page.
+    unknown_token_classes: list[str] = Field(default_factory=list)
     arkui_export_enabled: bool = False
     arkui_manifest: dict[str, object] = Field(default_factory=dict)
     log_url: str = ""

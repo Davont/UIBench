@@ -1721,3 +1721,53 @@ def test_image_tool_can_be_declined(monkeypatch, tmp_path) -> None:
     assert calls[0]["tool_choice"] == "auto"
     assert result["image_tool_used"] is False
     assert result["image_count"] == 0
+
+
+def test_invented_token_classes_are_reported_on_the_card(monkeypatch, tmp_path) -> None:
+    """A dt-* class matching no CSS rule must not fail silently.
+
+    Such a class renders as no styling at all, so the page still looks
+    plausible while whole sections lose their intended spacing.
+    """
+    from uibench.schemas import ModelConfig
+
+    html = (
+        "<!DOCTYPE html><html><head></head>"
+        '<body class="dt-bg-canvas dt-text-primary dt-font">'
+        '<div class="dt-px-page">contract</div>'
+        '<div class="dt-totally-made-up">silently unstyled</div>'
+        "</body></html>"
+    )
+
+    def _factory(*args, **kwargs):
+        def _create(**call_kwargs):
+            return _openai_response(html, "", "stop")
+        return SimpleNamespace(root_client=SimpleNamespace(
+            chat=SimpleNamespace(completions=SimpleNamespace(create=_create))))
+
+    monkeypatch.setattr(app_mod, "chat_model_for", _factory)
+    monkeypatch.setattr(app_mod, "LOGS_DIR", tmp_path / "logs")
+    monkeypatch.setattr(app_mod, "load_model_registry", lambda: [
+        ModelConfig(id="token-model", provider="openai", api_key="sk-test")
+    ])
+    with TestClient(app_mod.app) as client:
+        messages = _parse_stream(client.post(
+            "/api/generate", json={"prompt": "读书首页"}
+        ))
+
+    result = _first_result(messages)
+    # dt-px-page is part of the contract, so only the invented class is flagged.
+    assert result["unknown_token_classes"] == ["dt-totally-made-up"]
+    assert result["status"] == "degraded"
+
+    log = next((tmp_path / "logs").rglob("*.md")).read_text(encoding="utf-8")
+    assert "- 未知 Design Token 类: dt-totally-made-up" in log
+
+
+def test_card_labels_distinguish_degradation_reasons(client) -> None:
+    """The degraded badge must not always read as an image failure."""
+    page = client.get("/").text
+
+    assert "function degradedLabel" in page
+    assert "'无效样式类 ' + unknownTokens.length" in page
+    assert "预览已显示 · 有异常" in page

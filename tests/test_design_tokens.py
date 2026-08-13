@@ -173,6 +173,32 @@ def test_model_invented_token_classes_are_normalized() -> None:
     assert find_unknown_design_token_classes(normalized) == ()
 
 
+def test_axis_page_padding_classes_are_part_of_the_contract() -> None:
+    """A model asking only for horizontal page insets must get real CSS.
+
+    ``dt-px-page`` used to match no rule at all, so whole sections silently
+    rendered flush against the screen edge.
+    """
+    css = render_token_css()
+
+    assert (
+        ".dt-px-page {\n"
+        "  padding-left: var(--dt-space-page) !important;\n"
+        "  padding-right: var(--dt-space-page) !important;\n"
+        "}"
+    ) in css
+    assert (
+        ".dt-py-page {\n"
+        "  padding-top: var(--dt-space-page) !important;\n"
+        "  padding-bottom: var(--dt-space-page) !important;\n"
+        "}"
+    ) in css
+    assert find_unknown_design_token_classes(
+        '<div class="dt-px-page dt-py-page"></div>'
+    ) == ()
+    assert "dt-px-page" in SYSTEM_MOBILE
+
+
 def test_unknown_token_classes_are_reported_without_dropping_html(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

@@ -48,6 +48,7 @@ from uibench.arkui.hm_symbol_web import (
 from uibench.arkui.symbols import HM_SYMBOL_FONT_FILE, hm_symbol_manifest
 from uibench.design_tokens import (
     DEFAULT_TOKEN_THEME,
+    find_unknown_design_token_classes,
     inject_design_tokens,
     load_tokens,
     render_token_css,
@@ -659,6 +660,7 @@ def _write_log(run_id: str, key: str, model_cfg: ModelConfig, prompt_text: str,
                image_queries: list[str] | None = None,
                image_tracked: int = 0, image_repaired: bool = False,
                image_error: str = "",
+               unknown_token_classes: list[str] | None = None,
                arkui_manifest: dict[str, object] | None = None) -> None:
     """Archive one model's full output to a markdown log file."""
     try:
@@ -686,6 +688,7 @@ def _write_log(run_id: str, key: str, model_cfg: ModelConfig, prompt_text: str,
             f"- 图片搜索: {', '.join(image_queries or []) or '（无）'}",
             f"- 图片修复: `{'是' if image_repaired else '否'}`",
             f"- 图片错误: {image_error or '（无）'}",
+            f"- 未知 Design Token 类: {', '.join(unknown_token_classes or []) or '（无）'}",
             f"- ArkUI 元数据: components={sum((arkui_summary.get('componentCounts') or {}).values())}"
             f"  explicit={arkui_summary.get('explicitComponents', 0)}"
             f"  inferred={arkui_summary.get('inferredComponents', 0)}"
@@ -799,6 +802,7 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
     image_tracked = 0
     image_error = ""
     image_repaired = False
+    unknown_token_classes: list[str] = []
     arkui_manifest: dict[str, object] = {}
 
     async def resolve_image_requests(requests: list[dict]) -> str:
@@ -1260,6 +1264,10 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
                 recovery_finish_reason=recovery_finish_reason,
                 recovered=recovered,
             )
+        if mode == "mobile" and html:
+            # Invented dt-* classes resolve to no CSS at all, so the page still
+            # renders and looks plausible while silently losing that styling.
+            unknown_token_classes = list(find_unknown_design_token_classes(html))
         if mode == "mobile" and arkui_export_enabled and html:
             arkui_manifest = analyze_component_metadata(html).to_manifest()
         if error is None and minimum_photo_slots:
@@ -1298,7 +1306,7 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
 
         status = (
             "failed" if error is not None
-            else "degraded" if image_error
+            else "degraded" if image_error or unknown_token_classes
             else "success"
         )
         await report(
@@ -1317,6 +1325,7 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
                    image_queries=image_queries,
                    image_tracked=image_tracked,
                    image_repaired=image_repaired, image_error=image_error,
+                   unknown_token_classes=unknown_token_classes,
                    arkui_manifest=arkui_manifest)
         return GenerationResult(
             key=key,
@@ -1343,6 +1352,7 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
             image_repaired=image_repaired,
             image_error=image_error,
             image_source=effective_image_source,
+            unknown_token_classes=unknown_token_classes,
             arkui_export_enabled=(mode == "mobile" and arkui_export_enabled),
             arkui_manifest=arkui_manifest,
             log_url=f"/api/log/{run_id}/{key}",
@@ -1364,6 +1374,7 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
                    image_queries=image_queries,
                    image_tracked=image_tracked,
                    image_repaired=image_repaired, image_error=image_error,
+                   unknown_token_classes=unknown_token_classes,
                    arkui_manifest=arkui_manifest)
         return GenerationResult(
             key=key,
@@ -1390,6 +1401,7 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
             image_repaired=image_repaired,
             image_error=image_error,
             image_source=effective_image_source,
+            unknown_token_classes=unknown_token_classes,
             arkui_export_enabled=(mode == "mobile" and arkui_export_enabled),
             arkui_manifest=arkui_manifest,
             log_url=f"/api/log/{run_id}/{key}",
@@ -2034,7 +2046,7 @@ const stageLabels = {
   finalizing: '正在整理结果',
   rendering: '正在加载预览',
   completed: '预览已就绪',
-  degraded: '预览已显示 · 图片异常',
+  degraded: '预览已显示 · 有异常',
   failed: '生成失败',
   interrupted: '连接已中断'
 };
@@ -2042,6 +2054,13 @@ const stageLabels = {
 function formatSeconds(seconds) {
   const value = Math.max(0, Number(seconds) || 0);
   return value.toFixed(1) + 's';
+}
+
+function degradedLabel(result) {
+  const reasons = [];
+  if (result.image_error) reasons.push('图片异常');
+  if ((result.unknown_token_classes || []).length) reasons.push('无效样式类');
+  return reasons.length ? '预览已显示 · ' + reasons.join(' · ') : stageLabels.degraded;
 }
 
 function resultTimeSuffix(result) {
@@ -2056,6 +2075,8 @@ function resultTimeSuffix(result) {
   if (result.image_error) parts.push('图片检索失败');
   if (result.recovered) parts.push('自动恢复');
   if (result.html_source === 'reasoning') parts.push('reasoning 兜底');
+  const unknownTokens = result.unknown_token_classes || [];
+  if (unknownTokens.length) parts.push('无效样式类 ' + unknownTokens.length + ' 个');
   return parts.length ? ' · ' + parts.join(' · ') : '';
 }
 
@@ -2063,7 +2084,13 @@ function setCardTotal(card, seconds, result = {}) {
   const value = Math.max(0, Number(seconds) || 0);
   card.dataset.totalElapsed = String(value);
   const headTime = card.querySelector('.time');
-  if (headTime) headTime.textContent = '⏱ ' + formatSeconds(value) + resultTimeSuffix(result);
+  if (headTime) {
+    headTime.textContent = '⏱ ' + formatSeconds(value) + resultTimeSuffix(result);
+    const unknownTokens = result.unknown_token_classes || [];
+    headTime.title = unknownTokens.length
+      ? '这些 dt-* 类不匹配任何 CSS，对应样式已静默丢失：' + unknownTokens.join('、')
+      : '';
+  }
 }
 
 function cardForKey(key) {
@@ -2240,7 +2267,7 @@ function updateRunningMeta() {
   const remaining = Math.max(0, count - done);
   metaEl.innerHTML = '<span class="meta-pulse" aria-hidden="true"></span>' +
     '并行生成中 · 已完成 <b>' + done + '/' + count + '</b> · 成功 ' + successCount +
-    ' · 图片异常 ' + degradedCount + ' · 失败 ' + failureCount + ' · 剩余 ' + remaining +
+    ' · 异常 ' + degradedCount + ' · 失败 ' + failureCount + ' · 剩余 ' + remaining +
     ' <span class="meta-note">结果完成后会立即出现</span>';
 }
 
@@ -2295,9 +2322,9 @@ function applyDone(total) {
   updateResultsBusy();
   const tag = currentMode === 'pc' ? 'PC端 antd' : '移动端';
   const label = failureCount ? '本次生成结束' :
-    (degradedCount ? '本次生成完成（有图片异常）' : '本次生成完成');
+    (degradedCount ? '本次生成完成（有异常）' : '本次生成完成');
   metaEl.innerHTML = label + ' · 成功 <b>' + successCount + '/' + count + '</b>' +
-    (degradedCount ? ' · 图片异常 <b>' + degradedCount + '</b>' : '') +
+    (degradedCount ? ' · 异常 <b>' + degradedCount + '</b>' : '') +
     (failureCount ? ' · 失败 <b>' + failureCount + '</b>' : '') +
     ' · ' + tag + ' · 并行总耗时 <b>' + total + 's</b>';
 }
@@ -2606,7 +2633,7 @@ function fillCard(r) {
       card.setAttribute('aria-busy', 'false');
       updateResultsBusy();
       if (label) label.textContent = degraded
-        ? stageLabels.degraded
+        ? degradedLabel(r)
         : (fullyLoaded ? stageLabels.completed : '预览已显示');
       const totalElapsed = modelElapsed + renderElapsed;
       setCardTotal(card, totalElapsed, r);
