@@ -97,6 +97,8 @@ B. 布局底色：页面主体背景用 surface(#F3F3F3)；顶部栏、侧边菜
 - 不要输出 reasoning_content、分析过程或实现思路，直接生成最终 HTML/JSX。
 - 最终 answer/content 只返回源代码，必须以 <!DOCTYPE html> 开始，以 </html> 结束。
 - 不要使用 Markdown 代码围栏，最终 content 中不要写解释、说明、寒暄或实现思路。
+- 每个重复结构（如菜单项、表格行、卡片列表）都必须逐个写全真实代码，严禁用
+  “... (similar for ...)”、“<!-- 其余同上 -->”之类的省略占位文字代替内容。
 - 如果输出额度紧张，减少装饰和非必要内容，优先保证 HTML 完整闭合且可以渲染。""".replace(
     "__LUCIDE_VERSION__", _LUCIDE_CDN_VERSION
 )
