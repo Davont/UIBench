@@ -1,0 +1,17 @@
+<!-- 页面模板：列表页（设置、消息、目录等；TitleBar + 分组列表） -->
+<div class="flex flex-col h-screen" style="background:#F1F3F5">
+  <!-- 标题栏：一级页用 normal 变体，二级页用带返回箭头的 secondary 变体 -->
+  <header class="shrink-0">
+    <!-- 槽位：TitleBar 组件 -->
+  </header>
+  <main class="flex-1 overflow-y-auto px-4 pt-2 pb-6 flex flex-col gap-3">
+    <!-- 每个分组：可选 SubHeader 做组标题，下面跟一个 ListPhone 列表卡片 -->
+    <section>
+      <!-- 槽位：SubHeader（可选） + ListPhone（列表项在卡片内部，白底圆角） -->
+    </section>
+    <!-- 分组之间间距 12px（gap-3 已提供）；需要更强分隔时组前加 mt-3 -->
+    <section>
+      <!-- 槽位：下一组 -->
+    </section>
+  </main>
+</div>
