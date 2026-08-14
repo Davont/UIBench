@@ -116,6 +116,18 @@ categories:
       - {query: "cozy scandinavian home interior soft morning light", orientation: squarish, count: 4}
       - {query: "athlete running sunrise cinematic silhouette", orientation: portrait, count: 4}
 
+  books:
+    label: 书籍阅读
+    match_keywords: [
+      book, books, reading, reader, library, bookstore, bookshelf, novel,
+      literature, editorial, study, pages, hardcover, paperback, author,
+      书, 书籍, 读书, 阅读, 图书, 小说, 文学, 书店, 书架, 图书馆,
+    ]
+    searches:
+      - {query: "curated books still life editorial warm light", orientation: portrait, count: 5}
+      - {query: "cozy person reading book by window", orientation: landscape, count: 5}
+      - {query: "beautiful bookstore library shelves cinematic", orientation: landscape, count: 5}
+
   office:
     label: 办公
     match_keywords: [

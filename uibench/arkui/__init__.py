@@ -46,96 +46,64 @@ _SYMBOL_TABLE = format_lucide_symbol_table()
 MOBILE_ARKUI_METADATA_INSTRUCTIONS = f"""
 
 【ArkUI 可导出组件元数据合约】
-- 每一个写了 `data-component` 的元素都必须同时写全局唯一的 `data-node-id`，一个都不能
-  漏，图标和分隔线也不例外；使用稳定的小写路径，例如 `shop.products.item-headphones`。
-- 这些节点必须使用注册表中的 `data-component`，第一版允许值为：
-  {_PROMPT_COMPONENTS}。
-- 带 `data-node-id` 的根节点必须铺满整个视口，写上 `min-h-screen`。ArkUI 的页面根背后
-  没有 body 画布，根节点没有铺满时画布颜色会在边缘露出来，这种页面无法导出。页面背景
-  色写在 `<body>` 上还是写在根节点上都可以。
-- `data-component` 表达结构和控件类型；可选 `data-ui-role` 表达业务复合语义，例如
-  `product-card`、`app-bar`、`hero-banner`，不要把业务名称写进 `data-component`。
-- 普通纵向布局标为 column，且该节点必须实际使用 `flex flex-col`；普通横向布局标为 row，
-  且该节点必须实际使用 `flex flex-row`。标注必须与浏览器最终 computed layout 一致：
-  column 必须得到 `display: flex`、`flex-direction: column`，row 必须得到 `display: flex`、
-  `flex-direction: row`；不能只写 `data-component` 而缺少对应的布局 class。注意 Tailwind
-  裸写 `flex` 等同于 `flex-row`：图标底座这类只把一个元素居中的方块容器如果写的是
-  `flex items-center justify-center`，实际方向就是 row，要标 row 而不是 column。
-- 存在覆盖或绝对定位的容器标为 stack；普通长内容用 scroll 包裹一个实际布局容器，scroll
-  最多只能有一个已标注组件子节点。scroll 的位置取决于页面形态：有固定顶栏或底部
-  Tab 的页面，scroll 必须放在中间正文区（`flex-1 overflow-y-auto`），固定栏留在
-  scroll 外面，否则它们会跟着内容滚走；整页一起滚动的页面把 scroll 作为根的唯一
-  内容容器；内容确定不超过一屏的页面可以不用 scroll。
-- 同类条目重复出现的列表标为 list，纵向列表和横滑列表都适用：导出按浏览器实际方向
-  生成，不需要标注方向，但 list 元素本身要写出真实布局 class（横滑写 `flex flex-row`），
-  不要用 `flex-row-reverse` 这类无法表达的方向。每一条用一个 list-item 包起来。
-  list 只能包 list-item，list-item 只能出现在 list 内且最多有一个已标注组件子节点，
-  条目内部结构要再包一层 row 或 column。条目之间的间距写在 list 上，不要给每个
-  list-item 加 margin。
-  只出现一次的普通区块仍然用 column/row，不要为了用 list 而把不相关的内容硬凑成列表。
-- 多列等宽的宫格（快捷入口、相册、商品网格）标为 grid，且该元素必须实际使用
-  `grid grid-cols-N gap-*` 得到 `display: grid`。每个格子用一个 grid-item 包起来：
-  grid 只能包 grid-item，grid-item 只能出现在 grid 内且最多有一个已标注组件子节点，
-  格子内部结构再包一层 column/row。格子间距写 `gap-*` 在 grid 上，不要给格子加
-  margin。不要使用 `col-span-*`、`row-span-*` 或 `grid-flow-col`：ArkUI 的 GridItem
-  按行序自动放置，带显式跨行列的网格无法导出。真正的单列长列表仍然用 list。
-- 当前渲染器还不支持这些组件：{_PLANNED_COMPONENTS}。这类内容暂时使用 column/row
-  表达，并用 `data-ui-role`、`data-repeat`、`data-item-key` 保留业务语义，绝对不能
-  输出未列入上面允许值的 `data-component`。
-- 所有独立成块的文字都标为 text，包括标题、正文，也包括用 `<span>` 标签写的次要小字、
-  数值和状态说明。不要因为 HTML 标签恰好叫 `<span>` 就标成 `data-component="span"`，
-  这两者没有关系。
-- `data-component="span"` 只用于一种情况：它的直接父节点也是 `data-component="text"`，
-  用来给同一段文字里的局部片段单独设置颜色或字重，且必须有非空文本。对照：
+- 每个 `data-component` 必须同时有全局唯一的稳定小写路径 `data-node-id`，图标/分隔线也不例外。
+- `data-component` 第一版允许值为：{_PROMPT_COMPONENTS}。
+- 根组件写 `min-h-screen`。`data-component` 只表示结构/控件；业务语义写可选
+  `data-ui-role`（如 product-card/app-bar）。
+- 已标注组件的 DOM 直接父节点必须就是组件元数据中的父节点；不要在两个已标注组件之间
+  插入未标注 wrapper。wrapper 应删除或标为允许的结构组件。
+- 当前渲染器还不支持这些组件：{_PLANNED_COMPONENTS}。用 column/row 加 `data-ui-role`、
+  `data-repeat`、`data-item-key` 代替，禁止输出其他 `data-component`。
+- ArkUI 导出样式避免 `box-shadow`、`transform`、`align-items:baseline`；用边框、间距和
+  `items-center` 表达。
+
+【结构】
+- column 必须实际使用 `flex flex-col`，row 必须实际使用 `flex flex-row`。标注必须与浏览器最终 computed layout 一致：column 必须得到 `display: flex`、`flex-direction: column`；
+  row 必须得到 `display: flex`、`flex-direction: row`。裸 `flex` 是 row。
+- 覆盖/绝对定位容器用 stack。长内容用 scroll，且最多一个已标注子组件；固定顶/底栏放在
+  scroll 外，中间正文用 `flex-1 overflow-y-auto`；栏移到 scroll 外后不要再写 `sticky`/`fixed`。
+- 重复条目用 list，纵向列表和横滑列表都适用；每项用 list-item。list 只能包 list-item，list-item 只能出现在 list 内，且最多一个已标注子组件；内部再包 row/column，间距写在 list。
+- 等宽多列用 `grid grid-cols-N gap-*` 并标 grid；grid 只能包 grid-item，grid-item 只能在
+  grid 内且最多一个已标注子组件。禁止 `col-span-*`、`row-span-*`、`grid-flow-col`。
+- 独立文字都标 text。不要因为 HTML 标签恰好叫 `<span>` 就标成 `data-component="span"`；
+  span 仅用于 text 直属的非空局部文字，text 的已标注直属子组件也只能是 span：
   错误 <div data-component="row"><span data-component="span">已开启</span></div>
   正确 <div data-component="row"><span data-component="text">已开启</span></div>
   正确 <p data-component="text">共 <span data-component="span">3</span> 台设备</p>
-- `text` 的已标注直接子组件只能是 `span`。图标和文字并排时，外层必须标为 row，并实际
-  使用 `flex flex-row`；`symbol` 和独立的 `text` 作为它的同级子节点，不能把 `symbol`
-  直接放进 `text`。
-- 状态圆点、色块、装饰条这类没有文字的元素一律不要标成 span，改标 column 或 stack。
-- image 只能用在带非空 `src` 的真实 `<img>` 上，并保留 alt。没有真实图片的头像位、占位块
-  不要标成 image，改用 column/stack 加背景色表达。
-- 开关必须使用原生 `<input type="checkbox" data-component="toggle">`，初始状态用 HTML
-  `checked`，禁用状态用 `disabled`；不要再用 button、圆点、阴影和 transform 手绘开关。
-- 滑块必须使用原生 `<input type="range" data-component="slider">`，并用 `value`、`min`、
-  `max`、`step` 表达数值；不要额外创建轨道和 thumb 节点。
-- 单行输入框使用原生 `<input type="text" data-component="text-input">`，当前文字、提示、
-  只读和禁用状态分别使用 `value`、`placeholder`、`readonly`、`disabled`。
-- 搜索框使用原生 `<input type="search" data-component="search">`，当前文字和提示分别使用
-  `value`、`placeholder`；搜索图标由 ArkUI Search 自带，不要再添加一个 symbol 子节点。
-- 复选框使用原生 `<input type="checkbox" data-component="checkbox">`，用 `name` 表示组、
-  `value` 表示选项标识，初始和禁用状态使用 `checked`、`disabled`；不要手绘勾选框。
-- 单选框使用原生 `<input type="radio" data-component="radio">`；同一组选项使用相同的
-  `name`，每项必须有不同的非空 `value`，初始状态使用 `checked`，不要手绘圆形选择器。
-- 页签容器使用 `<div data-component="tabs" data-index="0">`，直接子组件只能是
-  `tab-content`；每页使用 `<section data-component="tab-content" data-tab-bar="概览">`，
-  `data-tab-bar` 必须是非空页签文字。`data-index` 是从 0 开始的初始页；交互状态由 ArkUI
-  Tabs 接管，不要用 button 加显示/隐藏面板冒充 Tabs。
-- button 保留原生 `<button>` 标签，且 Button 最多只能有一个已标注组件子节点。按钮内部
-  同时有图标和文字时，必须在 `<button>` 里再包一层已标注的 row，把图标和文字都放进去：
+- 图标和文字并排时，外层必须标为 row，并实际使用 `flex flex-row`；symbol 与 text 同级。
+- image 只标在有非空 `src` 和 alt 的真实 `<img>`；占位块/无字装饰用 column/stack。
+
+【原生控件】
+- 即时开关（如深色模式/护眼模式）用原生
+  `<input type="checkbox" data-component="toggle">`，状态用 `checked|disabled`；禁止手绘。
+- 滑块用 `<input type="range" data-component="slider">`，状态用 `value|min|max|step`；
+  不要另画轨道/thumb。
+- 单行输入用 `<input type="text" data-component="text-input">`，搜索用
+  `<input type="search" data-component="search">`；状态用 `value|placeholder|readonly|disabled`，
+  Search 不再添加搜索 symbol。
+- 多选/协议才用 `<input type="checkbox" data-component="checkbox">`，状态用
+  `name|value|checked|disabled`；设置项的即时开/关不能用 checkbox。
+- 单选用 `<input type="radio" data-component="radio">`；同组 `name` 相同，`value` 非空且不同，
+  初始项写 `checked`。
+- Tabs 用 `<div data-component="tabs" data-index="0">`，直属子组件只能是
+  `<section data-component="tab-content" data-tab-bar="概览">`；index 从 0 开始，tab-bar 非空。
+- button 保留 `<button>` 且最多一个已标注子组件；图标+文字时只包一个已标注 row：
 
   <button data-node-id="settings.account" data-component="button" class="w-full px-4 py-3">
     <div data-node-id="settings.account.line" data-component="row"
          class="flex flex-row items-center gap-3">
       <i data-node-id="settings.account.icon" data-component="symbol"
-         data-lucide="user" data-symbol="sys.symbol.person" class="w-5 h-5"></i>
+         data-lucide="user" class="w-5 h-5"></i>
       <span data-node-id="settings.account.label" data-component="text"
             class="flex-1 text-left">个人资料</span>
       <i data-node-id="settings.account.more" data-component="symbol"
-         data-lucide="chevron-right" data-symbol="sys.symbol.chevron_right" class="w-4 h-4"></i>
+         data-lucide="chevron-right" class="w-4 h-4"></i>
     </div>
   </button>
 
-- Lucide `<i>` 标为 `data-component="symbol"` 并保留 `data-lucide`，正常按语义挑图标即可。
-  不需要写 `data-symbol`：导出时会自动把 Lucide 图标名映射到鸿蒙系统图标资源，少数鸿蒙
-  没有对应资源的图标会退化成等大的空占位，不影响其余内容导出。
-  摄影图、商品图和品牌 Logo 走 image 方案。
-- 行为只写稳定引用，例如 `data-action="cart.add"`，不要因此添加业务 JavaScript。
-- 已标注组件的 DOM 直接父节点必须就是组件元数据中的父节点；不要在两个已标注组件之间
-  插入未标注 wrapper。布局或分组 wrapper 应删除，或使用允许的 column/row/stack 等组件
-  完整标注；纯装饰 wrapper 只能放在不再包含已标注后代的叶子组件内部。HTML 在没有
-  ArkUI 转换器时仍必须正常渲染。
+- Lucide `<i>` 标为 `data-component="symbol"` 并保留 `data-lucide`；不需要写 `data-symbol`。
+  开放网络用 `unlock`，语言/翻译用 `languages`，不要用近似的 `globe`。摄影图、商品图、
+  品牌 Logo 用 image。行为引用可写 `data-action`，但不要添加业务 JS。
 """
 
 __all__ = [

@@ -27,9 +27,13 @@ from fastapi.responses import (
     StreamingResponse,
 )
 from fastapi.staticfiles import StaticFiles
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from config import settings
+from uibench.app_icons import (
+    app_icon_catalog_instruction,
+    repair_builtin_app_icon_bindings,
+)
 from uibench.arkui import (
     analyze_component_metadata,
     repair_arkui_export_html,
@@ -52,7 +56,9 @@ from uibench.design_tokens import (
     find_unknown_design_token_classes,
     inject_design_tokens,
     load_tokens,
+    normalize_design_token_classes,
     render_token_css,
+    tailwind_token_preset,
 )
 from uibench.models import chat_model_for, load_model_registry
 from uibench.image_tools import (
@@ -69,6 +75,11 @@ from uibench.image_tools import (
     track_used_photos,
     unresolved_image_bindings,
 )
+from uibench.html_package import (
+    GeneratedPackageAsset,
+    HtmlPackageError,
+    build_html_package,
+)
 from uibench.local_gallery import GALLERY_DIR
 from uibench.pc import inject_pc_bootstrap
 from uibench.prompts import prompt_for
@@ -77,10 +88,12 @@ from uibench.schemas import (
     ArkUiPrepareRequest,
     GenerateRequest,
     GenerationResult,
+    HtmlPackageRequest,
     ModelConfig,
 )
 
 app = FastAPI(title="UIBench", version="0.5.0")
+PROJECT_ROOT = Path(__file__).resolve().parent
 
 
 class _CorsStaticFiles(StaticFiles):
@@ -106,8 +119,12 @@ app.mount(
     _CorsStaticFiles(directory=GALLERY_DIR, check_dir=False),
     name="gallery",
 )
+app.mount(
+    "/assets",
+    _CorsStaticFiles(directory=PROJECT_ROOT / "assets", check_dir=False),
+    name="assets",
+)
 
-PROJECT_ROOT = Path(__file__).resolve().parent
 LOGS_DIR = PROJECT_ROOT / "logs"
 
 _FENCE_RE = re.compile(r"```(?:\w+)?\s*\n(.*?)```", re.DOTALL)
@@ -411,6 +428,125 @@ def _minimum_photo_slots(prompt_text: str) -> int:
     if _VISUAL_PHOTO_RE.search(prompt_text):
         return min(2, settings.image_tool_max_assets)
     return 0
+
+
+def _should_ai_plan_photos(prompt_text: str) -> bool:
+    """Return whether an ambiguous request should get one AI media-planning pass.
+
+    Explicit photo requests and known photo-heavy domains retain their hard
+    floors. Every other page type is left to the planner unless the user
+    explicitly opts out of images.
+    """
+    return (
+        _minimum_photo_slots(prompt_text) == 0
+        and not _NO_PHOTO_RE.search(prompt_text)
+    )
+
+
+_PHOTO_PLANNER_SYSTEM = """You are UIBench's shared media planner.
+Decide whether the requested UI materially benefits from real photographic
+assets. Prefer photos for content whose visual identity depends on imagery,
+including books/reading, editorial content, entertainment, people, places,
+products and prominent content cards. Judge every page from its requested
+visible content: no page category is automatically image-free. Request an
+asset only when it has a clear visual role rather than replacing an icon or
+native control. Never request application icons, logos or brand marks as
+photos; UIBench supplies those from a separate built-in asset catalogue.
+
+Return exactly one JSON object and no prose:
+{"need_images":true|false,"requests":[{"slot":"stable-kebab-name","query":"concise English photo query","orientation":"portrait|landscape|squarish"}]}
+
+Use 1-6 distinct visible slots only when each slot has a clear purpose. Queries
+target a generic curated offline photo library. For books,
+request generic books/reading/editorial still-life imagery, not exact
+copyrighted cover artwork. If no photos are needed, return
+{"need_images":false,"requests":[]}.
+"""
+
+_NON_PHOTOGRAPHIC_REQUEST_RE = re.compile(
+    r"应用(?:程序)?图标|品牌(?:图标|logo)|"
+    r"\b(?:app|application|brand)\s+(?:icons?|logos?|marks?)\b|"
+    r"\b(?:icons?|logos?)\s+(?:grid|row|set|collection|pack)\b",
+    re.IGNORECASE,
+)
+
+
+def _photo_plan_from_text(text: str, *, limit: int) -> list[dict] | None:
+    """Parse and validate the planner's bounded JSON response."""
+    raw = text.strip()
+    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.I | re.S)
+    if fenced:
+        raw = fenced.group(1)
+    else:
+        start, end = raw.find("{"), raw.rfind("}")
+        if start < 0 or end < start:
+            return None
+        raw = raw[start:end + 1]
+    try:
+        payload = json.loads(raw)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict) or not isinstance(payload.get("need_images"), bool):
+        return None
+    if not payload["need_images"]:
+        return []
+    try:
+        requests = image_search_requests(payload, max_requests=limit)
+    except Exception:
+        return None
+    if not requests:
+        return None
+    requests = [
+        request for request in requests
+        if not _NON_PHOTOGRAPHIC_REQUEST_RE.search(
+            f"{request.get('slot', '')} {request.get('query', '')}"
+        )
+    ]
+    return requests[:limit]
+
+
+async def _plan_photo_requests_with_ai(
+    model_cfg: ModelConfig,
+    prompt_text: str,
+    mode: str,
+) -> list[dict] | None:
+    """Use one configured model to create a shared photo plan for the run.
+
+    ``None`` means the planning call failed or returned malformed data, so the
+    ordinary generation path remains available. An empty list is a valid AI
+    decision that the page needs no photography.
+    """
+    chat = chat_model_for(model_cfg)
+    planner_messages = [
+        SystemMessage(content=_PHOTO_PLANNER_SYSTEM),
+        HumanMessage(content=f"mode={mode}\nUI requirement: {prompt_text}"),
+    ]
+    root_client = getattr(chat, "root_client", None)
+    try:
+        if model_cfg.provider == "openai" and root_client is not None:
+            kwargs: dict = {
+                "model": model_cfg.id,
+                "messages": [
+                    {"role": "system", "content": _PHOTO_PLANNER_SYSTEM},
+                    {"role": "user", "content": f"mode={mode}\nUI requirement: {prompt_text}"},
+                ],
+                "temperature": 0.0,
+                "max_tokens": 1000,
+            }
+            kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
+            raw = await asyncio.to_thread(
+                root_client.chat.completions.create, **kwargs
+            )
+            content, _, _, _ = _openai_response_parts(raw)
+        else:
+            response = await asyncio.to_thread(chat.invoke, planner_messages)
+            content = _as_text(getattr(response, "content", str(response)))
+    except Exception:
+        return None
+    return _photo_plan_from_text(
+        content,
+        limit=settings.image_tool_max_assets,
+    )
 
 
 def _explicit_photo_count(prompt_text: str) -> int:
@@ -767,6 +903,7 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
                         progress: ProgressCallback | None = None,
                         image_cache: RunImageBatchCache | None = None,
                         image_source: str = "",
+                        photo_plan: list[dict] | None = None,
                         ) -> GenerationResult:
     """Call one model (in a worker thread) and return its rendered result."""
     start = time.perf_counter()
@@ -797,7 +934,11 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
     completion_tokens = 0
     reasoning_tokens = 0
     recovered = False
-    minimum_photo_slots = _minimum_photo_slots(prompt_text)
+    shared_photo_plan = photo_plan is not None
+    minimum_photo_slots = (
+        len(photo_plan) if shared_photo_plan
+        else _minimum_photo_slots(prompt_text)
+    )
     image_tool_used = False
     image_photos: list[dict] = []
     image_queries: list[str] = []
@@ -881,6 +1022,19 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
         images_available = image_tool_available(effective_image_source)
         if minimum_photo_slots and not images_available:
             image_error = image_tool_unavailable_reason(effective_image_source)
+        base_messages = messages.to_messages()
+        app_icon_instruction = app_icon_catalog_instruction(prompt_text)
+        if app_icon_instruction:
+            base_messages.append(HumanMessage(content=app_icon_instruction))
+        if shared_photo_plan and photo_plan and images_available:
+            image_tool_used = True
+            await report("searching_images", "正在读取 AI 统一规划的图片素材")
+            result_text = await resolve_image_requests(photo_plan)
+            base_messages.append(HumanMessage(content=(
+                "这是 UIBench 为本轮所有参评模型统一规划并批准的图片素材库。"
+                "请使用每张图片，严格匹配对应 slot，且不得编造 URL。\n\n"
+                + result_text
+            )))
         await report("generating", "正在请求模型，等待生成")
 
         # For OpenAI-compatible models, call the underlying openai client
@@ -893,7 +1047,7 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
                         "tool": "tool", "function": "function"}
             oai_messages = [
                 {"role": role_map.get(m.type, m.type), "content": m.content}
-                for m in messages.to_messages()
+                for m in base_messages
             ]
             kwargs: dict = {"model": model_cfg.id, "messages": oai_messages,
                             "temperature": settings.temperature}
@@ -906,11 +1060,13 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
             elif effort:
                 kwargs["reasoning_effort"] = effort
                 kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
-            if images_available:
+            # Only expose the tool when the request actually needs photos.
+            # Otherwise an "auto" tool choice adds schema tokens and can lure
+            # the model into searching for decorative images the user did not
+            # request.
+            if minimum_photo_slots and images_available and not shared_photo_plan:
                 kwargs["tools"] = [IMAGE_SEARCH_TOOL]
-                kwargs["tool_choice"] = (
-                    "required" if minimum_photo_slots else "auto"
-                )
+                kwargs["tool_choice"] = "required"
             try:
                 raw = await asyncio.to_thread(
                     root_client.chat.completions.create, **kwargs
@@ -955,7 +1111,9 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
             reasoning_tokens += usage["reasoning_tokens"]
 
             tool_calls = _openai_tool_calls(raw)
-            if tool_calls or (minimum_photo_slots and images_available):
+            if tool_calls or (
+                minimum_photo_slots and images_available and not shared_photo_plan
+            ):
                 image_tool_used = True
                 await report("searching_images", "正在规划图片素材")
                 tool_payloads = [_tool_call_payload(call) for call in tool_calls]
@@ -1046,8 +1204,7 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
                             "role": "user",
                             "content": (
                                 "请使用下面这份经过批准的图片素材库重新生成完整 HTML。"
-                                "每张图片必须用于其 slot 对应的可见区域；不得使用图标或"
-                                "空色块代替已有素材，也不得编造 URL。\n\n"
+                                "每张图片必须用于语义匹配的 slot，不得编造 URL。\n\n"
                                 + result_text
                             ),
                         },
@@ -1215,8 +1372,8 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
                         + (repair_content or "（无输出）")
                     )
         else:
-            invoke_messages = messages
-            if minimum_photo_slots and images_available:
+            invoke_messages = base_messages
+            if minimum_photo_slots and images_available and not shared_photo_plan:
                 image_tool_used = True
                 await report("searching_images", "正在规划图片素材")
                 requests = _fallback_photo_requests(
@@ -1226,11 +1383,10 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
                 )
                 result_text = await resolve_image_requests(requests)
                 invoke_messages = [
-                    *messages.to_messages(),
+                    *base_messages,
                     HumanMessage(content=(
                         "请使用下面这份经过批准的图片素材库生成完整 HTML。"
-                        "每张图片只能用于语义匹配的 slot；不得为了匹配素材改写用户"
-                        "指定的内容，不得编造 URL；没有匹配素材时使用受控占位。\n\n"
+                        "每张图片必须用于语义匹配的 slot，不得编造 URL。\n\n"
                         + result_text
                     )),
                 ]
@@ -1251,6 +1407,13 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
             # manifest. The later browser snapshot and backend export then see
             # the exact same deterministic node IDs.
             html = repair_missing_component_node_ids(html)
+        if html:
+            html = repair_builtin_app_icon_bindings(html)
+        if mode == "mobile" and html:
+            # Keep returned/copied HTML on the same canonical token contract
+            # that preview injection uses; otherwise aliases look repaired in
+            # the iframe but remain broken in logs, copy, and export payloads.
+            html = normalize_design_token_classes(html)
         image_used = _used_photo_count(image_photos, html)
         unapproved_images = _unapproved_remote_image_urls(image_photos, html)
         if html and unapproved_images:
@@ -1267,7 +1430,7 @@ async def _generate_one(model_cfg: ModelConfig, prompt_text: str,
                 recovered=recovered,
             )
         if mode == "mobile" and html:
-            # Invented dt-* classes resolve to no CSS at all, so the page still
+            # Invented Design Token classes resolve to no CSS, so the page still
             # renders and looks plausible while silently losing that styling.
             unknown_token_classes = list(find_unknown_design_token_classes(html))
         if mode == "mobile" and arkui_export_enabled and html:
@@ -1445,6 +1608,37 @@ async def generate(req: GenerateRequest):
             ensure_ascii=False,
         ) + "\n"
 
+        photo_plan: list[dict] | None = None
+        effective_source = resolve_image_source(req.image_source or None)
+        if (
+            _should_ai_plan_photos(req.prompt)
+            and image_tool_available(effective_source)
+        ):
+            yield json.dumps({
+                "type": "progress",
+                "key": "0",
+                "stage": "planning_images",
+                "message": "AI 正在统一判断页面图片需求",
+                "elapsed_seconds": round(time.perf_counter() - start, 2),
+            }, ensure_ascii=False) + "\n"
+            photo_plan = await _plan_photo_requests_with_ai(
+                models[0], req.prompt, req.mode,
+            )
+            decision = (
+                f"AI 已规划 {len(photo_plan)} 个图片槽位"
+                if photo_plan
+                else "AI 判断本页不需要摄影图片"
+                if photo_plan == []
+                else "AI 图片规划失败，继续使用安全回退"
+            )
+            yield json.dumps({
+                "type": "progress",
+                "key": "0",
+                "stage": "planning_images",
+                "message": decision,
+                "elapsed_seconds": round(time.perf_counter() - start, 2),
+            }, ensure_ascii=False) + "\n"
+
         queue: asyncio.Queue[dict] = asyncio.Queue()
         image_cache = RunImageBatchCache()
 
@@ -1470,6 +1664,7 @@ async def generate(req: GenerateRequest):
                 progress=progress,
                 image_cache=image_cache,
                 image_source=req.image_source,
+                photo_plan=photo_plan,
             )
             await queue.put({"type": "result", "result": result})
 
@@ -1538,6 +1733,25 @@ def last_run():
             or payload.get("arkui_export_enabled")
             or raw_result.get("arkui_manifest")
         )
+        previous_unknown_classes = list(
+            raw_result.get("unknown_token_classes") or []
+        )
+        if result_mode == "mobile" and restored_html:
+            restored_html = repair_builtin_app_icon_bindings(restored_html)
+            restored_html = normalize_design_token_classes(restored_html)
+            raw_result["html"] = restored_html
+            current_unknown_classes = list(
+                find_unknown_design_token_classes(restored_html)
+            )
+            raw_result["unknown_token_classes"] = current_unknown_classes
+            if (
+                raw_result.get("status") == "degraded"
+                and previous_unknown_classes
+                and not current_unknown_classes
+                and not raw_result.get("image_error")
+                and not raw_result.get("error")
+            ):
+                raw_result["status"] = "success"
         if result_mode == "mobile" and arkui_enabled and restored_html:
             restored_html = repair_missing_component_node_ids(restored_html)
             raw_result["html"] = restored_html
@@ -1679,12 +1893,15 @@ def hm_text_font(filename: str):
 @app.post("/api/arkui/prepare")
 def prepare_arkui(req: ArkUiPrepareRequest):
     """Deterministically repair HTML before the browser captures its styles."""
-    repaired = repair_arkui_export_html(req.html)
+    normalized = repair_builtin_app_icon_bindings(
+        normalize_design_token_classes(req.html)
+    )
+    repaired = repair_arkui_export_html(normalized)
     manifest = analyze_component_metadata(repaired.html).to_manifest()
     summary = manifest["summary"]
     return JSONResponse({
         "html": repaired.html,
-        "changed": repaired.changed,
+        "changed": normalized != req.html or repaired.changed,
         "repairs": [item.to_dict() for item in repaired.repairs],
         "manifest": manifest,
         "exportable": bool(summary["exportable"]),
@@ -1694,8 +1911,11 @@ def prepare_arkui(req: ArkUiPrepareRequest):
 @app.post("/api/arkui/export")
 async def export_arkui(req: ArkUiExportRequest):
     """Export annotated or legacy HTML through the platform converter."""
+    export_html = repair_builtin_app_icon_bindings(
+        normalize_design_token_classes(req.html)
+    )
     if req.mode == "annotated":
-        pending_repairs = repair_arkui_export_html(req.html)
+        pending_repairs = repair_arkui_export_html(export_html)
         if pending_repairs.changed:
             return JSONResponse(
                 {
@@ -1737,7 +1957,7 @@ async def export_arkui(req: ArkUiExportRequest):
     try:
         result = await asyncio.to_thread(
             exporter,
-            req.html,
+            export_html,
             **export_options,
         )
     except ArkUiExporterError as exc:
@@ -1785,6 +2005,7 @@ def inject_for_render(
     token_theme: str = DEFAULT_TOKEN_THEME,
 ) -> str:
     """Apply shared assets, mobile tokens, and the PC runtime when needed."""
+    html = repair_builtin_app_icon_bindings(html)
     html = inject_shared_css(html)
     if mode == "mobile":
         html = inject_design_tokens(html, theme, token_theme)
@@ -1792,6 +2013,71 @@ def inject_for_render(
     else:
         html = inject_pc_bootstrap(html)
     return html
+
+
+@app.post("/api/html/package")
+def package_html(req: HtmlPackageRequest):
+    """Return an HTML ZIP whose local resources work from ``file://``."""
+    rendered_html = inject_for_render(
+        req.html,
+        mode=req.mode,
+        theme=req.theme,
+        token_theme=req.token_theme,
+    )
+    offline_font_css = hm_fonts_css().replace(
+        "url('/hm-fonts/", "url('fonts/",
+    )
+    generated_assets = {
+        "/shared.css": GeneratedPackageAsset(
+            archive_path="assets/uibench/shared.css",
+            content=SHARED_CSS.encode("utf-8"),
+        ),
+        "/design-tokens.css": GeneratedPackageAsset(
+            archive_path="assets/uibench/design-tokens.css",
+            content=render_token_css().encode("utf-8"),
+        ),
+        "/hm-fonts.css": GeneratedPackageAsset(
+            archive_path="assets/uibench/hm-fonts.css",
+            content=offline_font_css.encode("utf-8"),
+        ),
+    }
+    font_assets = HM_SYMBOL_FONT_FILE.parent
+    extra_files = (
+        {
+            f"assets/uibench/fonts/{filename}": font_assets / filename
+            for _, filename in HM_TEXT_FONTS
+            if (font_assets / filename).is_file()
+        }
+        if "/hm-fonts.css" in rendered_html
+        else {}
+    )
+    try:
+        packaged = build_html_package(
+            rendered_html,
+            assets_root=PROJECT_ROOT / "assets",
+            gallery_root=GALLERY_DIR,
+            generated_assets=generated_assets,
+            extra_files=extra_files,
+        )
+    except HtmlPackageError as exc:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": exc.code,
+                    "message": str(exc),
+                    "details": {"reference": exc.reference},
+                },
+            },
+            status_code=422,
+        )
+    return Response(
+        packaged.archive,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": 'attachment; filename="UIBench_HTML.zip"',
+            "X-UIBench-Asset-Count": str(packaged.asset_count),
+        },
+    )
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -1862,7 +2148,12 @@ INDEX_HTML = """<!DOCTYPE html>
     border: 1px solid var(--border); padding: 2px 8px; border-radius: 999px;
     text-transform: uppercase; letter-spacing: .5px; }
   .time { font-size: 13px; color: var(--time); font-variant-numeric: tabular-nums;
-    white-space: nowrap; }
+    white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+  .unknown-style-details { appearance: none; background: transparent; color: var(--time);
+    border: 0; border-bottom: 1px dashed currentColor; padding: 0; font: inherit;
+    line-height: inherit; cursor: pointer; }
+  .unknown-style-details:hover, .unknown-style-details:focus-visible {
+    color: #fde68a; border-bottom-style: solid; outline: none; }
   .head-status { grid-column: 1 / -1; display: flex; align-items: center;
     gap: 8px; min-width: 0; }
   .head-status .stage-label { max-width: 100%; }
@@ -1971,6 +2262,12 @@ INDEX_HTML = """<!DOCTYPE html>
   .copy-message:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
   .modal-load { color: var(--muted); padding: 24px; text-align: center; }
   .modal-err { color: var(--err); padding: 24px; text-align: center; }
+  .unknown-style-summary { margin: 0 0 14px; color: var(--muted);
+    font-size: 13px; line-height: 1.7; }
+  .unknown-style-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .unknown-style-list code { display: block; padding: 9px 11px; border: 1px solid var(--border);
+    border-radius: 8px; background: #0d1016; color: var(--time); word-break: break-all;
+    font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   /* lossy export details */
   .tools button.lossy-reasons { color: var(--time); border-color: rgba(251,191,36,.4); }
   .tools button.lossy-reasons:hover { color: var(--time); border-color: var(--time); }
@@ -2053,6 +2350,7 @@ let requestSerial = 0;
 let currentMode = 'mobile';
 let currentTheme = localStorage.getItem('uibench-preview-theme') === 'dark' ? 'dark' : 'light';
 const tokenThemes = ['harmonyos', 'spotify', 'netflix', 'notion'];
+const tokenTailwindConfig = __UIBENCH_TAILWIND_TOKEN_CONFIG__;
 const savedTokenTheme = localStorage.getItem('uibench-preview-token-theme');
 let currentTokenTheme = tokenThemes.includes(savedTokenTheme) ? savedTokenTheme : 'harmonyos';
 // Preview icon rendering: Lucide keeps the benchmark look; the HarmonyOS
@@ -2122,8 +2420,6 @@ function resultTimeSuffix(result) {
   if (result.image_error) parts.push('图片检索失败');
   if (result.recovered) parts.push('自动恢复');
   if (result.html_source === 'reasoning') parts.push('reasoning 兜底');
-  const unknownTokens = result.unknown_token_classes || [];
-  if (unknownTokens.length) parts.push('无效样式类 ' + unknownTokens.length + ' 个');
   return parts.length ? ' · ' + parts.join(' · ') : '';
 }
 
@@ -2132,11 +2428,23 @@ function setCardTotal(card, seconds, result = {}) {
   card.dataset.totalElapsed = String(value);
   const headTime = card.querySelector('.time');
   if (headTime) {
-    headTime.textContent = '⏱ ' + formatSeconds(value) + resultTimeSuffix(result);
-    const unknownTokens = result.unknown_token_classes || [];
-    headTime.title = unknownTokens.length
-      ? '这些 dt-* 类不匹配任何 CSS，对应样式已静默丢失：' + unknownTokens.join('、')
-      : '';
+    headTime.replaceChildren(document.createTextNode(
+      '⏱ ' + formatSeconds(value) + resultTimeSuffix(result)
+    ));
+    const unknownTokens = Array.isArray(result.unknown_token_classes)
+      ? result.unknown_token_classes : [];
+    headTime.title = '';
+    if (unknownTokens.length) {
+      headTime.appendChild(document.createTextNode(' · '));
+      const detailsBtn = document.createElement('button');
+      detailsBtn.type = 'button';
+      detailsBtn.className = 'unknown-style-details';
+      detailsBtn.textContent = '无效样式类 ' + unknownTokens.length + ' 个';
+      detailsBtn.title = '查看没有匹配到 CSS 的具体类名';
+      detailsBtn.setAttribute('aria-haspopup', 'dialog');
+      detailsBtn.onclick = () => openUnknownStyleDetails(result.name || '生成结果', unknownTokens);
+      headTime.appendChild(detailsBtn);
+    }
   }
 }
 
@@ -2498,7 +2806,7 @@ function makeCard(m, restoring = false) {
   head.innerHTML =
     '<div class="titles"><span class="name" id="' + esc(titleId) + '">' + esc(m.name) + '</span>' +
     '<span class="provider">' + esc(m.provider) + '</span></div>' +
-    '<span class="time" aria-hidden="true">⏱ 0.0s</span>' +
+    '<span class="time">⏱ 0.0s</span>' +
     '<div class="head-status"><span class="stage-dot" aria-hidden="true"></span>' +
     '<span class="stage-label">' + (restoring ? '正在恢复结果' : stageLabels.generating) + '</span></div>';
   progress.appendChild(head);
@@ -2656,6 +2964,31 @@ function fillCard(r) {
         copy.textContent = '已复制'; setTimeout(() => copy.textContent = '复制 HTML', 1500);
       });
     };
+    const packageBtn = document.createElement('button');
+    packageBtn.textContent = '下载 HTML 包';
+    packageBtn.title = '下载 index.html 及页面实际引用的本地 assets 资源';
+    packageBtn.onclick = async () => {
+      const idleLabel = packageBtn.textContent;
+      packageBtn.disabled = true;
+      packageBtn.textContent = '打包资源…';
+      try {
+        const archive = await requestHtmlPackage(r);
+        downloadBlob(
+          withDownloadTimestamp('Generated_' + String(r.key || 'Page') + '_HTML.zip'),
+          archive
+        );
+        packageBtn.textContent = '已下载';
+        window.setTimeout(() => { packageBtn.textContent = idleLabel; }, 1500);
+      } catch (error) {
+        openCopyableMessage(
+          'HTML 打包失败 · ' + r.name,
+          'HTML 打包失败：\\n\\n' + String(error)
+        );
+        packageBtn.textContent = idleLabel;
+      } finally {
+        packageBtn.disabled = false;
+      }
+    };
     const open = document.createElement('button');
     open.textContent = '新标签打开';
     open.onclick = () => {
@@ -2664,7 +2997,7 @@ function fillCard(r) {
       ], {type: 'text/html'});
       window.open(URL.createObjectURL(b), '_blank');
     };
-    tools.append(copy, open);
+    tools.append(copy, packageBtn, open);
     slot.appendChild(tools);
 
     const isPc = (r.mode === 'pc');
@@ -2746,7 +3079,12 @@ function normalizeDesignTokenClassName(token) {
     'dt-bg-primary/10': 'dt-bg-primary-container-subtle',
     'dt-bg-accent/15': 'dt-bg-accent-container-subtle',
     'focus:dt-focus': 'dt-focus',
-    'placeholder:dt-placeholder-secondary': 'dt-placeholder-secondary'
+    'placeholder:dt-placeholder-secondary': 'dt-placeholder-secondary',
+    'dt-gap-card': 'gap-ui-card',
+    'dt-px-card': 'px-ui-card',
+    'dt-px-compact': 'px-ui-compact',
+    'dt-py-compact': 'py-ui-compact',
+    'dt-ml-9': 'ml-9'
   };
   if (aliases[token]) return aliases[token];
   var opacity = token.match(/^dt-bg-(canvas|primary|accent)\\/(\\d{1,3})$/);
@@ -2754,6 +3092,28 @@ function normalizeDesignTokenClassName(token) {
     if (opacity[1] === 'canvas') return 'dt-bg-canvas-translucent';
     return 'dt-bg-' + opacity[1]
       + (Number(opacity[2]) >= 20 ? '-container' : '-container-subtle');
+  }
+  var variantParts = token.match(/^(?:(.+):)?(.+)$/);
+  var variantPrefix = variantParts && variantParts[1] ? variantParts[1] + ':' : '';
+  var baseToken = variantParts ? variantParts[2] : token;
+  var uiOpacity = baseToken.match(
+    /^bg-ui-(canvas|primary|accent|surface-raised|success|warning|danger)\\/(\\d{1,3})$/
+  );
+  if (uiOpacity) {
+    var role = uiOpacity[1];
+    var amount = Number(uiOpacity[2]);
+    if (role === 'canvas') return variantPrefix + 'bg-ui-canvas-translucent';
+    if (role === 'primary' || role === 'accent') {
+      return variantPrefix + 'bg-ui-' + role
+        + (amount >= 20 ? '-container' : '-container-subtle');
+    }
+    if (role === 'success' || role === 'warning' || role === 'danger') {
+      return variantPrefix + 'bg-ui-' + role + '-container';
+    }
+    return variantPrefix + 'bg-ui-surface-raised';
+  }
+  if (/^shadow-ui-(primary|accent|surface)\\/\\d{1,3}$/.test(baseToken)) {
+    return variantPrefix + 'shadow-ui-surface';
   }
   if (/^hover:dt-bg-/.test(token)) return 'dt-interaction-hover';
   if (/^active:dt-bg-/.test(token)) return 'dt-interaction-pressed';
@@ -3253,6 +3613,7 @@ function injectForRender(html, mode, theme, tokenTheme, arkuiCaptureSession) {
       if (at !== -1) html = html.slice(0, at + 1) + '<head>' + link + '</head>' + html.slice(at + 1);
     } else { html = link + html; }
   }
+  if (mode === 'mobile') html = injectTailwindTokenPreset(html);
   if (mode === 'mobile' && typeof arkuiCaptureSession === 'string'
       && arkuiCaptureSession) {
     var snapshotScript = arkuiSnapshotBootstrap(arkuiCaptureSession);
@@ -3264,6 +3625,24 @@ function injectForRender(html, mode, theme, tokenTheme, arkuiCaptureSession) {
   // 2) PC: force classic JSX runtime so Babel emits React.createElement (no ESM import)
   if (mode === 'pc') html = injectPcBootstrap(html);
   return html;
+}
+
+function injectTailwindTokenPreset(html) {
+  if (/data-uibench-tailwind-theme/i.test(html)) return html;
+  var config = JSON.stringify(tokenTailwindConfig).replace(/</g, '\\u003c');
+  var script = '<scr' + 'ipt data-uibench-tailwind-theme>'
+    + 'window.tailwind=window.tailwind||{};window.tailwind.config='
+    + config + ';<' + '/script>';
+  var low = html.toLowerCase();
+  var headEnd = low.lastIndexOf('</head>');
+  if (headEnd !== -1) {
+    return html.slice(0, headEnd) + script + html.slice(headEnd);
+  }
+  var bodyStart = low.indexOf('<body');
+  if (bodyStart !== -1) {
+    return html.slice(0, bodyStart) + script + html.slice(bodyStart);
+  }
+  return html + script;
 }
 
 function injectPcBootstrap(html) {
@@ -3320,6 +3699,50 @@ function openLog(url, title) {
     .then(txt => { bodyEl.innerHTML = '<pre></pre>'; bodyEl.firstChild.textContent = txt; })
     .catch(err => { bodyEl.innerHTML = '<div class="modal-err">加载失败：' + esc(String(err)) + '</div>'; });
   document.addEventListener('keydown', _escClose);
+}
+
+function openUnknownStyleDetails(modelName, tokens) {
+  const classes = Array.from(new Set(
+    (Array.isArray(tokens) ? tokens : []).map(value => String(value)).filter(Boolean)
+  )).sort();
+  modalRoot.innerHTML = '';
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.onclick = (event) => { if (event.target === overlay) closeLog(); };
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  const head = document.createElement('div');
+  head.className = 'modal-head';
+  const title = document.createElement('span');
+  title.className = 'm-title';
+  title.textContent = modelName + ' · 无效样式类（' + classes.length + '）';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = '关闭';
+  closeBtn.onclick = closeLog;
+  head.append(title, closeBtn);
+  const body = document.createElement('div');
+  body.className = 'modal-body';
+  const summary = document.createElement('p');
+  summary.className = 'unknown-style-summary';
+  summary.textContent = '下面这些设计令牌样式类没有匹配到 UIBench 的主题契约，因此对应样式没有生效。';
+  const list = document.createElement('ul');
+  list.className = 'unknown-style-list';
+  classes.forEach(className => {
+    const item = document.createElement('li');
+    const code = document.createElement('code');
+    code.textContent = className;
+    item.appendChild(code);
+    list.appendChild(item);
+  });
+  body.append(summary, list);
+  modal.append(head, body);
+  overlay.appendChild(modal);
+  modalRoot.appendChild(overlay);
+  document.addEventListener('keydown', _escClose);
+  closeBtn.focus();
 }
 
 function _escClose(e) { if (e.key === 'Escape') closeLog(); }
@@ -3714,8 +4137,28 @@ async function requestArkUiExport(result, snapshot) {
   return payload;
 }
 
-function downloadText(filename, content, mimeType) {
-  const url = URL.createObjectURL(new Blob([content], {type: mimeType}));
+async function requestHtmlPackage(result) {
+  const response = await fetch('/api/html/package', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      html: result.html,
+      mode: result.mode === 'pc' ? 'pc' : 'mobile',
+      theme: currentTheme === 'dark' ? 'dark' : 'light',
+      token_theme: currentTokenTheme
+    })
+  });
+  if (!response.ok) {
+    let payload = {};
+    try { payload = await response.json(); } catch (_) {}
+    const error = payload.error || {};
+    throw new Error(error.message || ('HTTP ' + response.status));
+  }
+  return response.blob();
+}
+
+function downloadBlob(filename, blob) {
+  const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
@@ -3723,6 +4166,10 @@ function downloadText(filename, content, mimeType) {
   link.click();
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function downloadText(filename, content, mimeType) {
+  downloadBlob(filename, new Blob([content], {type: mimeType}));
 }
 
 function withDownloadTimestamp(filename) {
@@ -3745,14 +4192,7 @@ function downloadBase64(filename, contentBase64, mimeType) {
   for (let index = 0; index < binary.length; index += 1) {
     bytes[index] = binary.charCodeAt(index);
   }
-  const url = URL.createObjectURL(new Blob([bytes], {type: mimeType}));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  downloadBlob(filename, new Blob([bytes], {type: mimeType}));
 }
 </script>
 </body>
@@ -3768,6 +4208,14 @@ INDEX_HTML = (
     .replace(
         "__UIBENCH_MOBILE_VIEWPORT_HEIGHT__",
         str(MOBILE_VIEWPORT_HEIGHT),
+    )
+    .replace(
+        "__UIBENCH_TAILWIND_TOKEN_CONFIG__",
+        json.dumps(
+            tailwind_token_preset(),
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ),
     )
     .replace("__UIBENCH_IMAGE_SOURCE__", settings.image_source)
 )

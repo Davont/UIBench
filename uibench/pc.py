@@ -33,7 +33,7 @@ React、Ant Design、ECharts 与企业级中后台界面。你的目标是：根
 3. <head> 中按顺序引入以下 CDN（这是允许的全部外部资源）：
    - Tailwind CSS：<script src="https://cdn.tailwindcss.com"></script>
      并紧接其下一行关闭 preflight，避免与 antd reset 冲突：
-     <script>tailwind.config = {{ coreProps: {{ preflight: false }} }}</script>
+     <script>tailwind.config = {{ corePlugins: {{ preflight: false }} }}</script>
    - React 18 UMD：<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
    - ReactDOM 18 UMD：<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
    - dayjs：<script src="https://unpkg.com/dayjs@1/dayjs.min.js"></script>
@@ -58,7 +58,7 @@ React、Ant Design、ECharts 与企业级中后台界面。你的目标是：根
    Input, Button, Select, DatePicker, Tag, Avatar, Dropdown }} = antd;
    按需取用，覆盖需求里提到的所有组件；不要在需求外臆造模块。
  6. 样式必须使用 Tailwind CSS 的工具类，并严格遵循下方【设计系统】：在 <head> 写入
-     <script>tailwind.config = {{ coreProps: {{ preflight: false }}, darkMode: 'class', extend: {{...}} }}</script>
+     <script>tailwind.config = {{ corePlugins: {{ preflight: false }}, darkMode: 'class', extend: {{...}} }}</script>
      （extend 内容见下），页面所有元素使用这些 design token 类名。不写自定义 <style> 做布局，
      极少量微调用 antd ConfigProvider token / 内联 style。主题色统一 primary(#0067D1)。
 

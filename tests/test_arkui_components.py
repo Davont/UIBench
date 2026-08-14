@@ -425,11 +425,27 @@ def test_mobile_prompt_includes_arkui_metadata_contract() -> None:
         )
     )
     assert 'type="checkbox" data-component="toggle"' in SYSTEM_MOBILE
+    assert "深色模式" in SYSTEM_MOBILE
+    assert "设置项的即时开/关不能用 checkbox" in SYSTEM_MOBILE
     assert 'type="range" data-component="slider"' in SYSTEM_MOBILE
     assert 'type="checkbox" data-component="checkbox"' in SYSTEM_MOBILE
     assert 'type="radio" data-component="radio"' in SYSTEM_MOBILE
     assert 'data-component="tabs" data-index="0"' in SYSTEM_MOBILE
     assert 'data-component="tab-content" data-tab-bar="概览"' in SYSTEM_MOBILE
+
+
+def test_mobile_prompt_stays_compact_and_arkui_safe() -> None:
+    assert len(SYSTEM_MOBILE) < 7000
+    assert len(MOBILE_ARKUI_METADATA_INSTRUCTIONS) < 4000
+    assert "样式全部使用 Tailwind" not in SYSTEM_MOBILE
+    assert "用 Tailwind 的 transition / transform / animate-*" not in SYSTEM_MOBILE
+    assert all(
+        forbidden in MOBILE_ARKUI_METADATA_INSTRUCTIONS
+        for forbidden in ("box-shadow", "transform", "align-items:baseline")
+    )
+    assert "不要再写 `sticky`/`fixed`" in SYSTEM_MOBILE
+    assert "开放网络用 `unlock`" in SYSTEM_MOBILE
+    assert "语言/翻译用 `languages`" in SYSTEM_MOBILE
 
 
 def test_native_form_controls_build_screen_ir_props() -> None:
@@ -778,6 +794,108 @@ def test_export_repair_generates_ids_for_all_component_nodes() -> None:
     assert report.export_readiness == "ready"
 
 
+def test_export_repair_fixes_open_network_icon_and_redundant_sticky_bar() -> None:
+    html = """<div data-component="column" class="min-h-screen flex flex-col">
+      <header data-component="row"
+        class="flex flex-row items-center sticky top-0 z-10">
+        <span data-component="text">WLAN</span>
+      </header>
+      <main data-component="scroll" class="flex-1 overflow-y-auto">
+        <div data-component="column" class="flex flex-col">
+          <div data-component="row" class="flex flex-row items-center">
+            <i data-node-id="wlan.net.cafe.open" data-component="symbol"
+               data-lucide="globe"></i>
+            <span data-component="text">开放网络 · 2.4 GHz</span>
+          </div>
+        </div>
+      </main>
+    </div>"""
+
+    repaired = repair_arkui_export_html(html)
+    report = analyze_component_metadata(repaired.html)
+    icon = next(
+        node for node in report.nodes
+        if node.node_id == "wlan.net.cafe.open"
+    )
+
+    assert {item.code for item in repaired.repairs}.issuperset({
+        "ARKUI_REDUNDANT_STICKY_REMOVED",
+        "ARKUI_OPEN_NETWORK_ICON_REPAIRED",
+    })
+    assert not re.search(r'class="[^"]*\bsticky\b', repaired.html)
+    assert 'data-lucide="unlock"' in repaired.html
+    assert dict(icon.metadata)["data-symbol"] == "sys.symbol.lock_open"
+    assert "ARKUI_SYMBOL_APPROXIMATED" not in _codes(report)
+
+    second = repair_arkui_export_html(repaired.html)
+    assert second.changed is False
+    assert second.html == repaired.html
+
+
+def test_export_repair_preserves_meaningful_sticky_and_non_network_globe() -> None:
+    html = """<div data-node-id="page" data-component="scroll">
+      <div data-node-id="page.content" data-component="column"
+           class="flex flex-col">
+        <header data-node-id="page.header" data-component="row"
+                class="flex flex-row sticky top-0">
+          <i data-node-id="page.language" data-component="symbol"
+             data-lucide="globe"></i>
+          <span data-node-id="page.label" data-component="text">语言</span>
+        </header>
+      </div>
+    </div>"""
+
+    repaired = repair_arkui_export_html(html)
+
+    assert repaired.changed is False
+    assert "sticky top-0" in repaired.html
+    assert 'data-lucide="globe"' in repaired.html
+
+
+def test_export_repair_promotes_unique_common_component_root() -> None:
+    html = """<!DOCTYPE html><html><body>
+      <main class="min-h-screen flex flex-col">
+        <header data-node-id="settings.header" data-component="row"
+                class="flex flex-row"></header>
+        <section data-node-id="settings.content" data-component="column"
+                 class="flex flex-col"></section>
+      </main>
+    </body></html>"""
+
+    repaired = repair_arkui_export_html(html)
+    report = analyze_component_metadata(repaired.html)
+
+    assert [item.code for item in repaired.repairs] == [
+        "ARKUI_ROOT_WRAPPER_REPAIRED",
+    ]
+    assert re.search(
+        r'<main[^>]*data-node-id="page"[^>]*data-component="column"',
+        repaired.html,
+    )
+    assert report.root_components == 1
+    assert report.export_readiness == "ready"
+
+    second = repair_arkui_export_html(repaired.html)
+    assert second.changed is False
+    assert second.html == repaired.html
+
+
+def test_export_repair_does_not_opt_legacy_html_into_explicit_mode() -> None:
+    html = """<!DOCTYPE html><html><body>
+      <main class="min-h-screen flex flex-col">
+        <button>保存</button>
+        <input type="search" placeholder="搜索">
+      </main>
+    </body></html>"""
+
+    repaired = repair_arkui_export_html(html)
+
+    assert "ARKUI_ROOT_WRAPPER_REPAIRED" not in {
+        item.code for item in repaired.repairs
+    }
+    assert "data-component" not in repaired.html
+
+
 def test_export_repair_does_not_create_an_addressable_root_wrapper() -> None:
     html = """<!DOCTYPE html><html><head><title>设置</title></head>
     <body class="dt-bg-canvas">
@@ -796,6 +914,51 @@ def test_export_repair_does_not_create_an_addressable_root_wrapper() -> None:
     assert 'data-component="column"' not in repaired.html.split("<body", 1)[1].split(
         ">", 1,
     )[0]
+
+
+def test_export_repair_retypes_unambiguous_search_wrapper() -> None:
+    html = """<main data-node-id="app" data-component="column"
+      class="min-h-screen flex flex-col">
+      <div data-node-id="app.search" data-component="search"
+           class="flex flex-row">
+        <input type="search" data-node-id="app.search.input"
+               data-component="search" placeholder="搜索">
+      </div>
+    </main>"""
+
+    repaired = repair_arkui_export_html(html)
+    report = analyze_component_metadata(repaired.html)
+    wrapper = next(node for node in report.nodes if node.node_id == "app.search")
+
+    assert [item.code for item in repaired.repairs] == [
+        "ARKUI_SEARCH_WRAPPER_REPAIRED",
+    ]
+    assert wrapper.component == "row"
+    assert "ARKUI_COMPONENT_CHILD_COUNT_EXCEEDED" not in _codes(report)
+    assert "ARKUI_COMPONENT_CHILD_INVALID" not in _codes(report)
+    assert report.export_readiness == "ready"
+
+
+def test_export_repair_keeps_ambiguous_search_wrapper_blocked() -> None:
+    html = """<main data-node-id="app" data-component="column"
+      class="min-h-screen flex flex-col">
+      <div data-node-id="app.search" data-component="search"
+           class="flex flex-row">
+        <i data-node-id="app.search.icon" data-component="symbol"
+           data-lucide="search"></i>
+        <input type="search" data-node-id="app.search.input"
+               data-component="search" placeholder="搜索">
+      </div>
+    </main>"""
+
+    repaired = repair_arkui_export_html(html)
+    report = analyze_component_metadata(repaired.html)
+
+    assert "ARKUI_SEARCH_WRAPPER_REPAIRED" not in {
+        item.code for item in repaired.repairs
+    }
+    assert report.export_readiness == "blocked"
+    assert "ARKUI_COMPONENT_CHILD_COUNT_EXCEEDED" in _codes(report)
 
 
 def test_empty_span_inside_text_still_blocks_export() -> None:
@@ -905,6 +1068,50 @@ def test_native_button_annotated_as_list_item_reads_as_button() -> None:
     assert item["componentName"] == "ListItem"
     assert item["meta"]["nodeId"] == "page.entry:item"
     assert item["children"][0]["componentName"] == "Button"
+
+
+def test_native_button_annotated_as_grid_item_reads_as_button() -> None:
+    """A native control directly inside Grid keeps its control semantics;
+    Screen IR supplies the GridItem required by ArkUI."""
+    report = analyze_component_metadata("""
+      <section data-node-id="page" data-component="grid">
+        <button data-node-id="page.entry" data-component="grid-item">
+          <div data-node-id="page.entry.line" data-component="row"
+               class="flex flex-row">
+            <span data-node-id="page.entry.label" data-component="text">分类</span>
+          </div>
+        </button>
+      </section>
+    """)
+    entry = next(node for node in report.nodes if node.node_id == "page.entry")
+
+    assert not report.errors
+    assert not report.warnings
+    assert report.export_readiness == "ready"
+    assert entry.component == "button"
+    assert entry.arkui_component == "Button"
+    assert [item.code for item in report.notices] == [
+        "ARKUI_GRID_CHILD_WRAPPED_AS_ITEM",
+        "ARKUI_GRID_ITEM_READ_AS_NATIVE",
+    ]
+
+    built = build_screen_ir(report)
+    assert built.screen_ir is not None
+    item = built.screen_ir["ui"]["children"][0]
+    assert item["componentName"] == "GridItem"
+    assert item["meta"]["nodeId"] == "page.entry:item"
+    assert item["children"][0]["componentName"] == "Button"
+
+
+def test_grid_item_tag_conflict_outside_grid_still_blocks() -> None:
+    report = analyze_component_metadata("""
+      <main data-node-id="page" data-component="column" class="flex flex-col">
+        <button data-node-id="page.entry" data-component="grid-item">分类</button>
+      </main>
+    """)
+
+    assert "ARKUI_COMPONENT_TAG_CONFLICT" in _codes(report)
+    assert report.export_readiness == "blocked"
 
 
 def test_other_tag_conflicts_still_block() -> None:

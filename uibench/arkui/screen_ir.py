@@ -279,6 +279,108 @@ def is_viewport_page_root(
     return root_covers_viewport(browser_node, snapshot)
 
 
+def _percent_width(value: float) -> str:
+    rounded = round(value, 4)
+    number = (
+        str(int(rounded))
+        if rounded == int(rounded)
+        else f"{rounded:.4f}".rstrip("0").rstrip(".")
+    )
+    return f"{number}%"
+
+
+def _parent_content_width_geometry(
+    parent: BrowserNodeSnapshot,
+) -> tuple[float, float] | None:
+    """Return the parent's content-box left edge and width in capture pixels."""
+    style = parent.computed
+    border_left = _computed_px(style.border_left_width)
+    border_right = _computed_px(style.border_right_width)
+    padding_left = _computed_px(style.padding_left)
+    padding_right = _computed_px(style.padding_right)
+    if None in {border_left, border_right, padding_left, padding_right}:
+        return None
+    assert border_left is not None
+    assert border_right is not None
+    assert padding_left is not None
+    assert padding_right is not None
+    content_width = (
+        parent.bbox[2] - border_left - border_right
+        - padding_left - padding_right
+    )
+    if content_width <= 0:
+        return None
+    return parent.bbox[0] + border_left + padding_left, content_width
+
+
+def _responsive_child_width(
+    node: ComponentNode,
+    parent: ComponentNode,
+    browser_node: BrowserNodeSnapshot,
+    parent_browser: BrowserNodeSnapshot,
+) -> str | None:
+    """Recover portable width semantics from authored and geometric evidence.
+
+    A browser snapshot reports used pixels. Re-emitting those pixels makes a
+    390vp capture rigid on every device. Percentage utilities are retained by
+    metadata, while an ordinary in-flow child proven to fill its parent's
+    content box becomes 100%. Explicit fixed widths remain untouched.
+    """
+    if (
+        node.node_id is None
+        or parent.node_id is None
+        or browser_node.direct_parent_node_id != parent.node_id
+        or browser_node.computed.position.strip().lower() in {
+            "absolute", "fixed",
+        }
+    ):
+        return None
+    geometry = _parent_content_width_geometry(parent_browser)
+    if geometry is None:
+        return None
+    content_left, content_width = geometry
+    child_width = browser_node.bbox[2]
+
+    if (
+        node.authored_width_kind == "percent"
+        and node.authored_width_percent is not None
+        and math.isclose(
+            child_width,
+            content_width * node.authored_width_percent / 100,
+            rel_tol=0,
+            abs_tol=_VIEWPORT_EDGE_TOLERANCE,
+        )
+    ):
+        return _percent_width(node.authored_width_percent)
+
+    # Grid owns the cell width. A captured GridItem width is one track's used
+    # pixels, not an application-window constraint.
+    if parent.component == "grid" and node.component == "grid-item":
+        return "100%"
+
+    if node.authored_width_kind == "fixed":
+        return None
+    if (
+        node.authored_width_kind == "unspecified"
+        and browser_node.width_sizing == "explicit"
+    ):
+        return None
+    if (
+        math.isclose(
+            browser_node.bbox[0], content_left,
+            rel_tol=0,
+            abs_tol=_VIEWPORT_EDGE_TOLERANCE,
+        )
+        and math.isclose(
+            child_width, content_width,
+            rel_tol=0,
+            abs_tol=_VIEWPORT_EDGE_TOLERANCE,
+        )
+    ):
+        return "100%"
+    return None
+
+
 def _list_entry_children(
     children: list[dict[str, object]],
     *,
@@ -915,8 +1017,11 @@ def build_screen_ir(
             parent_direction = None
             flex_item_parent_verified = False
             flex_container_scrolls_main_axis = False
+            parent_node: ComponentNode | None = None
+            parent_browser: BrowserNodeSnapshot | None = None
             if node.parent_index is not None:
                 parent = report.nodes[node.parent_index]
+                parent_node = parent
                 # Read the parent's direction off the browser rather than its
                 # component name: a Button is a flex container in the DOM even
                 # though ArkUI reaches its children through a wrapper.
@@ -1054,6 +1159,12 @@ def build_screen_ir(
                     *lossy_properties,
                     *text_lossy_properties,
                 )))
+            if parent_node is not None and parent_browser is not None:
+                responsive_width = _responsive_child_width(
+                    node, parent_node, browser_node, parent_browser,
+                )
+                if responsive_width is not None:
+                    styles["width"] = responsive_width
             styles_by_id[node.node_id] = styles
             for property_name in lossy_properties:
                 diagnostics.append(ScreenIrAdapterDiagnostic(

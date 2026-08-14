@@ -1,0 +1,101 @@
+{
+  "icons": {
+    "wechat": {
+      "assetKind": "apple-app-store-artwork",
+      "source": "https://apps.apple.com/cn/app/id414478124",
+      "lookupUrl": "https://itunes.apple.com/lookup?id=414478124&country=cn",
+      "seller": "Tencent Technology (Shenzhen) Company Limited",
+      "bundleId": "com.tencent.xin",
+      "version": "8.0.75",
+      "releaseDate": "2026-06-14T03:25:11Z",
+      "checkedAt": "2026-08-14",
+      "artworkUrl512": "https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/e4/4f/16/e44f16cb-0a64-464e-13f2-05091f930c79/AppIcon-0-0-1x_U007epad-0-1-0-sRGB-0-85-220.png/512x512bb.jpg",
+      "localPngSha256": "d655c3625e4afae112603a6c2863a90b41127af17561fac15f551138fc4652ef"
+    },
+    "alipay": {
+      "assetKind": "apple-app-store-artwork",
+      "source": "https://apps.apple.com/cn/app/id333206289",
+      "lookupUrl": "https://itunes.apple.com/lookup?id=333206289&country=cn",
+      "seller": "Alipay (Hangzhou) Technology Co., Ltd.",
+      "bundleId": "com.alipay.iphoneclient",
+      "version": "12.12.16",
+      "releaseDate": "2026-08-10T03:02:56Z",
+      "checkedAt": "2026-08-14",
+      "artworkUrl512": "https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/4b/b3/67/4bb36788-a389-48de-4c49-478027e043e8/AppIcon-0-0-1x_U007epad-0-1-0-85-220.png/512x512bb.jpg",
+      "localPngSha256": "153ef5c1fc999edd79099e34b7fc035f2ea45636caa3b33fc867ce07b6dea540"
+    },
+    "qq": {
+      "assetKind": "apple-app-store-artwork",
+      "source": "https://apps.apple.com/cn/app/id444934666",
+      "lookupUrl": "https://itunes.apple.com/lookup?id=444934666&country=cn",
+      "seller": "Tencent Technology (Shenzhen) Company Limited",
+      "bundleId": "com.tencent.mqq",
+      "version": "9.3.35",
+      "releaseDate": "2026-08-07T08:04:06Z",
+      "checkedAt": "2026-08-14",
+      "artworkUrl512": "https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/e1/ac/d0/e1acd019-56d1-88d1-d81c-d5aad0c27383/AppIcon-1-0-0-1x_U007epad-0-1-0-sRGB-85-220.png/512x512bb.jpg",
+      "localPngSha256": "b0e56e4265ab192a31e54c0ebaab59f732504ef7ca3cf7e3ebf3e8e97400071a"
+    },
+    "douyin": {
+      "assetKind": "apple-app-store-artwork",
+      "source": "https://apps.apple.com/cn/app/id1142110895",
+      "lookupUrl": "https://itunes.apple.com/lookup?id=1142110895&country=cn",
+      "seller": "Beijing Douyin Technology Co., Ltd.",
+      "bundleId": "com.ss.iphone.ugc.Aweme",
+      "version": "39.9.0",
+      "releaseDate": "2026-08-04T07:47:25Z",
+      "checkedAt": "2026-08-14",
+      "artworkUrl512": "https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/17/b5/aa/17b5aa48-9e84-1314-6e80-95123bdbab0c/AppIcon-0-0-1x_U007emarketing-0-0-0-7-0-0-85-220.png/512x512bb.jpg",
+      "localPngSha256": "2856630f967cc76aa7e3756758b0da03348452d4a8d7f427d3fa0195a8beb3bc"
+    },
+    "taobao": {
+      "assetKind": "apple-app-store-artwork",
+      "source": "https://apps.apple.com/cn/app/id387682726",
+      "lookupUrl": "https://itunes.apple.com/lookup?id=387682726&country=cn",
+      "seller": "Zhejiang Taobao Network Co.,Ltd",
+      "bundleId": "com.taobao.taobao4iphone",
+      "version": "10.65.0",
+      "releaseDate": "2026-08-05T23:06:16Z",
+      "checkedAt": "2026-08-14",
+      "artworkUrl512": "https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/eb/ef/45/ebef4580-08f0-ffdd-8b23-f4bd7a0220ab/AppIcon-0-0-1x_U007emarketing-0-10-0-85-220.png/512x512bb.jpg",
+      "localPngSha256": "c4be22380413b2c6bf5b4c41d0669a1aac9a61553a26d6366ff5b162a908bdae"
+    },
+    "meituan": {
+      "assetKind": "apple-app-store-artwork",
+      "source": "https://apps.apple.com/cn/app/id423084029",
+      "lookupUrl": "https://itunes.apple.com/lookup?id=423084029&country=cn",
+      "seller": "Sankuai Technology Co., Ltd.",
+      "bundleId": "com.meituan.imeituan",
+      "version": "12.63.401",
+      "releaseDate": "2026-08-13T02:25:25Z",
+      "checkedAt": "2026-08-14",
+      "artworkUrl512": "https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/b0/b5/dd/b0b5dda2-9f78-166c-cd33-afd64b41bacc/AppIcon-0-0-1x_U007emarketing-0-0-0-7-0-0-sRGB-85-220.png/512x512bb.jpg",
+      "localPngSha256": "29e9505b572c1c249822ef55e981156bc83c28b695f93f76c02059643d7650fd"
+    },
+    "xiaohongshu": {
+      "assetKind": "apple-app-store-artwork",
+      "source": "https://apps.apple.com/cn/app/id741292507",
+      "lookupUrl": "https://itunes.apple.com/lookup?id=741292507&country=cn",
+      "seller": "Xingin Information Technology (Shanghai) Co., Ltd",
+      "bundleId": "com.xingin.discover",
+      "version": "9.42",
+      "releaseDate": "2026-08-07T06:54:55Z",
+      "checkedAt": "2026-08-14",
+      "artworkUrl512": "https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/22/6e/9c/226e9c7b-10c1-c69a-0124-5f5958f945f5/AppIcon-0-0-1x_U007epad-0-11-0-85-220.png/512x512bb.jpg",
+      "localPngSha256": "4408b2f449c18a0836af11feec658a0aeb2885370573ce752c8f713d1b1fd062"
+    },
+    "bilibili": {
+      "assetKind": "apple-app-store-artwork",
+      "source": "https://apps.apple.com/cn/app/id736536022",
+      "lookupUrl": "https://itunes.apple.com/lookup?id=736536022&country=cn",
+      "seller": "Shanghai Bilibili Animation Co.,Ltd",
+      "bundleId": "tv.danmaku.bilianime",
+      "version": "9.7.0",
+      "releaseDate": "2026-08-12T06:46:19Z",
+      "checkedAt": "2026-08-14",
+      "artworkUrl512": "https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/63/e6/9e/63e69e8d-89a9-ea30-d3cc-da6706fdc8c9/AppIcon-0-0-1x_U007epad-0-1-0-sRGB-85-220.png/512x512bb.jpg",
+      "localPngSha256": "5f449285a29062ffaba0ae01cbad415fc527cf5a3860e9a4e39bd4d29ead5fc8"
+    }
+  },
+  "originalSystemIcons": ["camera", "maps", "photos", "contacts"]
+}

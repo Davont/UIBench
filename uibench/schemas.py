@@ -11,6 +11,8 @@ Provider = Literal["openai", "anthropic", "google", "deepseek"]
 Mode = Literal["mobile", "pc"]
 ResultStatus = Literal["success", "degraded", "failed"]
 ArkUiExportMode = Literal["annotated", "generic"]
+ColorMode = Literal["light", "dark"]
+TokenTheme = Literal["harmonyos", "spotify", "netflix", "notion"]
 # "" means "use options.image_source from config/models.yaml".
 ImageSource = Literal["", "local", "unsplash"]
 
@@ -95,6 +97,15 @@ class ArkUiPrepareRequest(BaseModel):
     """HTML that must be repaired before its browser snapshot is captured."""
 
     html: str = Field(min_length=1, max_length=2_000_000)
+
+
+class HtmlPackageRequest(BaseModel):
+    """One generated page prepared for a double-clickable HTML ZIP."""
+
+    html: str = Field(min_length=1, max_length=2_000_000)
+    mode: Mode = "mobile"
+    theme: ColorMode = "light"
+    token_theme: TokenTheme = "harmonyos"
 
 
 class ArkUiExportRequest(BaseModel):

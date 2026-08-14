@@ -24,11 +24,14 @@ UIBench 只干一件事：
   自动补全和加载预览等后端真实阶段；不显示假百分比或原始思维链。
 - **完成即展示**：谁先生成完成，谁的预览就先在原卡片中出现，无需等待最慢模型。
 - **逐模型容错**：某个模型缺 key 或报错，只在该卡片上显示错误，不影响其他模型。
-- **多风格主题 Token**：移动端新生成结果使用统一的语义 Design Token，同一份 HTML
-  可以在 HarmonyOS、Spotify、Netflix、Notion 之间迁移，并切换白天/黑夜。
+- **多风格主题 Token**：移动端模型只写 Tailwind；系统把 Design Token 编译成固定
+  Tailwind Theme Preset，同一份 HTML 可以在 HarmonyOS、Spotify、Netflix、Notion
+  之间迁移，并切换白天/黑夜。
 - **AI 可选真实图片**：模型可按需调用 `search_photos` 获取摄影图片，默认走
   完全离线的本地分类图库（毫秒级、可复现、无外网依赖），也可切换为 Unsplash
   MCP 实时搜索；不需要图片或工具失败时自动使用 Token 占位，不影响页面生成。
+- **HTML 离线资源包**：结果卡片可下载包含 `index.html`、主题样式、HarmonyOS 字体和
+  页面实际引用的 `assets/` / 本地图库图片的 ZIP；解压后双击 HTML 即可正确读取本地资源。
 
 ---
 
@@ -56,6 +59,7 @@ UIBench/
 │   ├── schemas.py             # pydantic 数据模型
 │   ├── models.py              # LangChain 聊天模型工厂
 │   ├── image_tools.py         # 图片工具契约 + 双源分发（本地图库 / Unsplash MCP）
+│   ├── app_icons.py           # 请求级内置应用图标目录 + 错图自动纠正
 │   ├── local_gallery.py       # 本地图库 manifest 加载与关键词匹配
 │   ├── prompts.py             # 移动端 UI 生成 Prompt
 │   ├── pc.py                  # PC 端 Prompt 与渲染适配
@@ -191,6 +195,13 @@ python tools/build_gallery.py --refresh-manifest  # 只按 yaml 更新匹配词�
 图库目录被 Git 忽略，可随时重建；想扩充分类或调整匹配词，改 yaml 重跑即可，
 无需改代码。
 
+### 下载 HTML 资源包
+
+每张成功结果卡片提供“下载 HTML 包”。ZIP 根目录是 `index.html`，本地依赖统一放到
+`assets/` 并改写为相对路径；只收集页面实际引用的文件，不会把整个图库重复打包。
+解压 ZIP 后直接双击 `index.html` 即可。`https://` 图片、字体和 CDN 脚本会保留原 URL，
+不会由服务端代抓，因此这些远程内容在完全断网时仍不可用。
+
 ### Unsplash 实时搜索（可选备选）
 
 ```bash
@@ -203,11 +214,13 @@ uv sync --project .mcp/unsplash-mcp-server
 
 ### 行为约定（两种源一致）
 
-普通页面由模型判断是否需要摄影图片；商城、餐饮、酒店等图片密集场景会由应用
-强制建立图片槽位。完整链路是：
+内容型但语义不明确的页面（例如“读书 APP”）会先由本轮首个 AI 模型统一判断是否
+需要摄影图片，并一次性规划具名槽位；同一轮所有参评模型共享这份计划和同一批素材。
+商城、餐饮、酒店等明确的图片密集场景仍保留应用侧最低图片数量护栏；其他页面除非
+用户明确要求无图，也交给规划器按可见内容判断，不维护页面类型的免图片名单。完整链路是：
 
 ```text
-用户需求 → 模型/应用规划图片槽位 → 图片源解析（本地 manifest 匹配 / MCP 搜索）
+用户需求 → AI 统一规划/应用硬护栏 → 图片源解析（本地 manifest 匹配 / MCP 搜索）
          → 同轮模型共享图片批次 → 模型输出 HTML → 使用不足时自动修复一次
 ```
 
@@ -219,6 +232,15 @@ uv sync --project .mcp/unsplash-mcp-server
 槽位数量，并受 `image_tool_max_assets` 上限约束。Access Key、图库目录、
 MCP 目录和真实模型配置均被 Git 忽略，不会提交到 fork 仓库。
 
+应用 Logo 不进入摄影图库。需求提到应用图标、常用应用或已知应用名称时，UIBench 只把
+相关的本地 `/assets/app-icons/*.png` 目录动态附加给模型；当前包含微信、支付宝、QQ、
+抖音、淘宝、美团、小红书、哔哩哔哩，以及相机、地图、相册、通讯录。全部品牌应用采用
+当前中国区 App Store 上架版本的应用图标；每个图标的开发者、Bundle ID、上架版本、
+更新时间、原图地址和本地哈希记录在 `assets/app-icons/sources.json`。
+规划器返回的 app icon / logo 照片槽位会被过滤；如果模型仍把同一张通用照片复用给多个
+已知应用，生成后会按相邻应用名称自动绑定正确图标。PNG 会随 HTML 包和 ArkUI 资源捕获
+一起进入导出结果；只有 UIBench 自有的通用系统图标保留 SVG 源文件。
+
 ---
 
 ## 用法
@@ -229,23 +251,26 @@ python app.py
 
 ### 移动端多品牌风格 / 明暗主题
 
-移动端生成 Prompt 要求模型使用 `dt-*` 语义类，例如：
+移动端生成 Prompt 只要求模型使用 Tailwind。UIBench 注入的 Theme Preset 提供
+`ui-*` 语义值，例如：
 
 ```html
-<main class="dt-bg-canvas dt-text-primary dt-font dt-p-page">
-  <section class="dt-bg-surface dt-rounded-card dt-p-card">
-    <label class="dt-bg-component-subtle dt-rounded-control">
-      <input class="dt-text-primary dt-placeholder-secondary" placeholder="搜索" />
+<main class="bg-ui-canvas text-ui-fg font-ui p-ui-page">
+  <section class="bg-ui-surface rounded-ui-card p-ui-card">
+    <label class="bg-ui-component-subtle rounded-ui-control">
+      <input class="text-ui-fg placeholder-ui-fg-secondary" placeholder="搜索" />
     </label>
-    <button class="dt-bg-primary dt-text-on-primary dt-focus dt-interaction-hover dt-interaction-pressed">
+    <button class="bg-ui-primary text-ui-on-primary hover:bg-ui-primary-hover focus-visible:ring-2 focus-visible:ring-ui-focus">
       继续
     </button>
-    <span class="dt-bg-accent dt-text-on-accent dt-rounded-pill">辅助强调</span>
+    <span class="bg-ui-accent text-ui-on-accent rounded-ui-pill">辅助强调</span>
   </section>
 </main>
 ```
 
-UIBench 在渲染时注入 `/design-tokens.css`。根节点通过
+`ui-page`、`ui-card`、`ui-item` 等是 Tailwind spacing key，因此模型可以按标准
+Tailwind 语法组合出 `px-ui-page`、`py-ui-card`、`gap-ui-item`、`ml-ui-item`，无需
+学习另一套 CSS 类规则。UIBench 在渲染时注入固定 preset 和 `/design-tokens.css`。根节点通过
 `data-token-theme="harmonyos|spotify|netflix|notion"` 选择风格，
 通过 `data-theme="light|dark"` 选择明暗模式。页面上的主题按钮只重新渲染当前
 iframe，不会再次请求模型，因此适合直接对比风格迁移效果。
@@ -255,14 +280,14 @@ Token 源文件位于 `uibench/design_tokens/tokens.json`；四个风格必须�
 `GET /api/design-tokens` 可查看原始 Token，
 `GET /design-tokens.css` 可查看转换后的 CSS Variables 与语义工具类。
 
-从 v6 起，不透明页面层级使用 `dt-bg-layer-secondary` / `dt-bg-layer-tertiary`，
-搜索框和弱按钮等组件填充使用 `dt-bg-component-subtle` /
-`dt-bg-component-secondary`；组件轮廓与列表分割线分别使用
-`dt-border-outline` 和 `dt-border-divider` / `dt-divide`，避免用同一个灰色值承担不同语义。
+Design Token 仍是颜色、间距、字体和圆角的唯一数据源；Tailwind preset 只是模型侧
+适配器。例如页面层级使用 `bg-ui-layer-secondary` / `bg-ui-layer-tertiary`，搜索框和
+弱按钮使用 `bg-ui-component-subtle` / `bg-ui-component-secondary`，组件轮廓与列表
+分割线分别使用 `border-ui-border` 和 `border-ui-divider` / `divide-ui-divider`。
 
 > 旧日志中的 HTML 在引入本功能前使用了硬编码 Tailwind 颜色类。UIBench 会通过兼容层
 > 映射常见的中性色、边框、主色和状态色，因此可以进行基础风格切换，但不能保证完整
-> 迁移。重新生成且使用 `dt-*` 合约的页面才具备完整主题能力。
+> 迁移。旧 `dt-*` HTML 仍由兼容层支持；重新生成的页面使用 Tailwind Theme Preset。
 
 ### 可选 ArkUI 工程导出
 
@@ -458,8 +483,8 @@ unsigned 调试 HAP；报告只记录 `device-install-accepted`，这不等于�
 
 ### 移动端聚焦
 
-Prompt（`uibench/prompts.py`）强制：单一完整 HTML 文档、Tailwind + Design
-Token、按 ~390px 移动视口设计。除明确允许的 CDN 和模型通过工具获取的
+Prompt（`uibench/prompts.py`）要求：单一完整 HTML 文档、系统注入的 Tailwind
+Theme Preset、按 ~390px 移动视口设计。除明确允许的 CDN 和模型通过工具获取的
 Unsplash 图片外，禁止自行编造或引入其他远程资源。
 
 ---

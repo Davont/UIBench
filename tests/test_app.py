@@ -1,6 +1,7 @@
 """End-to-end API tests using fake chat models (no API keys needed)."""
 import asyncio
 import json
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -146,6 +147,72 @@ def test_arkui_prepare_repairs_layout_wrapper_before_capture(client) -> None:
     )
 
 
+def test_arkui_prepare_repairs_root_search_and_grid_buttons(client) -> None:
+    html = """<!DOCTYPE html><html><body>
+    <main class="min-h-screen flex flex-col">
+      <div data-node-id="app.search" data-component="search"
+           class="flex flex-row">
+        <input type="search" data-node-id="app.search.input"
+               data-component="search" placeholder="搜索">
+      </div>
+      <section data-node-id="app.categories.grid" data-component="grid"
+               class="grid grid-cols-2">
+        <button data-node-id="app.categories.grid.item1"
+                data-component="grid-item">分类一</button>
+        <button data-node-id="app.categories.grid.item2"
+                data-component="grid-item">分类二</button>
+      </section>
+    </main>
+    </body></html>"""
+
+    response = client.post("/api/arkui/prepare", json={"html": html})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["changed"] is True
+    assert payload["exportable"] is True
+    assert payload["manifest"]["summary"]["rootComponents"] == 1
+    assert [item["code"] for item in payload["repairs"]] == [
+        "ARKUI_ROOT_WRAPPER_REPAIRED",
+        "ARKUI_SEARCH_WRAPPER_REPAIRED",
+    ]
+    diagnostic_codes = {
+        item["code"] for item in payload["manifest"]["diagnostics"]
+    }
+    assert {
+        "ARKUI_GRID_CHILD_WRAPPED_AS_ITEM",
+        "ARKUI_GRID_ITEM_READ_AS_NATIVE",
+    } <= diagnostic_codes
+    assert "ARKUI_COMPONENT_TAG_CONFLICT" not in diagnostic_codes
+    assert "ARKUI_COMPONENT_CHILD_COUNT_EXCEEDED" not in diagnostic_codes
+
+
+def test_arkui_prepare_normalizes_invented_spacing_and_toggle_classes(client) -> None:
+    html = """<!DOCTYPE html><html><body>
+    <main data-component="column" data-node-id="page" class="flex flex-col
+          dt-mx-page dt-pb-page dt-mt-gap-section dt-pt-gap-section
+          dt-mb-section dt-mt-compact dt-py-3">
+      <input data-component="toggle" data-node-id="page.toggle"
+             type="checkbox" checked class="checked:dt-bg-primary">
+    </main>
+    </body></html>"""
+
+    response = client.post("/api/arkui/prepare", json={"html": html})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["changed"] is True
+    assert "dt-mx-page" in payload["html"]
+    assert "dt-pb-page" in payload["html"]
+    assert "dt-mt-section" in payload["html"]
+    assert "dt-pt-section" in payload["html"]
+    assert "dt-mb-section" in payload["html"]
+    assert "dt-mt-compact" in payload["html"]
+    assert "dt-py-card" in payload["html"]
+    assert "dt-py-3" not in payload["html"]
+    assert "checked:dt-bg-primary" not in payload["html"]
+
+
 def test_arkui_export_rejects_html_that_skipped_prepare(client) -> None:
     html = """<div data-component="scroll" data-node-id="page"
       class="flex flex-col min-h-screen">
@@ -190,6 +257,22 @@ def test_index_page(client) -> None:
     assert "stage === 'preparing' || stage === 'generating'" in resp.text
     assert '<input id="arkui-export" type="checkbox">' in resp.text
     assert '<input id="arkui-export" type="checkbox" checked>' not in resp.text
+
+
+def test_index_inline_javascript_is_syntactically_valid() -> None:
+    start = app_mod.INDEX_HTML.index("<script>") + len("<script>")
+    end = app_mod.INDEX_HTML.rindex("</script>")
+    script = app_mod.INDEX_HTML[start:end]
+
+    checked = subprocess.run(
+        ["node", "--check", "-"],
+        input=script,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert checked.returncode == 0, checked.stderr
 
 
 def test_generate_stream(client) -> None:
@@ -427,7 +510,7 @@ def test_default_mode_is_mobile(reasoning_client) -> None:
     assert resp.status_code == 200
     assert _REASONING_CALLS
     assert "Tailwind" in _system_text(_REASONING_CALLS)
-    assert "最终 answer/content" in _system_text(_REASONING_CALLS)
+    assert "只返回一个完整 HTML 文档" in _system_text(_REASONING_CALLS)
     assert "不要使用 Markdown 代码围栏" in _system_text(_REASONING_CALLS)
     first = _first_result(_parse_stream(resp))
     assert first["mode"] == "mobile"
@@ -542,6 +625,58 @@ def test_last_run_repairs_button_label_id_before_restored_preview(
     assert [item["code"] for item in result["arkui_manifest"]["diagnostics"]] == [
         "ARKUI_NODE_ID_GENERATED",
     ]
+
+
+def test_last_run_normalizes_legacy_token_aliases_and_clears_degradation(
+    monkeypatch, tmp_path,
+) -> None:
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    html = (
+        '<!DOCTYPE html><html><body><main class="dt-mx-page dt-pb-page '
+        'dt-mt-gap-section dt-pt-gap-section checked:dt-bg-primary '
+        'bg-ui-primary/10 bg-ui-surface-raised/90 shadow-ui-primary/20">'
+        "WLAN</main></body></html>"
+    )
+    (logs / "last_run.json").write_text(json.dumps({
+        "run_id": "token-normalize",
+        "prompt": "WLAN",
+        "mode": "mobile",
+        "arkui_export_enabled": False,
+        "total_seconds": 1,
+        "models": [],
+        "results": [{
+            "key": "0",
+            "model_id": "model",
+            "name": "Model",
+            "provider": "openai",
+            "mode": "mobile",
+            "html": html,
+            "status": "degraded",
+            "unknown_token_classes": [
+                "checked:dt-bg-primary", "dt-mt-gap-section",
+                "dt-mx-page", "dt-pb-page", "dt-pt-gap-section",
+                "bg-ui-primary/10", "bg-ui-surface-raised/90",
+                "shadow-ui-primary/20",
+            ],
+            "error": None,
+            "image_error": "",
+        }],
+    }), encoding="utf-8")
+    monkeypatch.setattr(app_mod, "LOGS_DIR", logs)
+
+    with TestClient(app_mod.app) as client:
+        response = client.get("/api/last")
+
+    result = response.json()["results"][0]
+    assert result["unknown_token_classes"] == []
+    assert result["status"] == "success"
+    assert "dt-mt-section" in result["html"]
+    assert "dt-pt-section" in result["html"]
+    assert "checked:dt-bg-primary" not in result["html"]
+    assert "bg-ui-primary-container-subtle" in result["html"]
+    assert "bg-ui-surface-raised" in result["html"]
+    assert "shadow-ui-surface" in result["html"]
 
 
 def test_legacy_last_run_warns_without_blocking_unapproved_remote_images(
@@ -1311,6 +1446,186 @@ def test_run_image_batch_cache_deduplicates_parallel_models(monkeypatch) -> None
     assert all(result[0]["id"] == "shared-photo" for result in results)
 
 
+def test_ai_photo_planner_has_no_page_type_exclusion_list_and_validates_json() -> None:
+    assert app_mod._should_ai_plan_photos("帮我生成一个读书APP") is True
+    assert app_mod._should_ai_plan_photos("用户设置页面") is True
+    assert app_mod._should_ai_plan_photos("简单待办清单") is True
+    assert app_mod._should_ai_plan_photos("设置页面，不要使用图片") is False
+
+    plan = app_mod._photo_plan_from_text(
+        """```json
+        {"need_images": true, "requests": [
+          {"slot": "featured-book", "query": "books reading still life", "orientation": "portrait"},
+          {"slot": "reading-hero", "query": "cozy person reading book", "orientation": "landscape"},
+          {"slot": "common-app-icons", "query": "app icons grid on phone screen", "orientation": "squarish"}
+        ]}
+        ```""",
+        limit=6,
+    )
+    assert plan == [
+        {
+            "slot": "featured-book",
+            "query": "books reading still life",
+            "per_page": 2,
+            "orientation": "portrait",
+        },
+        {
+            "slot": "reading-hero",
+            "query": "cozy person reading book",
+            "per_page": 2,
+            "orientation": "landscape",
+        },
+    ]
+    assert app_mod._photo_plan_from_text(
+        '{"need_images": false, "requests": []}', limit=6,
+    ) == []
+    assert app_mod._photo_plan_from_text("not json", limit=6) is None
+
+
+def test_app_icon_catalog_is_injected_and_reused_photo_is_repaired(
+    monkeypatch, tmp_path,
+) -> None:
+    from uibench.schemas import ModelConfig
+
+    html = """<!DOCTYPE html><html><head></head><body>
+      <div data-component="column" data-node-id="page">
+        <div data-component="list" data-node-id="apps">
+          <div data-component="list-item" data-node-id="apps.wechat">
+            <img data-component="image" data-node-id="apps.wechat.icon"
+                 src="/gallery/tech/generic.jpg" alt="应用图标">
+            <span data-component="text" data-node-id="apps.wechat.label">微信</span>
+          </div>
+          <div data-component="list-item" data-node-id="apps.alipay">
+            <img data-component="image" data-node-id="apps.alipay.icon"
+                 src="/gallery/tech/generic.jpg" alt="应用图标">
+            <span data-component="text" data-node-id="apps.alipay.label">支付宝</span>
+          </div>
+        </div>
+      </div></body></html>"""
+    calls: list[dict] = []
+
+    async def _plan(*_args, **_kwargs):
+        return []
+
+    def _factory(*_args, **_kwargs):
+        def _create(**call_kwargs):
+            calls.append(call_kwargs)
+            return _openai_response(html, "", "stop")
+        return SimpleNamespace(root_client=SimpleNamespace(
+            chat=SimpleNamespace(completions=SimpleNamespace(create=_create))))
+
+    monkeypatch.setattr(app_mod, "_plan_photo_requests_with_ai", _plan)
+    monkeypatch.setattr(app_mod, "image_tool_available", lambda source=None: True)
+    monkeypatch.setattr(app_mod, "chat_model_for", _factory)
+    monkeypatch.setattr(app_mod, "LOGS_DIR", tmp_path / "logs")
+    monkeypatch.setattr(app_mod, "load_model_registry", lambda: [
+        ModelConfig(id="icon-model", provider="openai", api_key="sk-test")
+    ])
+
+    with TestClient(app_mod.app) as client:
+        messages = _parse_stream(client.post(
+            "/api/generate", json={"prompt": "展示常用应用图标横排"},
+        ))
+
+    result = _first_result(messages)
+    assert "微信=/assets/app-icons/wechat.png" in calls[0]["messages"][-1]["content"]
+    assert "支付宝=/assets/app-icons/alipay.png" in calls[0]["messages"][-1]["content"]
+    assert "/gallery/tech/generic.jpg" not in result["html"]
+    assert "/assets/app-icons/wechat.png" in result["html"]
+    assert "/assets/app-icons/alipay.png" in result["html"]
+    assert result["status"] == "success"
+
+
+def test_ai_photo_plan_is_shared_across_comparison_models(
+    monkeypatch, tmp_path,
+) -> None:
+    from uibench.schemas import ModelConfig
+
+    image_url = "/gallery/books/reading-small.jpg"
+    html = (
+        '<!DOCTYPE html><html><head></head><body>'
+        f'<img src="{image_url}" alt="Reading"></body></html>'
+    )
+    planner_calls: list[str] = []
+    model_calls: list[dict] = []
+    search_calls: list[list[dict]] = []
+
+    async def _plan(model, prompt, mode):
+        planner_calls.append(f"{model.id}:{mode}:{prompt}")
+        return [{
+            "slot": "reading-hero",
+            "query": "cozy person reading book",
+            "orientation": "landscape",
+        }]
+
+    def _factory(*args, **kwargs):
+        def _create(**call_kwargs):
+            model_calls.append(call_kwargs)
+            return _openai_response(html, "", "stop")
+        return SimpleNamespace(root_client=SimpleNamespace(
+            chat=SimpleNamespace(completions=SimpleNamespace(create=_create))))
+
+    async def _search(arguments, *, max_requests, progress=None, source=None):
+        search_calls.append(arguments["requests"])
+        return [{
+            "id": "reading",
+            "slot": "reading-hero",
+            "query": "cozy person reading book",
+            "urls": {"small": image_url, "regular": image_url},
+            "width": 1200,
+            "height": 800,
+            "photographer": "Local",
+            "photographer_url": "",
+            "download_location": "",
+        }]
+
+    async def _track(photos, rendered_html):
+        assert image_url in rendered_html
+        return 1
+
+    monkeypatch.setattr(app_mod, "_plan_photo_requests_with_ai", _plan)
+    monkeypatch.setattr(app_mod, "image_tool_available", lambda source=None: True)
+    monkeypatch.setattr(app_mod, "call_image_search_batch", _search)
+    monkeypatch.setattr(app_mod, "track_used_photos", _track)
+    monkeypatch.setattr(app_mod, "chat_model_for", _factory)
+    monkeypatch.setattr(app_mod, "LOGS_DIR", tmp_path / "logs")
+    monkeypatch.setattr(app_mod, "load_model_registry", lambda: [
+        ModelConfig(id="model-a", provider="openai", api_key="sk-test"),
+        ModelConfig(id="model-b", provider="openai", api_key="sk-test"),
+    ])
+
+    with TestClient(app_mod.app) as client:
+        messages = _parse_stream(client.post(
+            "/api/generate", json={"prompt": "帮我生成一个读书APP"}
+        ))
+
+    results = _results(messages)
+    assert planner_calls == ["model-a:mobile:帮我生成一个读书APP"]
+    assert len(search_calls) == 1
+    assert len(model_calls) == 2
+    assert all("tools" not in call for call in model_calls)
+    assert all(
+        "所有参评模型统一规划并批准的图片素材库"
+        in call["messages"][-1]["content"]
+        for call in model_calls
+    )
+    assert all(
+        "请使用每张图片" in call["messages"][-1]["content"]
+        for call in model_calls
+    )
+    assert all(result["image_required"] == 1 for result in results)
+    assert all(result["image_used"] == 1 for result in results)
+    assert all(result["image_queries"] == ["cozy person reading book"] for result in results)
+    planning_messages = [
+        event["message"] for event in _progress(messages)
+        if event["stage"] == "planning_images"
+    ]
+    assert planning_messages == [
+        "AI 正在统一判断页面图片需求",
+        "AI 已规划 1 个图片槽位",
+    ]
+
+
 def test_run_image_tracking_is_deduplicated_across_models(monkeypatch) -> None:
     calls: list[list[str]] = []
     photo = {
@@ -1655,6 +1970,10 @@ def test_used_unsplash_image_without_attribution_is_allowed(
             "download_location": "https://api.unsplash.com/photos/no-credit/download",
         }]
 
+    async def _no_shared_plan(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(app_mod, "_plan_photo_requests_with_ai", _no_shared_plan)
     monkeypatch.setattr(app_mod, "image_tool_available", lambda source=None: True)
     monkeypatch.setattr(app_mod, "call_image_search_batch", _search)
     monkeypatch.setattr(app_mod, "chat_model_for", _factory)
@@ -1725,6 +2044,10 @@ def test_tool_model_invented_image_url_warns_without_blocking_preview(
             "download_location": "https://api.unsplash.com/photos/approved/download",
         }]
 
+    async def _no_shared_plan(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(app_mod, "_plan_photo_requests_with_ai", _no_shared_plan)
     monkeypatch.setattr(app_mod, "image_tool_available", lambda source=None: True)
     monkeypatch.setattr(app_mod, "call_image_search_batch", _search)
     monkeypatch.setattr(app_mod, "chat_model_for", _factory)
@@ -1749,8 +2072,10 @@ def test_tool_model_invented_image_url_warns_without_blocking_preview(
     assert "图片使用不足" in result["image_error"]
 
 
-def test_image_tool_can_be_declined(monkeypatch, tmp_path) -> None:
-    """The model may generate HTML directly when photography is unnecessary."""
+def test_image_tool_is_omitted_when_photography_is_unnecessary(
+    monkeypatch, tmp_path,
+) -> None:
+    """A planner opt-out keeps image tooling out of the generation request."""
     from uibench.schemas import ModelConfig
 
     calls: list[dict] = []
@@ -1758,6 +2083,10 @@ def test_image_tool_can_be_declined(monkeypatch, tmp_path) -> None:
     def _factory(*args, **kwargs):
         def _create(**call_kwargs):
             calls.append(call_kwargs)
+            if len(calls) == 1:
+                return _openai_response(
+                    '{"need_images":false,"requests":[]}', "", "stop",
+                )
             return _openai_response(CANNED_HTML_WITH_REASON, "", "stop")
         return SimpleNamespace(root_client=SimpleNamespace(
             chat=SimpleNamespace(completions=SimpleNamespace(create=_create))))
@@ -1774,8 +2103,9 @@ def test_image_tool_can_be_declined(monkeypatch, tmp_path) -> None:
         ))
 
     result = _first_result(messages)
-    assert len(calls) == 1
-    assert calls[0]["tool_choice"] == "auto"
+    assert len(calls) == 2
+    assert "tools" not in calls[1]
+    assert "tool_choice" not in calls[1]
     assert result["image_tool_used"] is False
     assert result["image_count"] == 0
 
@@ -1791,7 +2121,8 @@ def test_invented_token_classes_are_reported_on_the_card(monkeypatch, tmp_path) 
     html = (
         "<!DOCTYPE html><html><head></head>"
         '<body class="dt-bg-canvas dt-text-primary dt-font">'
-        '<div class="dt-px-page">contract</div>'
+        '<div class="dt-px-page dt-mt-gap-section '
+        'checked:dt-bg-primary">contract</div>'
         '<div class="dt-totally-made-up">silently unstyled</div>'
         "</body></html>"
     )
@@ -1815,6 +2146,9 @@ def test_invented_token_classes_are_reported_on_the_card(monkeypatch, tmp_path) 
     result = _first_result(messages)
     # dt-px-page is part of the contract, so only the invented class is flagged.
     assert result["unknown_token_classes"] == ["dt-totally-made-up"]
+    assert "dt-mt-section" in result["html"]
+    assert "dt-mt-gap-section" not in result["html"]
+    assert "checked:dt-bg-primary" not in result["html"]
     assert result["status"] == "degraded"
 
     log = next((tmp_path / "logs").rglob("*.md")).read_text(encoding="utf-8")
@@ -1826,5 +2160,11 @@ def test_card_labels_distinguish_degradation_reasons(client) -> None:
     page = client.get("/").text
 
     assert "function degradedLabel" in page
-    assert "'无效样式类 ' + unknownTokens.length" in page
+    assert "detailsBtn.textContent = '无效样式类 ' + unknownTokens.length + ' 个'" in page
+    assert "function openUnknownStyleDetails" in page
+    assert "没有匹配到 UIBench 的主题契约" in page
+    assert "下面这些 dt-* 类" not in page
+    assert "bg-ui-(canvas|primary|accent|surface-raised|success|warning|danger)" in page
+    assert "shadow-ui-(primary|accent|surface)" in page
+    assert "aria-haspopup', 'dialog'" in page
     assert "预览已显示 · 有异常" in page

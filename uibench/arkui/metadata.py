@@ -25,6 +25,7 @@ from uibench.arkui.symbols import (
 DiagnosticSeverity = Literal["notice", "warning", "error"]
 ComponentSource = Literal["explicit", "html"]
 ExportReadiness = Literal["ready", "lossy", "blocked", "unavailable"]
+AuthoredWidthKind = Literal["unspecified", "auto", "fixed", "percent"]
 
 _NODE_ID_RE = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
 _ROLE_RE = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
@@ -230,6 +231,13 @@ class ComponentNode:
     # model's intent until the browser snapshot can prove which layout
     # container (Row or Column) rendered the mixed icon/text content.
     mixed_symbol_content: bool = False
+    # Internal responsive-layout evidence. Browser snapshots freeze used pixel
+    # geometry, so retain the small authored subset needed to distinguish a
+    # real fixed width from Tailwind/CSS percentage sizing during Screen IR
+    # adaptation. These hints are intentionally omitted from the public
+    # component manifest.
+    authored_width_kind: AuthoredWidthKind = "unspecified"
+    authored_width_percent: float | None = None
 
 
 @dataclass(frozen=True)
@@ -675,6 +683,7 @@ class _ExportRepairElement:
     component: str | None
     children: list[int]
     has_direct_text: bool = False
+    text_content: str = ""
 
 
 _EXPORT_WRAPPER_TAGS = frozenset({
@@ -818,6 +827,13 @@ class _ExportRepairParser(HTMLParser):
     def handle_data(self, data: str) -> None:
         if self.frames and data.strip(" \t\r\n\f"):
             self.elements[self.frames[-1]].has_direct_text = True
+            # Keep a small descendant-text summary for conservative semantic
+            # repairs. Propagating to every open frame lets an icon consult its
+            # containing metadata row without building a second DOM tree.
+            for index in self.frames:
+                current = self.elements[index].text_content
+                if len(current) < 500:
+                    self.elements[index].text_content = (current + " " + data)[-500:]
 
 
 def _class_tokens(element: _ExportRepairElement) -> list[str]:
@@ -906,6 +922,26 @@ def _repair_export_structure(
     parser.feed(html)
     parser.close()
     elements = parser.elements
+
+    search_wrapper_indices = {
+        index
+        for index, element in enumerate(elements)
+        if (
+            element.component == "search"
+            and element.tag != "input"
+            and not element.has_direct_text
+            and len(element.children) == 1
+            and (
+                child := elements[element.children[0]]
+            ).component == "search"
+            and _native_component(
+                child.tag, _attribute_map(child.attrs),
+            ) == "search"
+            and _wrapper_component(elements, index, None)
+            in {"column", "row", "stack"}
+        )
+    }
+
     has_component_below = [False] * len(elements)
     for index in range(len(elements) - 1, -1, -1):
         has_component_below[index] = any(
@@ -913,6 +949,48 @@ def _repair_export_structure(
             or has_component_below[child]
             for child in elements[index].children
         )
+
+    component_indices = [
+        index
+        for index, element in enumerate(elements)
+        if element.component is not None
+    ]
+    component_roots = [
+        index
+        for index in component_indices
+        if not any(
+            elements[ancestor].component is not None
+            for ancestor in _element_ancestors(elements, index)
+        )
+    ]
+    has_explicit_component = any(
+        _attribute_map(element.attrs).get("data-component", "").strip().lower()
+        in parser.registry.components
+        for element in elements
+    )
+    root_wrapper_index: int | None = None
+    if has_explicit_component and len(component_roots) > 1:
+        ancestor_paths = [
+            tuple(_element_ancestors(elements, index))
+            for index in component_roots
+        ]
+        common_ancestors = set(ancestor_paths[0]).intersection(
+            *ancestor_paths[1:]
+        )
+        root_wrapper_index = next((
+            index
+            for index in ancestor_paths[0]
+            if (
+                index in common_ancestors
+                and elements[index].in_body
+                and elements[index].tag in _EXPORT_WRAPPER_TAGS
+                and elements[index].tag != "body"
+                and elements[index].component is None
+                and not elements[index].has_direct_text
+                and _wrapper_component(elements, index, None)
+                in {"column", "row", "stack", "list", "grid"}
+            )
+        ), None)
 
     wrapper_indices = {
         index
@@ -923,9 +1001,13 @@ def _repair_export_structure(
             and element.tag != "body"
             and element.component is None
             and has_component_below[index]
-            and any(
-                elements[ancestor].component is not None
-                for ancestor in _element_ancestors(elements, index)
+            and (
+                index == root_wrapper_index
+                or any(
+                    elements[ancestor].component is not None
+                    or ancestor == root_wrapper_index
+                    for ancestor in _element_ancestors(elements, index)
+                )
             )
         )
     }
@@ -950,6 +1032,22 @@ def _repair_export_structure(
     replacements: list[tuple[int, int, str]] = []
     repairs: list[ArkUiHtmlRepair] = []
 
+    def nearest_component_ancestor(index: int) -> int | None:
+        return next(
+            (
+                ancestor
+                for ancestor in _element_ancestors(elements, index)
+                if ancestor in component_like
+            ),
+            None,
+        )
+
+    scroll_parents = {
+        nearest_component_ancestor(index)
+        for index, element in enumerate(elements)
+        if element.component == "scroll"
+    }
+
     for index, element in enumerate(elements):
         if index not in component_like:
             continue
@@ -965,10 +1063,15 @@ def _repair_export_structure(
             effective_components[parent_index]
             if parent_index is not None else None
         )
-        component = (
-            element.component
-            or _wrapper_component(elements, index, parent_component)
-        )
+        if index in search_wrapper_indices:
+            component = _wrapper_component(
+                elements, index, parent_component,
+            )
+        else:
+            component = (
+                element.component
+                or _wrapper_component(elements, index, parent_component)
+            )
         effective_components[index] = component
         attrs = list(element.attrs)
         attributes = _attribute_map(attrs)
@@ -1014,10 +1117,73 @@ def _repair_export_structure(
                 attrs, _GENERATED_NODE_ID_ATTR, _LAYOUT_WRAPPER_REPAIR,
             )
             repairs.append(ArkUiHtmlRepair(
-                code="ARKUI_UNANNOTATED_WRAPPER_REPAIRED",
+                code=(
+                    "ARKUI_ROOT_WRAPPER_REPAIRED"
+                    if index == root_wrapper_index
+                    else "ARKUI_UNANNOTATED_WRAPPER_REPAIRED"
+                ),
                 message=(
-                    f"Annotated <{element.tag}> as {component!r} so its "
-                    "DOM and ArkUI parent trees stay identical"
+                    f"Promoted the unique common <{element.tag}> container "
+                    f"to the {component!r} component root"
+                    if index == root_wrapper_index
+                    else (
+                        f"Annotated <{element.tag}> as {component!r} so its "
+                        "DOM and ArkUI parent trees stay identical"
+                    )
+                ),
+                node_id=node_id,
+                component=component,
+            ))
+
+        if index in search_wrapper_indices:
+            _set_repair_attribute(attrs, "data-component", component)
+            repairs.append(ArkUiHtmlRepair(
+                code="ARKUI_SEARCH_WRAPPER_REPAIRED",
+                message=(
+                    f"Read the non-input search wrapper as {component!r}; "
+                    "its sole native Search child remains the input control"
+                ),
+                node_id=node_id,
+                component=component,
+            ))
+
+        class_tokens = _attribute_map(attrs).get("class", "").split()
+        has_scroll_ancestor = any(
+            elements[ancestor].component == "scroll"
+            for ancestor in _element_ancestors(elements, index)
+        )
+        if (
+            "sticky" in class_tokens
+            and not has_scroll_ancestor
+            and nearest_component_ancestor(index) in scroll_parents
+        ):
+            class_tokens = [token for token in class_tokens if token != "sticky"]
+            _set_repair_attribute(attrs, "class", " ".join(class_tokens))
+            repairs.append(ArkUiHtmlRepair(
+                code="ARKUI_REDUNDANT_STICKY_REMOVED",
+                message=(
+                    "Removed redundant sticky positioning from a bar that "
+                    "already sits outside its sibling Scroll"
+                ),
+                node_id=node_id,
+                component=component,
+            ))
+
+        authored = _attribute_map(attrs)
+        if (
+            component == "symbol"
+            and authored.get("data-lucide", "").strip().lower() == "globe"
+            and (
+                (context_index := nearest_component_ancestor(index)) is not None
+                and "开放网络" in elements[context_index].text_content
+            )
+        ):
+            _set_repair_attribute(attrs, "data-lucide", "unlock")
+            repairs.append(ArkUiHtmlRepair(
+                code="ARKUI_OPEN_NETWORK_ICON_REPAIRED",
+                message=(
+                    "Replaced the approximate globe icon with the exact "
+                    "unlock symbol for an open network"
                 ),
                 node_id=node_id,
                 component=component,
@@ -1091,6 +1257,93 @@ def _relevant_attributes(attrs: dict[str, str]) -> tuple[tuple[str, str], ...]:
     return tuple(sorted(
         (name, value) for name, value in attrs.items() if name in names
     ))
+
+
+_INLINE_WIDTH_RE = re.compile(
+    r"(?:^|;)\s*width\s*:\s*([^;]+)", re.IGNORECASE,
+)
+_TAILWIND_WIDTH_FRACTION_RE = re.compile(r"^w-(\d+)/(\d+)$")
+_TAILWIND_ARBITRARY_PERCENT_RE = re.compile(
+    r"^w-\[([+-]?(?:\d+(?:\.\d*)?|\.\d+))%\]$",
+)
+
+
+def _bounded_width_percent(value: str) -> float | None:
+    try:
+        parsed = float(value)
+    except ValueError:
+        return None
+    if not math.isfinite(parsed) or parsed < 0 or parsed > 1000:
+        return None
+    return round(parsed, 4)
+
+
+def _authored_width_hint(
+    attrs: dict[str, str],
+) -> tuple[AuthoredWidthKind, float | None]:
+    """Keep responsive width intent that used browser pixels cannot express.
+
+    CSS Typed OM is unavailable in some sandboxed preview frames, and
+    ``getComputedStyle`` resolves both ``100%`` and ``358px`` to the same used
+    pixel width. Inline width and the ordinary unprefixed Tailwind width
+    utilities cover generated UIBench pages without guessing from class names
+    that are not active at the captured breakpoint.
+    """
+    inline_widths = _INLINE_WIDTH_RE.findall(attrs.get("style", ""))
+    if inline_widths:
+        value = inline_widths[-1].strip()
+        if value.lower().endswith("!important"):
+            value = value[:-10].strip()
+        if value.lower() == "auto":
+            return "auto", None
+        if value.endswith("%"):
+            percent = _bounded_width_percent(value[:-1].strip())
+            if percent is not None:
+                return "percent", percent
+        return "fixed", None
+
+    hints: list[tuple[AuthoredWidthKind, float | None]] = []
+    for raw_token in attrs.get("class", "").split():
+        token = raw_token[1:] if raw_token.startswith("!") else raw_token
+        # Responsive/state variants may be inactive in this capture. Geometry
+        # alone remains the authority for those declarations.
+        if ":" in token:
+            continue
+        if token in {"w-full", "size-full"}:
+            hints.append(("percent", 100.0))
+            continue
+        fraction = _TAILWIND_WIDTH_FRACTION_RE.fullmatch(token)
+        if fraction is not None:
+            numerator, denominator = map(int, fraction.groups())
+            if denominator > 0:
+                hints.append((
+                    "percent", round(numerator / denominator * 100, 4),
+                ))
+            else:
+                hints.append(("fixed", None))
+            continue
+        arbitrary = _TAILWIND_ARBITRARY_PERCENT_RE.fullmatch(token)
+        if arbitrary is not None:
+            percent = _bounded_width_percent(arbitrary.group(1))
+            hints.append(
+                ("percent", percent) if percent is not None
+                else ("fixed", None)
+            )
+            continue
+        if token in {"w-auto", "size-auto"}:
+            hints.append(("auto", None))
+        elif token.startswith(("w-", "size-")):
+            # Fixed scales, intrinsic sizing and arbitrary calc()/px values
+            # must retain their captured geometry.
+            hints.append(("fixed", None))
+
+    if not hints:
+        return "unspecified", None
+    if all(hint == hints[0] for hint in hints):
+        return hints[0]
+    # Conflicting unprefixed utilities have stylesheet-order semantics that
+    # class token order cannot recover. Preserve the frozen browser result.
+    return "fixed", None
 
 
 _WHITESPACE_RUN_RE = re.compile(r"\s+")
@@ -1449,17 +1702,34 @@ class _ComponentMetadataParser(HTMLParser):
             )
             component = None
         elif explicit_value and native_value and explicit_value != native_value:
-            if explicit_value == "list-item":
+            parent_index = self._parent_index()
+            parent_component = (
+                self.nodes[parent_index].component
+                if parent_index is not None else None
+            )
+            native_collection_item = (
+                explicit_value == "list-item"
+                or (
+                    explicit_value == "grid-item"
+                    and parent_component == "grid"
+                )
+            )
+            if native_collection_item:
                 # A native control annotated as list-item has exactly one
-                # reading: the tag is evidence for what the element is, and
-                # its entry-ness is supplied by the generated ListItem that
-                # Screen IR wraps around plain list children anyway.
+                # reading inside its matching collection: the tag is evidence
+                # for what the element is, and its entry-ness is supplied by
+                # the generated item Screen IR wraps around plain children.
+                collection = (
+                    "grid" if explicit_value == "grid-item" else "list"
+                )
                 self._diagnostic(
-                    "ARKUI_LIST_ITEM_READ_AS_NATIVE",
+                    "ARKUI_GRID_ITEM_READ_AS_NATIVE"
+                    if collection == "grid"
+                    else "ARKUI_LIST_ITEM_READ_AS_NATIVE",
                     "notice",
-                    f"<{normalized_tag}> annotated as list-item was exported "
-                    f"as {native_value!r}; the list entry itself comes from "
-                    "a generated list-item",
+                    f"<{normalized_tag}> annotated as {explicit_value} was "
+                    f"exported as {native_value!r}; the {collection} entry "
+                    f"itself comes from a generated {explicit_value}",
                     node_id=attributes.get("data-node-id") or None,
                     component=explicit_value,
                 )
@@ -1557,6 +1827,9 @@ class _ComponentMetadataParser(HTMLParser):
                     component=component,
                 )
             node_index = len(self.nodes)
+            authored_width_kind, authored_width_percent = _authored_width_hint(
+                attributes
+            )
             self.nodes.append(ComponentNode(
                 node_id=node_id,
                 component=component,
@@ -1571,6 +1844,8 @@ class _ComponentMetadataParser(HTMLParser):
                 attributes=_relevant_attributes(attributes),
                 text_content="",
                 renderer_supported=definition.renderer_supported,
+                authored_width_kind=authored_width_kind,
+                authored_width_percent=authored_width_percent,
             ))
             self.node_text.append([])
             self.node_child_counts.append(0)

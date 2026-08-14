@@ -283,7 +283,11 @@ def test_every_map_key_is_a_renderable_lucide_name() -> None:
     ("history", "sys.symbol.arrow_counterclockwise_clock"),
     ("thumbs-down", "sys.symbol.hand_thumbsdown"),
     ("battery-full", "sys.symbol.battery_100percent"),
+    ("battery-charging", "sys.symbol.battery_bolt"),
+    ("layout-grid", "sys.symbol.square_grid_2x2"),
+    ("rotate-ccw", "sys.symbol.arrow_counterclockwise"),
     ("type", "sys.symbol.textformat_size_square"),
+    ("expand", "sys.symbol.screen_expansion"),
     ("maximize-2", "sys.symbol.screen_expansion"),
 ])
 def test_curated_additions_resolve_to_their_reviewed_resources(
@@ -293,6 +297,46 @@ def test_curated_additions_resolve_to_their_reviewed_resources(
 
     assert resolution.supported
     assert resolution.canonical == expected
+
+
+def test_fullscreen_expand_icon_exports_without_a_placeholder() -> None:
+    report = analyze_component_metadata("""
+    <div data-node-id="display" data-component="column" class="flex flex-col">
+      <i data-node-id="display.fullscreen.icon" data-component="symbol"
+         data-lucide="expand"></i>
+    </div>
+    """)
+
+    assert report.export_readiness == "ready"
+    assert _symbol_metadata(
+        report, "display.fullscreen.icon",
+    ) == "sys.symbol.screen_expansion"
+    assert "ARKUI_SYMBOL_UNAVAILABLE" not in _codes(report)
+
+
+def test_settings_icons_export_as_real_harmony_symbols() -> None:
+    report = analyze_component_metadata("""
+    <div data-node-id="settings" data-component="column" class="flex flex-col">
+      <i data-node-id="settings.system.battery.icon" data-component="symbol"
+         data-lucide="battery-charging"></i>
+      <i data-node-id="settings.apps.default.icon" data-component="symbol"
+         data-lucide="layout-grid"></i>
+      <i data-node-id="settings.apps.reset.icon" data-component="symbol"
+         data-lucide="rotate-ccw"></i>
+    </div>
+    """)
+
+    assert report.export_readiness == "ready"
+    assert _symbol_metadata(
+        report, "settings.system.battery.icon",
+    ) == "sys.symbol.battery_bolt"
+    assert _symbol_metadata(
+        report, "settings.apps.default.icon",
+    ) == "sys.symbol.square_grid_2x2"
+    assert _symbol_metadata(
+        report, "settings.apps.reset.icon",
+    ) == "sys.symbol.arrow_counterclockwise"
+    assert "ARKUI_SYMBOL_UNAVAILABLE" not in _codes(report)
 
 
 def test_lucide_registry_rejects_an_alias_to_an_unknown_icon(tmp_path) -> None:

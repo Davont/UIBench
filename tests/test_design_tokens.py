@@ -11,7 +11,9 @@ from uibench.design_tokens import (
     inject_design_tokens,
     load_tokens,
     normalize_design_token_classes,
+    render_tailwind_token_config_script,
     render_token_css,
+    tailwind_token_preset,
     validate_tokens,
 )
 from uibench.prompts import SYSTEM_MOBILE
@@ -52,8 +54,8 @@ def test_harmonyos_uses_official_semantic_color_mapping() -> None:
     assert dark["surface-raised"] == "#2E3033"
     assert light["text-tertiary"] == "rgba(0, 0, 0, 0.40)"
     assert dark["text-fourth"] == "rgba(255, 255, 255, 0.20)"
-    assert light["divider"] == "rgba(0, 0, 0, 0.05)"
-    assert dark["divider"] == "rgba(255, 255, 255, 0.05)"
+    assert light["divider"] == "rgba(0, 0, 0, 0.20)"
+    assert dark["divider"] == "rgba(255, 255, 255, 0.20)"
     assert light["success"] == "#64BB5C"
     assert dark["success"] == "#5BA854"
     assert light["warning"] == "#ED6F21"
@@ -141,6 +143,11 @@ def test_css_contains_modes_variables_and_semantic_classes() -> None:
     assert ".dt-text-fourth" in css
     assert ".dt-border-outline" in css
     assert ".dt-border-divider" in css
+    assert 'input[type="checkbox"][data-component="toggle"] {' in css
+    assert 'input[type="checkbox"][data-component="toggle"]:checked {' in css
+    assert "appearance: none !important" in css
+    assert "inline-size: 48px !important" in css
+    assert "transform: translateX(20px)" in css
     assert ".dt-divide > :not([hidden]) ~ :not([hidden])" in css
     assert ".dt-rounded-card" in css
     assert ".dt-rounded-pill, .dt-rounded-full" in css
@@ -156,7 +163,11 @@ def test_model_invented_token_classes_are_normalized() -> None:
     source = """<div class="dt-rounded-full dt-bg-canvas/90
         dt-bg-primary/10 dt-bg-accent/15 hover:dt-bg-surface-subtle
         active:dt-bg-surface-raised focus:dt-focus
-        placeholder:dt-placeholder-secondary"></div>"""
+        placeholder:dt-placeholder-secondary checked:dt-bg-primary
+        peer-checked:dt-bg-primary dt-mt-gap-section dt-mx-page
+        dt-pb-page dt-pt-gap-section dt-py-3 dt-mb-section
+        dt-mt-compact dt-gap-card dt-px-card dt-px-compact
+        dt-py-compact dt-ml-9"></div>"""
     normalized = normalize_design_token_classes(source)
 
     assert "dt-rounded-pill" in normalized
@@ -167,9 +178,45 @@ def test_model_invented_token_classes_are_normalized() -> None:
     assert "dt-interaction-pressed" in normalized
     assert "dt-focus" in normalized
     assert "dt-placeholder-secondary" in normalized
+    assert "dt-mt-section" in normalized
+    assert "dt-mx-page" in normalized
+    assert "dt-pb-page" in normalized
+    assert "dt-pt-section" in normalized
+    assert "dt-py-card" in normalized
+    assert "dt-mb-section" in normalized
+    assert "dt-mt-compact" in normalized
+    assert "gap-ui-card" in normalized
+    assert "px-ui-card" in normalized
+    assert "px-ui-compact" in normalized
+    assert "py-ui-compact" in normalized
+    assert "ml-9" in normalized
     assert "/90" not in normalized
     assert "hover:dt-" not in normalized
+    assert "checked:dt-" not in normalized
+    assert "dt-mt-gap-section" not in normalized
+    assert "dt-pt-gap-section" not in normalized
+    assert "dt-py-3" not in normalized
     assert "dt-rounded-full" not in normalized
+    assert find_unknown_design_token_classes(normalized) == ()
+
+
+def test_tailwind_token_opacity_and_shadow_inventions_are_normalized() -> None:
+    source = """<div class="bg-ui-primary/10 bg-ui-surface-raised/90
+      shadow-ui-primary/20 bg-ui-warning/15
+      hover:bg-ui-accent/25"></div>"""
+
+    normalized = normalize_design_token_classes(source)
+
+    assert "bg-ui-primary-container-subtle" in normalized
+    assert "bg-ui-surface-raised" in normalized
+    assert "shadow-ui-surface" in normalized
+    assert "bg-ui-warning-container" in normalized
+    assert "hover:bg-ui-accent-container" in normalized
+    assert "/10" not in normalized
+    assert "/90" not in normalized
+    assert "/20" not in normalized
+    assert "/15" not in normalized
+    assert "/25" not in normalized
     assert find_unknown_design_token_classes(normalized) == ()
 
 
@@ -193,10 +240,66 @@ def test_axis_page_padding_classes_are_part_of_the_contract() -> None:
         "  padding-bottom: var(--dt-space-page) !important;\n"
         "}"
     ) in css
+    assert (
+        ".dt-mx-page {\n"
+        "  margin-left: var(--dt-space-page) !important;\n"
+        "  margin-right: var(--dt-space-page) !important;\n"
+        "}"
+    ) in css
+    assert ".dt-pb-page { padding-bottom: var(--dt-space-page) !important; }" in css
+    assert (
+        ".dt-py-card {\n"
+        "  padding-top: var(--dt-space-card) !important;\n"
+        "  padding-bottom: var(--dt-space-card) !important;\n"
+        "}"
+    ) in css
+    assert (
+        ".dt-py-3 {\n"
+        "  padding-top: var(--dt-space-card) !important;\n"
+        "  padding-bottom: var(--dt-space-card) !important;\n"
+        "}"
+    ) in css
+    assert ".dt-mt-section { margin-top: var(--dt-space-section) !important; }" in css
+    assert ".dt-mb-section { margin-bottom: var(--dt-space-section) !important; }" in css
+    assert ".dt-pt-section { padding-top: var(--dt-space-section) !important; }" in css
+    assert ".dt-mt-compact { margin-top: var(--dt-space-compact) !important; }" in css
     assert find_unknown_design_token_classes(
-        '<div class="dt-px-page dt-py-page"></div>'
+        '<div class="dt-px-page dt-py-page dt-mx-page dt-pb-page '
+        'dt-mt-section dt-mb-section dt-pt-section dt-mt-compact '
+        'dt-py-card dt-py-3"></div>'
     ) == ()
-    assert "dt-px-page" in SYSTEM_MOBILE
+    assert "px-ui-page" in SYSTEM_MOBILE
+
+
+def test_tailwind_token_preset_exposes_theme_values_through_one_grammar() -> None:
+    extend = tailwind_token_preset()["theme"]["extend"]
+
+    assert extend["colors"]["ui-canvas"] == "var(--dt-color-canvas)"
+    assert extend["colors"]["ui-fg"] == "var(--dt-color-text-primary)"
+    assert extend["colors"]["ui-primary"] == "var(--dt-color-primary)"
+    assert extend["spacing"]["ui-card"] == "var(--dt-space-card)"
+    assert extend["borderRadius"]["ui-card"] == "var(--dt-radius-card)"
+    assert extend["borderWidth"]["ui-hairline"] == "0.5px"
+    assert extend["fontFamily"]["ui"] == "var(--dt-font-family)"
+    assert extend["boxShadow"]["ui-surface"] == "var(--dt-elevation-surface)"
+
+    script = render_tailwind_token_config_script()
+    assert "data-uibench-tailwind-theme" in script
+    assert "window.tailwind.config=" in script
+    assert '"ui-card":"var(--dt-space-card)"' in script
+
+
+def test_tailwind_token_variants_are_validated_without_an_exhaustive_class_list() -> None:
+    source = """<div class="bg-ui-canvas text-ui-fg font-ui
+      px-ui-page py-ui-card gap-ui-card ml-ui-compact
+      rounded-ui-card hover:bg-ui-primary-hover
+      border-b-ui-hairline border-ui-divider
+      focus-visible:ring-ui-focus text-ui-title shadow-ui-surface"></div>"""
+
+    assert find_unknown_design_token_classes(source) == ()
+    assert find_unknown_design_token_classes(
+        '<div class="bg-ui-made-up px-ui-imaginary"></div>'
+    ) == ("bg-ui-made-up", "px-ui-imaginary")
 
 
 def test_unknown_token_classes_are_reported_without_dropping_html(
@@ -222,6 +325,8 @@ def test_inject_design_tokens_sets_theme_and_deduplicates_link() -> None:
         in dark
     )
     assert dark.count("design-tokens.css") == 1
+    assert dark.count("data-uibench-tailwind-theme") == 1
+    assert "window.tailwind.config=" in dark
 
     light = inject_design_tokens(dark, "light", "netflix")
     assert 'data-theme="light"' in light
@@ -229,6 +334,18 @@ def test_inject_design_tokens_sets_theme_and_deduplicates_link() -> None:
     assert 'data-token-theme="netflix"' in light
     assert 'data-token-theme="harmonyos"' not in light
     assert light.count("design-tokens.css") == 1
+    assert light.count("data-uibench-tailwind-theme") == 1
+
+
+def test_tailwind_token_preset_is_installed_after_cdn_inside_head() -> None:
+    cdn = '<script src="https://cdn.tailwindcss.com"></script>'
+    source = f"<!DOCTYPE html><html><head>{cdn}</head><body></body></html>"
+
+    rendered = inject_design_tokens(source)
+
+    assert rendered.index(cdn) < rendered.index("data-uibench-tailwind-theme")
+    assert rendered.index("data-uibench-tailwind-theme") < rendered.index("</head>")
+    assert inject_design_tokens(rendered).count("data-uibench-tailwind-theme") == 1
 
 
 @pytest.mark.parametrize(
@@ -285,38 +402,50 @@ def test_inject_design_tokens_rejects_unknown_mode() -> None:
         )
 
 
-def test_mobile_prompt_requires_semantic_token_contract() -> None:
-    assert "Design Token 合约" in SYSTEM_MOBILE
+def test_mobile_token_css_owns_the_viewport_canvas_geometry() -> None:
+    css = render_token_css()
+    body_rule = css.split('html[data-theme] body {', 1)[1].split("}", 1)[0]
+
+    assert "margin: 0 !important;" in body_rule
+    assert "min-inline-size: 100%;" in body_rule
+    assert "min-block-size: 100vh;" in body_rule
+
+
+def test_mobile_prompt_exposes_one_tailwind_theme_grammar() -> None:
+    assert "主题 Tailwind Preset" in SYSTEM_MOBILE
     assert "HarmonyOS" in SYSTEM_MOBILE
     assert "Spotify" in SYSTEM_MOBILE
     assert "Netflix" in SYSTEM_MOBILE
     assert "Notion" in SYSTEM_MOBILE
-    assert "dt-bg-accent" in SYSTEM_MOBILE
-    assert "dt-bg-primary-container" in SYSTEM_MOBILE
-    assert "dt-bg-canvas-translucent" in SYSTEM_MOBILE
-    assert "dt-bg-layer-secondary" in SYSTEM_MOBILE
-    assert "dt-bg-layer-tertiary" in SYSTEM_MOBILE
-    assert "dt-bg-component-subtle" in SYSTEM_MOBILE
-    assert "dt-bg-component-secondary" in SYSTEM_MOBILE
-    assert "dt-text-tertiary" in SYSTEM_MOBILE
-    assert "dt-text-fourth" in SYSTEM_MOBILE
-    assert "dt-border-divider" in SYSTEM_MOBILE
-    assert "dt-border-outline" in SYSTEM_MOBILE
-    assert "dt-divide" in SYSTEM_MOBILE
-    assert "新生成内容不要使用" in SYSTEM_MOBILE
-    assert "dt-bg-accent-container" in SYSTEM_MOBILE
-    assert "不得将它作为随机装饰色" in SYSTEM_MOBILE
-    assert "或另一套主色" in SYSTEM_MOBILE
-    assert "Spotify 主题中 accent 是 primary 的" in SYSTEM_MOBILE
-    assert "第二强调色" not in SYSTEM_MOBILE
-    assert "dt-interaction-hover" in SYSTEM_MOBILE
-    assert "dt-interaction-pressed" in SYSTEM_MOBILE
-    assert "dt-interaction-selected" in SYSTEM_MOBILE
-    assert "禁止添加 `hover:`" in SYSTEM_MOBILE
-    assert "不要创造\n  `dt-rounded-full`" in SYSTEM_MOBILE
-    assert "dt-bg-canvas" in SYSTEM_MOBILE
-    assert "禁止使用 Tailwind 调色板颜色类" in SYSTEM_MOBILE
+    assert "bg-ui-canvas" in SYSTEM_MOBILE
+    assert "bg-ui-surface" in SYSTEM_MOBILE
+    assert "text-ui-fg" in SYSTEM_MOBILE
+    assert "bg-ui-primary" in SYSTEM_MOBILE
+    assert "hover:bg-ui-primary-hover" in SYSTEM_MOBILE
+    assert "border-ui-divider" in SYSTEM_MOBILE
+    assert "border-b-ui-hairline border-ui-divider" in SYSTEM_MOBILE
+    assert "focus-visible:ring-2 focus-visible:ring-ui-focus" in SYSTEM_MOBILE
+    assert "px-ui-page" in SYSTEM_MOBILE
+    assert "p-ui-card" in SYSTEM_MOBILE
+    assert "gap-ui-item" in SYSTEM_MOBILE
+    assert "rounded-ui-card" in SYSTEM_MOBILE
+    assert "font-ui" in SYSTEM_MOBILE
+    assert "不要使用\n  Tailwind 内置调色板色" in SYSTEM_MOBILE
     assert "不要加入主题切换 JS" in SYSTEM_MOBILE
+    assert "不给 `ui-*` 添加 `/10`、`/20`、`/90`" in SYSTEM_MOBILE
+    assert "shadow-ui-surface" in SYSTEM_MOBILE
+    assert "默认不要添加整圈 border 或 shadow" in SYSTEM_MOBILE
+    assert "border border-ui-border" not in SYSTEM_MOBILE
+    assert "dt-" not in SYSTEM_MOBILE
+    assert "不要输出 `tailwind.config`" in SYSTEM_MOBILE
+
+
+def test_harmony_content_card_outline_is_suppressed_by_theme_css() -> None:
+    css = render_token_css()
+
+    assert ':root[data-token-theme="harmonyos"] :where(' in css
+    assert ".bg-ui-surface.rounded-ui-card.border.border-ui-border" in css
+    assert ") { border-width: 0 !important; }" in css
 
 
 def test_token_routes_and_theme_controls_are_available() -> None:
@@ -351,6 +480,9 @@ def test_token_routes_and_theme_controls_are_available() -> None:
         assert "'dt-rounded-full': 'dt-rounded-pill'" in index.text
         assert "dt-bg-canvas-translucent" in index.text
         assert "dt-interaction-hover" in index.text
+        assert "const tokenTailwindConfig" in index.text
+        assert "function injectTailwindTokenPreset" in index.text
+        assert "data-uibench-tailwind-theme" in index.text
         # Adding data-theme changes string offsets, so the head lookup must use
         # a refreshed lowercase copy (a browser regression found this ordering).
         theme_replace = index.text.index("html = html.replace(/<html")

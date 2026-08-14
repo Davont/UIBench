@@ -1,13 +1,17 @@
 # UIBench 单次生成给模型发了什么
 
-记录一次移动端生成里，UIBench 实际发给模型、以及发给图片来源的请求内容。所有
-数据来自真实拦截，不是从代码推导的：以 `帮我生成一个播放器 首页` 为输入，模型
-`doubao-seed-2-1-turbo-260628`，图片来源为本地离线图库；在线图源那一节的 HTTP
-参数在 MCP 自身环境内单独拦截取得。
+记录当前移动端生成里，UIBench 发给模型和图片来源的请求结构。示例沿用
+`帮我生成一个播放器 首页`、模型 `doubao-seed-2-1-turbo-260628` 与本地离线图库；
+提示词长度和工具发送条件以当前代码为准，在线图源参数来自 MCP 环境内的独立拦截。
 
-一次生成**最多两次**请求模型。第二次是否发生，取决于模型有没有调用 `search_photos`
-工具。两次请求的 `system` 与 `user` 消息**完全一致**，第二次只是在消息数组尾部追加
-了工具调用与工具结果。
+明确图片密集的页面继续走硬性图片槽位；其他页面会在并行生成前由本轮首个模型额外执行
+一次精简 JSON 图片规划，是否需要摄影图由规划结果决定，不再维护页面类型的“免图片名单”。
+规划结果和解析出的同一批离线素材会直接注入所有参评模型。旧的显式图片场景仍可能进行
+两次生成：首次规划工具调用，第二次带图片结果生成 HTML。
+
+应用图标和品牌 Logo 不属于摄影图片槽位：规划结果中的这类请求会被确定性过滤，生成请求
+只在需求命中时附加本地 `/assets/app-icons/*.png` 的精简目录。模型复用通用照片冒充已知
+应用图标时，输出整理阶段会依据相邻应用名称改绑到内置资源。
 
 ---
 
@@ -17,7 +21,7 @@
 
 | # | role | 长度 | 内容 |
 |---|------|------|------|
-| 0 | system | 9048 字 | `uibench/prompts.py` 的 `SYSTEM_MOBILE` |
+| 0 | system | 5816 字 | `uibench/prompts.py` 的 `SYSTEM_MOBILE` |
 | 1 | user | 15 字 | `需求：帮我生成一个播放器 首页` |
 
 `user` 消息只是把原始输入套进模板，没有任何改写、扩写或需求补全：
@@ -36,14 +40,13 @@ MOBILE_GENERATION_PROMPT = ChatPromptTemplate(
 | 段落 | 起始偏移 | 来源 |
 |------|---------|------|
 | 开场角色设定 | 0 | `SYSTEM_MOBILE_BASE` |
-| 【输出规范】 | 110 | `SYSTEM_MOBILE_BASE` |
-| 【Design Token 合约：多品牌风格 × 白天 / 黑夜】 | 1823 | `MOBILE_TOKEN_INSTRUCTIONS` |
-| 【ArkUI 可导出组件元数据合约】 | 4111 | `MOBILE_ARKUI_METADATA_INSTRUCTIONS` |
-| 【设计要求】 | 8291 | `SYSTEM_MOBILE_DESIGN_REQUIREMENTS` |
-| 【交付格式】 | 8745 | `SYSTEM_MOBILE_DESIGN_REQUIREMENTS` |
+| 【硬性输出】 | 47 | `SYSTEM_MOBILE_BASE` |
+| 【主题 Tailwind Preset】 | 1012 | `MOBILE_TOKEN_INSTRUCTIONS` |
+| 【ArkUI 可导出组件元数据合约】 | 2146 | `MOBILE_ARKUI_METADATA_INSTRUCTIONS` |
+| 【设计与交付】 | 5643 | `SYSTEM_MOBILE_DESIGN_REQUIREMENTS` |
 
 ArkUI 那一段只在开启 ArkUI 导出时加入。关闭导出时走
-`MOBILE_GENERATION_PROMPT_WITHOUT_ARKUI`，system 从 9048 字降到 4868 字。
+`MOBILE_GENERATION_PROMPT_WITHOUT_ARKUI`，system 从 5816 字降到 2319 字。
 
 ### 请求参数
 
@@ -54,12 +57,13 @@ ArkUI 那一段只在开启 ArkUI 导出时加入。关闭导出时走
   "max_tokens": 16384,
   "extra_body": { "thinking": { "type": "disabled" } },
   "tools": ["search_photos"],
-  "tool_choice": "auto"
+  "tool_choice": "required"
 }
 ```
 
-`thinking.disabled` 来自 `config/models.yaml` 的 `reasoning_effort: none`。
-`tool_choice` 在有强制配图要求时是 `required`，否则是 `auto`。
+`thinking.disabled` 来自 `config/models.yaml` 的 `reasoning_effort: none`。上例是强制配图
+请求，因此 `tool_choice` 为 `required`；无配图需求时 `tools` 与 `tool_choice` 两项都不发送。
+少数兼容网关拒绝 `required` 时，应用会降级重试一次 `auto`。
 
 ### 携带的工具定义
 
@@ -103,20 +107,20 @@ ArkUI 那一段只在开启 ArkUI 导出时加入。关闭导出时走
 
 ## 第 2 次请求
 
-只有模型在第 1 次调用了 `search_photos`，或者该 prompt 有强制配图要求时才发生。
+只有第 1 次携带了 `search_photos`，并由模型调用它或应用执行强制配图兜底时才发生。
 
 ### 消息
 
 | # | role | 长度 | 内容 |
 |---|------|------|------|
-| 0 | system | 9048 字 | **与第 1 次逐字相同** |
+| 0 | system | 6312 字 | **与第 1 次逐字相同** |
 | 1 | user | 15 字 | **与第 1 次逐字相同** |
 | 2 | assistant | 0 字 | `content` 为空，只带 `tool_calls` |
 | 3 | tool | 2653 字 | 图库返回的 JSON |
 
 ### 请求参数的唯一变化
 
-`tool_choice` 由 `auto` 变为 `none`，锁死工具，防止模型再搜一轮。其余参数
+`tool_choice` 由 `required` 变为 `none`，锁死工具，防止模型再搜一轮。其余参数
 （`model` / `temperature` / `max_tokens` / `extra_body`）与第 1 次相同。
 
 ### 消息 2：模型自己拟的搜图请求

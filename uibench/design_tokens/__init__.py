@@ -2,8 +2,9 @@
 
 The feature is intentionally isolated in this package so the upstream UIBench
 layout, model registry, and logging code can continue to track the fork with
-minimal changes.  Tokens are stored as data, validated here, and rendered into
-CSS variables plus a small semantic utility-class contract.
+minimal changes. Tokens are stored as data and compiled into CSS variables plus
+a system-owned Tailwind theme preset. Legacy ``dt-*`` utilities remain as a
+compatibility layer, but new model generations only need Tailwind's grammar.
 """
 from __future__ import annotations
 
@@ -58,10 +59,17 @@ DESIGN_TOKEN_CLASSES = frozenset({
     "dt-interaction-hover",
     "dt-interaction-pressed",
     "dt-interaction-selected",
+    "dt-mb-section",
+    "dt-mt-compact",
+    "dt-mt-section",
+    "dt-mx-page",
     "dt-p-card",
+    "dt-pb-page",
     "dt-p-page",
     "dt-placeholder-secondary",
+    "dt-pt-section",
     "dt-px-page",
+    "dt-py-card",
     "dt-py-page",
     "dt-rounded-card",
     "dt-rounded-control",
@@ -101,7 +109,145 @@ TOKEN_CLASS_ALIASES = {
     "active:dt-bg-primary-hover": "dt-interaction-pressed",
     "focus:dt-focus": "dt-focus",
     "placeholder:dt-placeholder-secondary": "dt-placeholder-secondary",
+    "dt-mt-gap-section": "dt-mt-section",
+    "dt-pt-gap-section": "dt-pt-section",
+    "dt-py-3": "dt-py-card",
+    # GLM-style cross-namespace inventions from the legacy prompt. These map
+    # to real Tailwind preset utilities instead of remaining inert CSS names.
+    "dt-gap-card": "gap-ui-card",
+    "dt-px-card": "px-ui-card",
+    "dt-px-compact": "px-ui-compact",
+    "dt-py-compact": "py-ui-compact",
+    "dt-ml-9": "ml-9",
 }
+
+# State-prefixed Design Token names are not Tailwind utilities. Native ArkUI
+# controls already receive their checked visuals from the component stylesheet,
+# so retaining these inert spellings only creates a false degradation warning.
+_DROPPED_TOKEN_CLASSES = frozenset({
+    "checked:dt-bg-primary",
+    "peer-checked:dt-bg-primary",
+})
+
+TAILWIND_TOKEN_COLOR_ROLES = {
+    "ui-canvas": "canvas",
+    "ui-canvas-translucent": "canvas-translucent",
+    "ui-layer-secondary": "layer-secondary",
+    "ui-layer-tertiary": "layer-tertiary",
+    "ui-surface": "surface",
+    "ui-surface-raised": "surface-raised",
+    "ui-component-subtle": "component-subtle",
+    "ui-component-secondary": "component-secondary",
+    "ui-primary": "primary",
+    "ui-primary-hover": "primary-hover",
+    "ui-primary-container": "primary-container",
+    "ui-primary-container-subtle": "primary-container-subtle",
+    "ui-accent": "accent",
+    "ui-accent-hover": "accent-hover",
+    "ui-accent-container": "accent-container",
+    "ui-accent-container-subtle": "accent-container-subtle",
+    "ui-fg": "text-primary",
+    "ui-fg-secondary": "text-secondary",
+    "ui-fg-tertiary": "text-tertiary",
+    "ui-fg-fourth": "text-fourth",
+    "ui-fg-disabled": "disabled-text",
+    "ui-on-primary": "on-primary",
+    "ui-on-accent": "on-accent",
+    "ui-border": "border",
+    "ui-divider": "divider",
+    "ui-focus": "focus",
+    "ui-success": "success",
+    "ui-success-container": "success-container",
+    "ui-on-success": "on-success-container",
+    "ui-warning": "warning",
+    "ui-warning-container": "warning-container",
+    "ui-on-warning": "on-warning-container",
+    "ui-danger": "danger",
+    "ui-danger-container": "danger-container",
+    "ui-on-danger": "on-danger-container",
+    "ui-disabled-surface": "disabled-surface",
+    "ui-scrim": "scrim",
+}
+TAILWIND_TOKEN_SPACING_ROLES = {
+    "ui-page": "page",
+    "ui-section": "section",
+    "ui-card": "card",
+    "ui-item": "item",
+    "ui-compact": "compact",
+}
+TAILWIND_TOKEN_RADIUS_ROLES = {
+    "ui-card": "card",
+    "ui-control": "control",
+    "ui-pill": "pill",
+}
+TAILWIND_TOKEN_FONT_SIZE_ROLES = {
+    "ui-title": "title",
+    "ui-body": "body",
+    "ui-caption": "caption",
+}
+TAILWIND_TOKEN_BORDER_WIDTH_ROLES = {
+    "ui-hairline": "0.5px",
+}
+TAILWIND_TOKEN_PRESET_MARKER = "data-uibench-tailwind-theme"
+
+
+@lru_cache(maxsize=1)
+def tailwind_token_preset() -> dict[str, Any]:
+    """Return the fixed Tailwind extension backed by token CSS variables."""
+    colors = {
+        name: f"var(--dt-color-{token})"
+        for name, token in TAILWIND_TOKEN_COLOR_ROLES.items()
+    }
+    spacing = {
+        name: f"var(--dt-space-{token})"
+        for name, token in TAILWIND_TOKEN_SPACING_ROLES.items()
+    }
+    radius = {
+        name: f"var(--dt-radius-{token})"
+        for name, token in TAILWIND_TOKEN_RADIUS_ROLES.items()
+    }
+    font_size = {
+        "ui-title": [
+            "var(--dt-font-size-title)",
+            {
+                "lineHeight": "var(--dt-font-line-title)",
+                "fontWeight": "var(--dt-font-weight-title)",
+            },
+        ],
+        "ui-body": [
+            "var(--dt-font-size-body)",
+            {"lineHeight": "var(--dt-font-line-body)"},
+        ],
+        "ui-caption": "var(--dt-font-size-caption)",
+    }
+    return {
+        "theme": {
+            "extend": {
+                "colors": colors,
+                "spacing": spacing,
+                "borderRadius": radius,
+                "fontFamily": {"ui": "var(--dt-font-family)"},
+                "fontSize": font_size,
+                "borderWidth": TAILWIND_TOKEN_BORDER_WIDTH_ROLES,
+                "boxShadow": {"ui-surface": "var(--dt-elevation-surface)"},
+            },
+        },
+    }
+
+
+def render_tailwind_token_config_script() -> str:
+    """Render the system-owned Tailwind config installed after the CDN."""
+    config = json.dumps(
+        tailwind_token_preset(),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).replace("</", "<\\/")
+    return (
+        f"<script {TAILWIND_TOKEN_PRESET_MARKER}>"
+        "window.tailwind=window.tailwind||{};"
+        f"window.tailwind.config={config};"
+        "</script>"
+    )
 
 
 class DesignTokenError(ValueError):
@@ -250,6 +396,9 @@ def render_token_css(tokens: dict[str, Any] | None = None) -> str:
             *theme_blocks,
             "html[data-theme] { background: var(--dt-color-canvas) !important; }",
             "html[data-theme] body {",
+            "  margin: 0 !important;",
+            "  min-inline-size: 100%;",
+            "  min-block-size: 100vh;",
             "  background-color: var(--dt-color-canvas) !important;",
             "  color: var(--dt-color-text-primary) !important;",
             "  font-family: var(--dt-font-family) !important;",
@@ -296,7 +445,51 @@ def render_token_css(tokens: dict[str, Any] | None = None) -> str:
             ".dt-divide > :not([hidden]) ~ :not([hidden]) {",
             "  border-color: var(--dt-color-divider) !important;",
             "}",
+            "/* Harmony content cards are separated by surface contrast, not an outline. */",
+            ':root[data-token-theme="harmonyos"] :where(',
+            "  .bg-ui-surface.rounded-ui-card.border.border-ui-border,",
+            "  .dt-bg-surface.dt-rounded-card.border.dt-border,",
+            "  .dt-bg-surface.dt-rounded-card.border.dt-border-outline",
+            ") { border-width: 0 !important; }",
             ".dt-form-accent, .dt-accent { accent-color: var(--dt-color-primary) !important; }",
+            "input[type=\"checkbox\"][data-component=\"toggle\"] {",
+            "  -webkit-appearance: none !important;",
+            "  appearance: none !important;",
+            "  position: relative !important;",
+            "  display: inline-block !important;",
+            "  flex: 0 0 auto !important;",
+            "  inline-size: 48px !important;",
+            "  block-size: 28px !important;",
+            "  margin: 0 !important;",
+            "  padding: 0 !important;",
+            "  border: 0 !important;",
+            "  border-radius: 9999px !important;",
+            "  background-color: var(--dt-color-component-secondary) !important;",
+            "  cursor: pointer;",
+            "  vertical-align: middle;",
+            "  transition: background-color 120ms ease;",
+            "}",
+            "input[type=\"checkbox\"][data-component=\"toggle\"]::before {",
+            "  content: \"\";",
+            "  position: absolute;",
+            "  inset-block-start: 2px;",
+            "  inset-inline-start: 2px;",
+            "  inline-size: 24px;",
+            "  block-size: 24px;",
+            "  border-radius: 50%;",
+            "  background-color: var(--dt-color-surface);",
+            "  transition: transform 120ms ease;",
+            "}",
+            "input[type=\"checkbox\"][data-component=\"toggle\"]:checked {",
+            "  background-color: var(--dt-color-primary) !important;",
+            "}",
+            "input[type=\"checkbox\"][data-component=\"toggle\"]:checked::before {",
+            "  transform: translateX(20px);",
+            "}",
+            "input[type=\"checkbox\"][data-component=\"toggle\"]:disabled {",
+            "  cursor: not-allowed;",
+            "  opacity: 0.4;",
+            "}",
             ".dt-focus:focus-visible {",
             "  outline: 2px solid var(--dt-color-focus) !important;",
             "  outline-offset: 2px !important;",
@@ -324,6 +517,10 @@ def render_token_css(tokens: dict[str, Any] | None = None) -> str:
             "}",
             ".dt-text-caption { font-size: var(--dt-font-size-caption) !important; }",
             ".dt-p-page { padding: var(--dt-space-page) !important; }",
+            ".dt-mx-page {",
+            "  margin-left: var(--dt-space-page) !important;",
+            "  margin-right: var(--dt-space-page) !important;",
+            "}",
             ".dt-px-page {",
             "  padding-left: var(--dt-space-page) !important;",
             "  padding-right: var(--dt-space-page) !important;",
@@ -332,15 +529,28 @@ def render_token_css(tokens: dict[str, Any] | None = None) -> str:
             "  padding-top: var(--dt-space-page) !important;",
             "  padding-bottom: var(--dt-space-page) !important;",
             "}",
+            ".dt-pb-page { padding-bottom: var(--dt-space-page) !important; }",
             ".dt-p-card { padding: var(--dt-space-card) !important; }",
+            ".dt-py-card {",
+            "  padding-top: var(--dt-space-card) !important;",
+            "  padding-bottom: var(--dt-space-card) !important;",
+            "}",
             ".dt-gap-section { gap: var(--dt-space-section) !important; }",
+            ".dt-mt-section { margin-top: var(--dt-space-section) !important; }",
+            ".dt-mb-section { margin-bottom: var(--dt-space-section) !important; }",
+            ".dt-pt-section { padding-top: var(--dt-space-section) !important; }",
             ".dt-gap-item { gap: var(--dt-space-item) !important; }",
             ".dt-gap-compact { gap: var(--dt-space-compact) !important; }",
+            ".dt-mt-compact { margin-top: var(--dt-space-compact) !important; }",
             ".dt-rounded-card { border-radius: var(--dt-radius-card) !important; }",
             ".dt-rounded-control { border-radius: var(--dt-radius-control) !important; }",
             ".dt-rounded-pill, .dt-rounded-full { border-radius: var(--dt-radius-pill) !important; }",
             "",
             "/* Compatibility aliases for previously generated Tailwind-like dt-* classes. */",
+            ".dt-py-3 {",
+            "  padding-top: var(--dt-space-card) !important;",
+            "  padding-bottom: var(--dt-space-card) !important;",
+            "}",
             ".dt-bg-canvas\\/90 { background-color: var(--dt-color-canvas-translucent) !important; }",
             ".dt-bg-primary\\/10 { background-color: var(--dt-color-primary-container-subtle) !important; }",
             ".dt-bg-accent\\/15 { background-color: var(--dt-color-accent-container-subtle) !important; }",
@@ -364,8 +574,8 @@ def render_token_css(tokens: dict[str, Any] | None = None) -> str:
             "  color: var(--dt-color-text-secondary) !important;",
             "}",
             "",
-            "/* Best-effort theme compatibility for HTML generated before v0.5.",
-            "   New generations must use dt-* classes and do not rely on this layer. */",
+            "/* Best-effort theme compatibility for historical generated HTML.",
+            "   New generations receive the system Tailwind token preset. */",
             ':root[data-token-theme] :is(.bg-white) {',
             "  background-color: var(--dt-color-surface) !important;",
             "}",
@@ -433,14 +643,62 @@ _TOKEN_OPACITY_RE = re.compile(
     r"dt-bg-(canvas|primary|accent)/(\d{1,3})$",
     re.IGNORECASE,
 )
+_UI_BG_OPACITY_RE = re.compile(
+    r"bg-ui-(canvas|primary|accent|surface-raised|success|warning|danger)"
+    r"/(\d{1,3})$",
+    re.IGNORECASE,
+)
+_UI_SHADOW_OPACITY_RE = re.compile(
+    r"shadow-ui-(primary|accent|surface)/(\d{1,3})$",
+    re.IGNORECASE,
+)
 _HTML_TAG_RE = re.compile(r"<html\b([^>]*)>", re.IGNORECASE)
 _THEME_ATTR_RE = re.compile(r"\sdata-theme\s*=\s*([\"']).*?\1", re.IGNORECASE)
 _TOKEN_THEME_ATTR_RE = re.compile(
     r"\sdata-token-theme\s*=\s*([\"']).*?\1", re.IGNORECASE
 )
+_TAILWIND_PRESET_SCRIPT_RE = re.compile(
+    rf"<script\b[^>]*\b{TAILWIND_TOKEN_PRESET_MARKER}\b[^>]*>",
+    re.IGNORECASE,
+)
 
 
-def _normalize_class_token(token: str) -> str:
+def _tailwind_token_class_is_known(token: str) -> bool:
+    """Return whether a class is generated by the token Tailwind preset."""
+    base = token.rsplit(":", 1)[-1]
+    color_roles = TAILWIND_TOKEN_COLOR_ROLES
+    for prefix in (
+        "bg-", "text-", "border-", "divide-", "ring-", "outline-",
+        "accent-", "placeholder-", "caret-", "decoration-", "from-",
+        "via-", "to-",
+    ):
+        if base.startswith(prefix) and base[len(prefix):] in color_roles:
+            return True
+
+    spacing = "|".join(re.escape(key) for key in TAILWIND_TOKEN_SPACING_ROLES)
+    if re.fullmatch(
+        rf"(?:p[trblxy]?|m[trblxy]?|gap(?:-[xy])?|space-[xy]|"
+        rf"inset(?:-[xy])?|top|right|bottom|left|w|min-w|max-w|h|min-h|max-h|"
+        rf"translate-[xy])-({spacing})",
+        base,
+    ):
+        return True
+
+    radius = "|".join(re.escape(key) for key in TAILWIND_TOKEN_RADIUS_ROLES)
+    if re.fullmatch(rf"rounded(?:-[trbl]{{1,2}})?-({radius})", base):
+        return True
+    if base == "font-ui":
+        return True
+    if base in {f"text-{key}" for key in TAILWIND_TOKEN_FONT_SIZE_ROLES}:
+        return True
+    if re.fullmatch(r"border(?:-[trblxy])?-ui-hairline", base):
+        return True
+    return base == "shadow-ui-surface"
+
+
+def _normalize_class_token(token: str) -> str | None:
+    if token in _DROPPED_TOKEN_CLASSES:
+        return None
     aliased = TOKEN_CLASS_ALIASES.get(token)
     if aliased:
         return aliased
@@ -453,6 +711,34 @@ def _normalize_class_token(token: str) -> str:
             return "dt-bg-canvas-translucent"
         suffix = "container" if amount >= 20 else "container-subtle"
         return f"dt-bg-{role}-{suffix}"
+
+    variant_prefix, separator, base = token.rpartition(":")
+    if not separator:
+        variant_prefix = ""
+        base = token
+    ui_opacity = _UI_BG_OPACITY_RE.fullmatch(base)
+    if ui_opacity:
+        role, raw_opacity = ui_opacity.groups()
+        amount = int(raw_opacity)
+        if role == "canvas":
+            replacement = "bg-ui-canvas-translucent"
+        elif role in {"primary", "accent"}:
+            suffix = "container" if amount >= 20 else "container-subtle"
+            replacement = f"bg-ui-{role}-{suffix}"
+        elif role in {"success", "warning", "danger"}:
+            replacement = f"bg-ui-{role}-container"
+        else:
+            # There is intentionally no cross-theme translucent raised-surface
+            # token. Preserve the surface role and drop only the invented alpha.
+            replacement = "bg-ui-surface-raised"
+        return f"{variant_prefix}:{replacement}" if variant_prefix else replacement
+
+    ui_shadow = _UI_SHADOW_OPACITY_RE.fullmatch(base)
+    if ui_shadow:
+        # Coloured shadow tokens are not part of the multi-theme contract.
+        # Preserve elevation intent with the one neutral semantic shadow.
+        replacement = "shadow-ui-surface"
+        return f"{variant_prefix}:{replacement}" if variant_prefix else replacement
 
     if token.startswith("hover:dt-bg-"):
         return "dt-interaction-hover"
@@ -472,6 +758,8 @@ def normalize_design_token_classes(html: str) -> str:
         normalized: list[str] = []
         for token in match.group(3).split():
             replacement = _normalize_class_token(token)
+            if replacement is None:
+                continue
             if replacement not in normalized:
                 normalized.append(replacement)
         return f"{match.group(1)}{match.group(2)}{' '.join(normalized)}{match.group(2)}"
@@ -480,15 +768,32 @@ def normalize_design_token_classes(html: str) -> str:
 
 
 def find_unknown_design_token_classes(html: str) -> tuple[str, ...]:
-    """Return unresolved dt-* classes after known aliases are normalized."""
+    """Return unresolved legacy or Tailwind-preset token utilities."""
     normalized = normalize_design_token_classes(html)
     unknown: set[str] = set()
     for match in _CLASS_ATTR_RE.finditer(normalized):
         for token in match.group(3).split():
-            is_token_class = token.startswith("dt-") or ":dt-" in token
-            if is_token_class and token not in DESIGN_TOKEN_CLASSES:
+            is_legacy = token.startswith("dt-") or ":dt-" in token
+            if is_legacy and token not in DESIGN_TOKEN_CLASSES:
+                unknown.add(token)
+                continue
+            base = token.rsplit(":", 1)[-1]
+            if "ui-" in base and not _tailwind_token_class_is_known(token):
                 unknown.add(token)
     return tuple(sorted(unknown))
+
+
+def _inject_tailwind_token_preset(html: str) -> str:
+    if _TAILWIND_PRESET_SCRIPT_RE.search(html):
+        return html
+    script = render_tailwind_token_config_script()
+    head_end = re.search(r"</head\s*>", html, re.IGNORECASE)
+    if head_end:
+        return html[:head_end.start()] + script + html[head_end.start():]
+    body = re.search(r"<body\b", html, re.IGNORECASE)
+    if body:
+        return html[:body.start()] + script + html[body.start():]
+    return html + script
 
 
 class _DesignTokenStylesheetParser(HTMLParser):
@@ -594,66 +899,43 @@ def inject_design_tokens(
             f"<head></head><body>{html}</body></html>"
         )
 
-    if _has_design_token_stylesheet(html):
-        return html
-
-    link = '<link rel="stylesheet" href="/design-tokens.css">'
-    head = re.search(r"<head\b[^>]*>", html, re.IGNORECASE)
-    if head:
-        return html[:head.end()] + link + html[head.end():]
-
-    tag = _HTML_TAG_RE.search(html)
-    if tag:
-        return html[:tag.end()] + f"<head>{link}</head>" + html[tag.end():]
-    return link + html
+    if not _has_design_token_stylesheet(html):
+        link = '<link rel="stylesheet" href="/design-tokens.css">'
+        head = re.search(r"<head\b[^>]*>", html, re.IGNORECASE)
+        if head:
+            html = html[:head.end()] + link + html[head.end():]
+        else:
+            tag = _HTML_TAG_RE.search(html)
+            if tag:
+                html = html[:tag.end()] + f"<head>{link}</head>" + html[tag.end():]
+            else:
+                html = link + html
+    return _inject_tailwind_token_preset(html)
 
 
 MOBILE_TOKEN_INSTRUCTIONS = """
 
-【Design Token 合约：多品牌风格 × 白天 / 黑夜】
-- UIBench 会注入 `/design-tokens.css`，通过 `data-token-theme` 在 HarmonyOS、Spotify、
-  Netflix、Notion 风格间迁移，并通过 `data-theme="light|dark"` 切换明暗模式。
-- 所有可主题化颜色必须使用以下语义类，禁止使用 Tailwind 调色板颜色类、十六进制、
-  rgb/hsl 颜色以及 `dark:*`：
-  - 页面和不透明层级：dt-bg-canvas / dt-bg-canvas-translucent /
-    dt-bg-layer-secondary / dt-bg-layer-tertiary
-  - 内容表面：dt-bg-surface / dt-bg-surface-raised
-  - 组件弱填充：搜索框、弱按钮、图标底使用 dt-bg-component-subtle；需要更明显的
-    中性填充时使用 dt-bg-component-secondary。dt-bg-surface-subtle 仅为历史 HTML 兼容，
-    新生成内容不要使用
-  - 文字：dt-text-primary / dt-text-secondary / dt-text-tertiary /
-    dt-text-fourth / dt-text-disabled
-  - 主操作：dt-bg-primary / dt-text-on-primary / dt-focus；交互态组合
-    dt-interaction-hover / dt-interaction-pressed，不要自行换成另一种主色
-  - 高亮容器：dt-bg-primary-container / dt-bg-primary-container-subtle；选中态可组合
-    dt-interaction-selected
-  - 辅助强调：dt-bg-accent / dt-bg-accent-hover / dt-bg-accent-container /
-    dt-bg-accent-container-subtle / dt-text-accent / dt-text-on-accent。只有业务确实存在
-    独立的次级品牌或信息语义时才能小面积使用，不得将它作为随机装饰色
-    或另一套主色；一般 CTA、
-    选中态和品牌强调继续使用 primary。Spotify 主题中 accent 是 primary 的
-    兼容别名，不会引入第二套品牌色。
-  - 边界与表单：组件轮廓使用 border dt-border-outline；单条列表分隔使用
-    border-b dt-border-divider；一组相邻列表项可在父容器使用 divide-y dt-divide。
-    dt-border 仅为历史兼容；表单还可使用 dt-placeholder-secondary / dt-form-accent
-  - 状态：dt-text-success|warning|danger、dt-bg-success|warning|danger，状态色背景中的
-    文字使用对应的 dt-text-on-success|warning|danger
-- 页面根容器使用 `dt-bg-canvas dt-text-primary dt-font`；卡片优先组合
-  `dt-bg-surface dt-rounded-card dt-p-card`，不要为了装饰给每张卡片默认添加边框或阴影；
-  只有确实需要层级或边界时才增加 `dt-shadow-surface` 或 `border dt-border-outline`。
-- 主要间距与形状使用共享类：dt-p-page / dt-px-page / dt-py-page / dt-p-card /
-  dt-gap-section / dt-gap-item / dt-gap-compact / dt-rounded-card /
-  dt-rounded-control / dt-rounded-pill。页面左右安全边距用 dt-px-page，纵向节奏
-  自行用 Tailwind 的 pt-*/pb-* 控制；只需要横向内边距时不要退回四边的 dt-p-page。
-- `dt-*` 是完整的普通 CSS 类名，不是 Tailwind 类：禁止添加 `hover:`、`active:`、
-  `focus:`、`placeholder:` 等前缀，也禁止添加 `/10`、`/90` 等透明度后缀。
-  例如直接写 `dt-interaction-hover`、`dt-focus`、`dt-placeholder-secondary`、
-  `dt-bg-primary-container-subtle`、`dt-bg-canvas-translucent`。
-- 头像、圆形图标和进度条圆头必须使用 `dt-rounded-pill`；不要创造
-  `dt-rounded-full` 或其他未在本合约列出的 `dt-*` 类。
-- 可以继续使用 Tailwind 的布局、尺寸、定位、响应式和字重工具类，但不要再用
-  `bg-white`、`text-gray-*`、`bg-slate-*`、`border-zinc-*` 等直接决定主题的类。
-- 同一份 HTML 必须同时适配全部设计体系及白天/黑夜；不要复制 DOM，不要加入主题切换 JS。
+【主题 Tailwind Preset】
+- 只写 Tailwind class；不要写 CSS 变量、自定义 style 或 `tailwind.config`。
+  UIBench 会把 Design Token 作为固定 Tailwind Theme 注入，同一 DOM 自动适配
+  HarmonyOS、Spotify、Netflix、Notion 及 light/dark，不要加入主题切换 JS。
+- 主题颜色使用 Tailwind 语法：背景优先 bg-ui-canvas / bg-ui-surface /
+  bg-ui-surface-raised / bg-ui-component-subtle / bg-ui-component-secondary；正文使用
+  text-ui-fg / text-ui-fg-secondary / text-ui-fg-tertiary / text-ui-fg-fourth；品牌操作使用
+  bg-ui-primary text-ui-on-primary，hover:bg-ui-primary-hover；次级强调使用 ui-accent 系列。
+- 不给 `ui-*` 添加 `/10`、`/20`、`/90` 等透明度后缀：弱品牌背景使用
+  bg-ui-primary-container-subtle，半透明画布使用 bg-ui-canvas-translucent；确需浮层阴影时
+  只使用 shadow-ui-surface。
+- 普通卡片使用 `bg-ui-surface rounded-ui-card p-ui-card`，依靠画布与表面色形成层级，
+  默认不要添加整圈 border 或 shadow。列表内部需要分隔时，只在相邻行之间使用
+  `border-b-ui-hairline border-ui-divider`，最后一行不画；焦点使用
+  focus-visible:ring-2 focus-visible:ring-ui-focus。状态色使用 ui-success / ui-warning / ui-danger 系列。不要使用
+  Tailwind 内置调色板色、hex、rgb/hsl 或 `dark:*` 决定主题外观。
+- Token 间距是普通 Tailwind spacing key：ui-page / ui-section / ui-card / ui-item /
+  ui-compact，可自由组合 px-ui-page、p-ui-card、py-ui-item、gap-ui-item、mt-ui-section 等
+  标准方向；圆角使用 rounded-ui-card / rounded-ui-control / rounded-ui-pill，字体使用 font-ui。
+- 根容器建议 `bg-ui-canvas text-ui-fg font-ui`；其余 flex/grid、尺寸、定位和响应式继续使用
+  标准 Tailwind。
 """
 
 
@@ -668,6 +950,8 @@ __all__ = [
     "inject_design_tokens",
     "load_tokens",
     "normalize_design_token_classes",
+    "render_tailwind_token_config_script",
     "render_token_css",
+    "tailwind_token_preset",
     "validate_tokens",
 ]

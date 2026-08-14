@@ -193,6 +193,60 @@ def test_annotated_export_renders_canonical_screen_ir() -> None:
     assert 'Button("提交")' in result["arkTs"]
 
 
+def test_annotated_export_makes_parent_filling_widths_responsive() -> None:
+    """Used 390/358px capture geometry must not freeze the device width."""
+    _require_vendored_converter()
+    payload = _browser_snapshot_payload()
+    content_style = payload["nodes"][1]["computed"]  # type: ignore[index]
+    content_style["paddingLeft"] = "16px"
+    content_style["paddingRight"] = "16px"
+
+    result = export_annotated_html(
+        ANNOTATED_HTML,
+        page_name="ResponsivePage",
+        snapshot=BrowserSnapshot.model_validate(payload),
+        require_snapshot=True,
+    )
+
+    content = result["screenIr"]["ui"]["children"][0]
+    assert content["styles"]["width"] == "100%"
+    assert [child["styles"]["width"] for child in content["children"]] == [
+        "100%", "100%",
+    ]
+    assert result["arkTs"].count('.width("100%")') >= 4
+
+
+def test_annotated_export_preserves_percent_and_fixed_width_intent() -> None:
+    """Tailwind fractions stay fluid while an explicit vp width stays fixed."""
+    _require_vendored_converter()
+    html = ANNOTATED_HTML.replace(
+        'data-node-id="page.title" data-component="text"',
+        'data-node-id="page.title" data-component="text" class="w-[358px]"',
+    ).replace(
+        'data-node-id="page.submit" data-component="button"',
+        'data-node-id="page.submit" data-component="button" class="w-2/3"',
+    )
+    payload = _browser_snapshot_payload()
+    content_style = payload["nodes"][1]["computed"]  # type: ignore[index]
+    content_style["paddingLeft"] = "16px"
+    content_style["paddingRight"] = "16px"
+    payload["nodes"][3]["bbox"] = [16, 52, 238.6667, 44]  # type: ignore[index]
+    payload["nodes"][3]["computed"]["width"] = "238.6667px"  # type: ignore[index]
+
+    result = export_annotated_html(
+        html,
+        page_name="ResponsiveFractionPage",
+        snapshot=BrowserSnapshot.model_validate(payload),
+        require_snapshot=True,
+    )
+
+    title, submit = result["screenIr"]["ui"]["children"][0]["children"]
+    assert title["styles"]["width"] == 358
+    assert submit["styles"]["width"] == "66.6667%"
+    assert '.width(358)' in result["arkTs"]
+    assert '.width("66.6667%")' in result["arkTs"]
+
+
 def test_annotated_export_renders_selection_controls_and_tabs() -> None:
     _require_vendored_converter()
     result = export_annotated_html(

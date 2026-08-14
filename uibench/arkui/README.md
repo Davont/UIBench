@@ -111,7 +111,9 @@ ArkUI 的 `List` 默认纵向排列，所以导出会按 computed layout 把 `li
 | `list` 直接子节点不是 `list-item` | 每个条目包进一层生成的 `ListItem`，几何不变 | `ARKUI_LIST_CHILD_WRAPPED_AS_ITEM` | notice |
 | `grid` 直接子节点不是 `grid-item` | 每个格子包进一层生成的 `GridItem`，几何不变 | `ARKUI_GRID_CHILD_WRAPPED_AS_ITEM` | notice |
 | `list-item` 不在 `list` 内 | 按 `column` 导出 | `ARKUI_LIST_ITEM_PROMOTED_TO_COLUMN` | notice |
-| 原生控件标成 `list-item`（如 `<button>`） | 按标签原生组件导出，条目由生成的 `ListItem` 承担 | `ARKUI_LIST_ITEM_READ_AS_NATIVE` | notice |
+| 原生控件标成集合条目（如 Grid 内的 `<button data-component="grid-item">`） | 按标签原生组件导出，条目由生成的 `ListItem` / `GridItem` 承担 | `ARKUI_LIST_ITEM_READ_AS_NATIVE` / `ARKUI_GRID_ITEM_READ_AS_NATIVE` | notice |
+| 多个组件根有唯一的非 `body` 公共容器 | 按容器布局提升为页面组件根 | `ARKUI_ROOT_WRAPPER_REPAIRED` | repair |
+| 非输入 `search` 外壳只含一个原生 Search | 外壳按实际布局改读，输入节点保留 `search` | `ARKUI_SEARCH_WRAPPER_REPAIRED` | repair |
 | 页面靠文档滚动（Column/Stack 根比视口高） | 根内生成 `Scroll` 包裹内容，根保留尺寸与背景 | `UIBENCH_ARKUI_DOCUMENT_SCROLL_SYNTHESIZED` | notice |
 | `Row`/`Column` 与 computed 方向不符 | 按浏览器实际方向导出 | `UIBENCH_ARKUI_LAYOUT_FOLLOWS_BROWSER` | notice |
 | `span` 不在 `text` 内 | 按 `text` 导出 | `ARKUI_SPAN_PROMOTED_TO_TEXT` | notice |
