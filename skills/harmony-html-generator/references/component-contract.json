@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 2,
+  "nodeIdPattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+  "uiRolePattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+  "rootClassAll": ["min-h-screen", "bg-ui-canvas", "text-ui-fg", "font-ui"],
+  "controlRowComponents": ["checkbox", "radio", "toggle"],
+  "htmlDepthLimit": 256,
+  "componentDepthLimit": 128,
+  "components": {
+    "column": {"classAll": ["flex", "flex-col"]},
+    "row": {"classAll": ["flex", "flex-row"]},
+    "stack": {"classAll": ["relative"]},
+    "scroll": {"maxComponentChildren": 1},
+    "text": {"allowedChildren": ["span"]},
+    "span": {"allowedParents": ["text"], "requireText": true},
+    "image": {"tag": "img", "leaf": true, "requiredAttributes": ["src", "alt"]},
+    "symbol": {"tagAny": ["i", "span"], "leaf": true, "requiredAttributes": ["data-lucide", "aria-hidden"]},
+    "divider": {"leaf": true},
+    "button": {"tag": "button", "maxComponentChildren": 1, "requiredAttributes": ["type"]},
+    "list": {"allowedChildren": ["list-item"]},
+    "list-item": {"allowedParents": ["list"], "maxComponentChildren": 1},
+    "grid": {"classAll": ["grid"], "allowedChildren": ["grid-item"]},
+    "grid-item": {"allowedParents": ["grid"], "maxComponentChildren": 1},
+    "search": {"tag": "input", "inputType": "search", "leaf": true, "requiredAttributes": ["aria-label"]},
+    "text-input": {"tag": "input", "inputTypeAny": ["text", "email", "password", "tel", "url"], "leaf": true, "requiredAttributes": ["aria-label"]},
+    "checkbox": {"tag": "input", "inputType": "checkbox", "leaf": true, "requiredAttributes": ["aria-label"]},
+    "radio": {"tag": "input", "inputType": "radio", "leaf": true, "requiredAttributes": ["name", "value", "aria-label"]},
+    "toggle": {"tag": "input", "inputType": "checkbox", "leaf": true, "requiredAttributes": ["aria-label"]},
+    "tabs": {"allowedChildren": ["tab-content"], "requiredAttributes": ["data-index"]},
+    "tab-content": {"allowedParents": ["tabs"], "requiredAttributes": ["data-tab-bar"]},
+    "slider": {"tag": "input", "inputType": "range", "leaf": true, "requiredAttributes": ["min", "max", "value", "aria-label"]}
+  }
+}

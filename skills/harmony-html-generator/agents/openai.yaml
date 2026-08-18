@@ -1,0 +1,7 @@
+# Codex 可选界面元数据；OpenCode 及其派生 Agent 只依赖 SKILL.md 和宿主配置。
+interface:
+  display_name: "鸿蒙 HTML 生成器"
+  short_description: "生成精致、离线且结构可导出的鸿蒙页面"
+  default_prompt: "使用 $harmony-html-generator 创建鸿蒙风格移动端 HTML 页面；根据我的需求自由构图，不读取或复用已有页面。"
+policy:
+  allow_implicit_invocation: true

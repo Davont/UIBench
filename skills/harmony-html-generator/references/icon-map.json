@@ -1,0 +1,1310 @@
+{
+  "schemaVersion": 1,
+  "source": "UIBench Lucide-compatible names mapped to pinned HarmonyOS Symbol glyphs",
+  "icons": {
+    "activity": {
+      "symbol": "waveform",
+      "codepoint": "F0159"
+    },
+    "alarm-clock": {
+      "symbol": "alarm",
+      "codepoint": "F03D2"
+    },
+    "alert-circle": {
+      "symbol": "exclamationmark_circle",
+      "codepoint": "F0109"
+    },
+    "alert-triangle": {
+      "symbol": "exclamationmark_triangle",
+      "codepoint": "F010A"
+    },
+    "align-left": {
+      "symbol": "text_alignleft",
+      "codepoint": "F0077"
+    },
+    "archive": {
+      "symbol": "archivebox",
+      "codepoint": "F01F6"
+    },
+    "arrow-down": {
+      "symbol": "arrow_down",
+      "codepoint": "F022E"
+    },
+    "arrow-left": {
+      "symbol": "arrow_left",
+      "codepoint": "F00CA"
+    },
+    "arrow-left-right": {
+      "symbol": "arrow_left_arrow_right",
+      "codepoint": "F041E"
+    },
+    "arrow-left-square": {
+      "symbol": "arrow_left_and_square",
+      "codepoint": "F10ED"
+    },
+    "arrow-right": {
+      "symbol": "arrow_right",
+      "codepoint": "F0231"
+    },
+    "arrow-right-square": {
+      "symbol": "arrow_right_and_square",
+      "codepoint": "F09B0"
+    },
+    "arrow-up": {
+      "symbol": "arrow_up",
+      "codepoint": "F00CE"
+    },
+    "audio-waveform": {
+      "symbol": "waveform",
+      "codepoint": "F0159"
+    },
+    "award": {
+      "symbol": "medal",
+      "codepoint": "F020B"
+    },
+    "battery": {
+      "symbol": "battery",
+      "codepoint": "F011A"
+    },
+    "battery-charging": {
+      "symbol": "battery_bolt",
+      "codepoint": "F07AC"
+    },
+    "battery-full": {
+      "symbol": "battery_100percent",
+      "codepoint": "F0BDB"
+    },
+    "bed-double": {
+      "symbol": "bed_double_fill",
+      "codepoint": "F063F"
+    },
+    "bell": {
+      "symbol": "bell",
+      "codepoint": "F01D5"
+    },
+    "bell-off": {
+      "symbol": "bell_slash",
+      "codepoint": "F01D3"
+    },
+    "bike": {
+      "symbol": "bicycle",
+      "codepoint": "F0425"
+    },
+    "bluetooth": {
+      "symbol": "bluetooth",
+      "codepoint": "F0254"
+    },
+    "bluetooth-off": {
+      "symbol": "bluetooth_slash",
+      "codepoint": "F0253"
+    },
+    "book": {
+      "symbol": "book",
+      "codepoint": "F0185"
+    },
+    "book-marked": {
+      "symbol": "bookmark_book_closed",
+      "codepoint": "F0186"
+    },
+    "book-open": {
+      "symbol": "book_open_fill",
+      "codepoint": "F07C9"
+    },
+    "book-x": {
+      "symbol": "xmark_book",
+      "codepoint": "F0694"
+    },
+    "bookmark": {
+      "symbol": "bookmark",
+      "codepoint": "F000A"
+    },
+    "bookmark-plus": {
+      "symbol": "plus_bookmark",
+      "codepoint": "F0E4D"
+    },
+    "bot": {
+      "symbol": "robot",
+      "codepoint": "F07ED"
+    },
+    "box-select": {
+      "symbol": "square_dashed",
+      "codepoint": "F07E7"
+    },
+    "briefcase": {
+      "symbol": "briefcase",
+      "codepoint": "F065F"
+    },
+    "brush": {
+      "symbol": "brush",
+      "codepoint": "F000D"
+    },
+    "building": {
+      "symbol": "building",
+      "codepoint": "F0D0E"
+    },
+    "bus": {
+      "symbol": "bus_fill",
+      "codepoint": "F0264"
+    },
+    "calendar": {
+      "symbol": "calendar",
+      "codepoint": "F03DA"
+    },
+    "calendar-check": {
+      "symbol": "calendar_badge_checkmark",
+      "codepoint": "F03D7"
+    },
+    "calendar-clock": {
+      "symbol": "calendar_badge_clock",
+      "codepoint": "F03D8"
+    },
+    "calendar-days": {
+      "symbol": "calendar",
+      "codepoint": "F03DA"
+    },
+    "calendar-plus": {
+      "symbol": "calendar_badge_plus",
+      "codepoint": "F0C72"
+    },
+    "camera": {
+      "symbol": "camera",
+      "codepoint": "F045B"
+    },
+    "camera-off": {
+      "symbol": "camera_slash",
+      "codepoint": "F1057"
+    },
+    "car": {
+      "symbol": "car",
+      "codepoint": "F026A"
+    },
+    "cast": {
+      "symbol": "cast_smartscreen",
+      "codepoint": "F0D61"
+    },
+    "cat": {
+      "symbol": "cat_fill",
+      "codepoint": "F026E"
+    },
+    "check": {
+      "symbol": "checkmark",
+      "codepoint": "F0013"
+    },
+    "check-circle": {
+      "symbol": "checkmark_circle",
+      "codepoint": "F000F"
+    },
+    "check-circle-2": {
+      "symbol": "checkmark_circle",
+      "codepoint": "F000F"
+    },
+    "check-square-2": {
+      "symbol": "checkmark_square",
+      "codepoint": "F0012"
+    },
+    "chevron-down": {
+      "symbol": "chevron_down",
+      "codepoint": "F00DB"
+    },
+    "chevron-left": {
+      "symbol": "chevron_left",
+      "codepoint": "F00DA"
+    },
+    "chevron-right": {
+      "symbol": "chevron_right",
+      "codepoint": "F00D9"
+    },
+    "chevron-up": {
+      "symbol": "chevron_up",
+      "codepoint": "F00D8"
+    },
+    "circle-alert": {
+      "symbol": "exclamationmark_circle",
+      "codepoint": "F0109"
+    },
+    "circle-arrow-down": {
+      "symbol": "arrow_down_circle",
+      "codepoint": "F089D"
+    },
+    "circle-arrow-left": {
+      "symbol": "arrow_left_circle",
+      "codepoint": "F069F"
+    },
+    "circle-arrow-right": {
+      "symbol": "arrow_right_circle",
+      "codepoint": "F06A0"
+    },
+    "circle-arrow-up": {
+      "symbol": "arrow_up_circle",
+      "codepoint": "F00CC"
+    },
+    "circle-check": {
+      "symbol": "checkmark_circle",
+      "codepoint": "F000F"
+    },
+    "circle-chevron-down": {
+      "symbol": "chevron_down_circle",
+      "codepoint": "F06C1"
+    },
+    "circle-chevron-left": {
+      "symbol": "chevron_left_circle",
+      "codepoint": "F06C3"
+    },
+    "circle-chevron-right": {
+      "symbol": "chevron_right_circle",
+      "codepoint": "F06C4"
+    },
+    "circle-chevron-up": {
+      "symbol": "chevron_up_circle",
+      "codepoint": "F045F"
+    },
+    "circle-dot": {
+      "symbol": "dot_circle",
+      "codepoint": "F0162"
+    },
+    "circle-ellipsis": {
+      "symbol": "ellipsis_circle",
+      "codepoint": "F096C"
+    },
+    "circle-help": {
+      "symbol": "questionmark_circle",
+      "codepoint": "F0100"
+    },
+    "circle-minus": {
+      "symbol": "minus_circle",
+      "codepoint": "F002B"
+    },
+    "circle-pause": {
+      "symbol": "pause_circle",
+      "codepoint": "F00B0"
+    },
+    "circle-play": {
+      "symbol": "play_circle",
+      "codepoint": "F00B3"
+    },
+    "circle-plus": {
+      "symbol": "plus_circle",
+      "codepoint": "F0034"
+    },
+    "circle-power": {
+      "symbol": "power_circle_fill",
+      "codepoint": "F057F"
+    },
+    "circle-question-mark": {
+      "symbol": "questionmark_circle",
+      "codepoint": "F0100"
+    },
+    "circle-star": {
+      "symbol": "star_circle",
+      "codepoint": "F0130"
+    },
+    "circle-stop": {
+      "symbol": "stop_circle",
+      "codepoint": "F0C56"
+    },
+    "circle-x": {
+      "symbol": "xmark_circle",
+      "codepoint": "F0055"
+    },
+    "clipboard-check": {
+      "symbol": "checkmark_clipboard",
+      "codepoint": "F018B"
+    },
+    "clock": {
+      "symbol": "clock",
+      "codepoint": "F03DD"
+    },
+    "cloud": {
+      "symbol": "cloud",
+      "codepoint": "F03EE"
+    },
+    "cloud-alert": {
+      "symbol": "exclamationmark_cloud_fill",
+      "codepoint": "F03F1"
+    },
+    "cloud-download": {
+      "symbol": "cloud_and_arrow_down",
+      "codepoint": "F00D7"
+    },
+    "cloud-moon": {
+      "symbol": "cloud_moon_fill",
+      "codepoint": "F03E7"
+    },
+    "cloud-rain": {
+      "symbol": "rainstorm",
+      "codepoint": "F07BB"
+    },
+    "cloud-sun": {
+      "symbol": "cloud_sun_fill",
+      "codepoint": "F03ED"
+    },
+    "cloud-upload": {
+      "symbol": "cloud_and_arrow_up",
+      "codepoint": "F0241"
+    },
+    "clover": {
+      "symbol": "clover_fill",
+      "codepoint": "F0FCC"
+    },
+    "code": {
+      "symbol": "code",
+      "codepoint": "F113A"
+    },
+    "code-2": {
+      "symbol": "code",
+      "codepoint": "F113A"
+    },
+    "code-xml": {
+      "symbol": "code",
+      "codepoint": "F113A"
+    },
+    "coffee": {
+      "symbol": "cup",
+      "codepoint": "F00EF"
+    },
+    "coins": {
+      "symbol": "coins",
+      "codepoint": "F0200"
+    },
+    "compass": {
+      "symbol": "compass",
+      "codepoint": "F0552"
+    },
+    "corner-down-left": {
+      "symbol": "return_down_left",
+      "codepoint": "F031A"
+    },
+    "credit-card": {
+      "symbol": "creditcard",
+      "codepoint": "F0276"
+    },
+    "crosshair": {
+      "symbol": "scope",
+      "codepoint": "F04A6"
+    },
+    "crown": {
+      "symbol": "crown",
+      "codepoint": "F0202"
+    },
+    "database": {
+      "symbol": "data",
+      "codepoint": "F08E5"
+    },
+    "divide-square": {
+      "symbol": "divide_square_fill",
+      "codepoint": "F0860"
+    },
+    "dog": {
+      "symbol": "dog_fill",
+      "codepoint": "F0278"
+    },
+    "download": {
+      "symbol": "download",
+      "codepoint": "F03EF"
+    },
+    "download-cloud": {
+      "symbol": "cloud_and_arrow_down",
+      "codepoint": "F00D7"
+    },
+    "droplet": {
+      "symbol": "drop",
+      "codepoint": "F0063"
+    },
+    "dumbbell": {
+      "symbol": "dumbbell",
+      "codepoint": "F06D3"
+    },
+    "edit": {
+      "symbol": "square_and_pencil",
+      "codepoint": "F0073"
+    },
+    "edit-3": {
+      "symbol": "pencil_line",
+      "codepoint": "F006B"
+    },
+    "ellipsis": {
+      "symbol": "more",
+      "codepoint": "F0570"
+    },
+    "equal": {
+      "symbol": "equals",
+      "codepoint": "F0802"
+    },
+    "expand": {
+      "symbol": "screen_expansion",
+      "codepoint": "F1020"
+    },
+    "external-link": {
+      "symbol": "link",
+      "codepoint": "F02A1"
+    },
+    "eye": {
+      "symbol": "eye",
+      "codepoint": "F0120"
+    },
+    "eye-off": {
+      "symbol": "eye_slash",
+      "codepoint": "F011F"
+    },
+    "file": {
+      "symbol": "doc",
+      "codepoint": "F00BD"
+    },
+    "file-clock": {
+      "symbol": "doc_text_badge_clock",
+      "codepoint": "F05B2"
+    },
+    "file-text": {
+      "symbol": "doc_text",
+      "codepoint": "F00BC"
+    },
+    "film": {
+      "symbol": "film",
+      "codepoint": "F047C"
+    },
+    "filter": {
+      "symbol": "funnel",
+      "codepoint": "F001E"
+    },
+    "flag": {
+      "symbol": "flag",
+      "codepoint": "F01AC"
+    },
+    "flame": {
+      "symbol": "flame",
+      "codepoint": "F00F4"
+    },
+    "flashlight": {
+      "symbol": "flashlight_on",
+      "codepoint": "F001D"
+    },
+    "flashlight-off": {
+      "symbol": "flashlight_off",
+      "codepoint": "F001B"
+    },
+    "folder": {
+      "symbol": "folder",
+      "codepoint": "F00C5"
+    },
+    "folder-open": {
+      "symbol": "folder_fill",
+      "codepoint": "F00C6"
+    },
+    "folder-plus": {
+      "symbol": "folder_badge_plus",
+      "codepoint": "F0004"
+    },
+    "fork-knife-crossed": {
+      "symbol": "fork_knife",
+      "codepoint": "F00F6"
+    },
+    "gamepad": {
+      "symbol": "game",
+      "codepoint": "F094F"
+    },
+    "gamepad-2": {
+      "symbol": "game",
+      "codepoint": "F094F"
+    },
+    "gem": {
+      "symbol": "diamond",
+      "codepoint": "F0203"
+    },
+    "gift": {
+      "symbol": "gift",
+      "codepoint": "F0286"
+    },
+    "graduation-cap": {
+      "symbol": "graduationcap",
+      "codepoint": "F096A"
+    },
+    "grid": {
+      "symbol": "square_grid_2x2",
+      "codepoint": "F00E3"
+    },
+    "hamburger": {
+      "symbol": "hamburgers",
+      "codepoint": "F08EE"
+    },
+    "hammer": {
+      "symbol": "hammer_fill",
+      "codepoint": "F0C13"
+    },
+    "hard-drive": {
+      "symbol": "hard_disk",
+      "codepoint": "F0E67"
+    },
+    "heart": {
+      "symbol": "heart",
+      "codepoint": "F0025"
+    },
+    "heart-handshake": {
+      "symbol": "handshake",
+      "codepoint": "F0C14"
+    },
+    "heart-off": {
+      "symbol": "heart_slash",
+      "codepoint": "F0024"
+    },
+    "heart-plus": {
+      "symbol": "heart_badge_plus",
+      "codepoint": "F02FF"
+    },
+    "help-circle": {
+      "symbol": "questionmark_circle",
+      "codepoint": "F0100"
+    },
+    "highlighter": {
+      "symbol": "highlighter_fill",
+      "codepoint": "F0C18"
+    },
+    "history": {
+      "symbol": "arrow_counterclockwise_clock",
+      "codepoint": "F03D5"
+    },
+    "home": {
+      "symbol": "house",
+      "codepoint": "F0027"
+    },
+    "hourglass": {
+      "symbol": "hourglass",
+      "codepoint": "F048E"
+    },
+    "image": {
+      "symbol": "picture",
+      "codepoint": "F0003"
+    },
+    "image-off": {
+      "symbol": "picture_slash",
+      "codepoint": "F04EC"
+    },
+    "info": {
+      "symbol": "info_circle",
+      "codepoint": "F0296"
+    },
+    "joystick": {
+      "symbol": "joystick_fill",
+      "codepoint": "F1066"
+    },
+    "key": {
+      "symbol": "key",
+      "codepoint": "F049F"
+    },
+    "key-round": {
+      "symbol": "key",
+      "codepoint": "F049F"
+    },
+    "lamp-desk": {
+      "symbol": "lamp_desk_fill",
+      "codepoint": "F0651"
+    },
+    "languages": {
+      "symbol": "translate",
+      "codepoint": "F007E"
+    },
+    "laptop": {
+      "symbol": "computer",
+      "codepoint": "F082F"
+    },
+    "layers": {
+      "symbol": "layer",
+      "codepoint": "F0615"
+    },
+    "layers-2": {
+      "symbol": "layer",
+      "codepoint": "F0615"
+    },
+    "layers-3": {
+      "symbol": "layer",
+      "codepoint": "F0615"
+    },
+    "layout-grid": {
+      "symbol": "square_grid_2x2",
+      "codepoint": "F00E3"
+    },
+    "leaf": {
+      "symbol": "leaf",
+      "codepoint": "F03F9"
+    },
+    "library": {
+      "symbol": "bookshelf",
+      "codepoint": "F065E"
+    },
+    "lightbulb": {
+      "symbol": "lightbulb",
+      "codepoint": "F029C"
+    },
+    "lightbulb-off": {
+      "symbol": "lightbulb_slash",
+      "codepoint": "F029A"
+    },
+    "link": {
+      "symbol": "link",
+      "codepoint": "F02A1"
+    },
+    "link-2": {
+      "symbol": "link",
+      "codepoint": "F02A1"
+    },
+    "list": {
+      "symbol": "list_bullet",
+      "codepoint": "F0069"
+    },
+    "list-check": {
+      "symbol": "list_checkmark",
+      "codepoint": "F1022"
+    },
+    "list-checks": {
+      "symbol": "list_checkmark",
+      "codepoint": "F1022"
+    },
+    "list-music": {
+      "symbol": "music_note_list",
+      "codepoint": "F00AC"
+    },
+    "list-x": {
+      "symbol": "list_xmark",
+      "codepoint": "F03FA"
+    },
+    "lock": {
+      "symbol": "lock",
+      "codepoint": "F0008"
+    },
+    "log-in": {
+      "symbol": "entrance_and_exit",
+      "codepoint": "F0ECC"
+    },
+    "log-out": {
+      "symbol": "entrance_and_exit",
+      "codepoint": "F0ECC"
+    },
+    "mail": {
+      "symbol": "envelope",
+      "codepoint": "F0088"
+    },
+    "mail-open": {
+      "symbol": "envelope_open",
+      "codepoint": "F008B"
+    },
+    "mail-x": {
+      "symbol": "envelope_badge_xmark_fill",
+      "codepoint": "F0BFE"
+    },
+    "map": {
+      "symbol": "map",
+      "codepoint": "F01C2"
+    },
+    "map-pin": {
+      "symbol": "local",
+      "codepoint": "F01B9"
+    },
+    "map-plus": {
+      "symbol": "map_badge_plus",
+      "codepoint": "F01C1"
+    },
+    "maximize-2": {
+      "symbol": "screen_expansion",
+      "codepoint": "F1020"
+    },
+    "megaphone": {
+      "symbol": "horn_fill",
+      "codepoint": "F0E13"
+    },
+    "menu": {
+      "symbol": "line_3_horizontal",
+      "codepoint": "F013F"
+    },
+    "message-circle": {
+      "symbol": "message",
+      "codepoint": "F008F"
+    },
+    "message-square": {
+      "symbol": "message",
+      "codepoint": "F008F"
+    },
+    "mic": {
+      "symbol": "mic",
+      "codepoint": "F0006"
+    },
+    "mic-off": {
+      "symbol": "mic_slash",
+      "codepoint": "F0758"
+    },
+    "minus": {
+      "symbol": "minus",
+      "codepoint": "F002C"
+    },
+    "minus-circle": {
+      "symbol": "minus_circle",
+      "codepoint": "F002B"
+    },
+    "minus-square": {
+      "symbol": "minus_square_fill",
+      "codepoint": "F0620"
+    },
+    "monitor": {
+      "symbol": "computer",
+      "codepoint": "F082F"
+    },
+    "moon": {
+      "symbol": "moon",
+      "codepoint": "F002E"
+    },
+    "more-horizontal": {
+      "symbol": "more",
+      "codepoint": "F0570"
+    },
+    "mountain": {
+      "symbol": "mountain_2_fill",
+      "codepoint": "F02AD"
+    },
+    "music": {
+      "symbol": "music",
+      "codepoint": "F00AD"
+    },
+    "music-2": {
+      "symbol": "music",
+      "codepoint": "F00AD"
+    },
+    "music-3": {
+      "symbol": "music",
+      "codepoint": "F00AD"
+    },
+    "music-4": {
+      "symbol": "music",
+      "codepoint": "F00AD"
+    },
+    "navigation": {
+      "symbol": "navigation",
+      "codepoint": "F0810"
+    },
+    "navigation-2": {
+      "symbol": "navigation",
+      "codepoint": "F0810"
+    },
+    "notebook-pen": {
+      "symbol": "doc_plaintext_and_pencil",
+      "codepoint": "F05AF"
+    },
+    "notepad-text": {
+      "symbol": "notepad",
+      "codepoint": "F0684"
+    },
+    "palette": {
+      "symbol": "paintpalette",
+      "codepoint": "F0125"
+    },
+    "panda": {
+      "symbol": "panda_fill",
+      "codepoint": "F02B2"
+    },
+    "pause": {
+      "symbol": "pause",
+      "codepoint": "F00B1"
+    },
+    "paw-print": {
+      "symbol": "pawprint",
+      "codepoint": "F02B4"
+    },
+    "pen-box": {
+      "symbol": "square_and_pencil",
+      "codepoint": "F0073"
+    },
+    "pen-line": {
+      "symbol": "pencil_line",
+      "codepoint": "F006B"
+    },
+    "pen-square": {
+      "symbol": "square_and_pencil",
+      "codepoint": "F0073"
+    },
+    "pencil": {
+      "symbol": "square_and_pencil",
+      "codepoint": "F0073"
+    },
+    "phone": {
+      "symbol": "phone",
+      "codepoint": "F009A"
+    },
+    "pin": {
+      "symbol": "pin",
+      "codepoint": "F0032"
+    },
+    "pin-off": {
+      "symbol": "pin_slash",
+      "codepoint": "F00E1"
+    },
+    "pipette": {
+      "symbol": "eyedropper",
+      "codepoint": "F060A"
+    },
+    "plane": {
+      "symbol": "airplane",
+      "codepoint": "F0114"
+    },
+    "play": {
+      "symbol": "play",
+      "codepoint": "F0350"
+    },
+    "plus": {
+      "symbol": "plus",
+      "codepoint": "F0035"
+    },
+    "plus-circle": {
+      "symbol": "plus_circle",
+      "codepoint": "F0034"
+    },
+    "power": {
+      "symbol": "power",
+      "codepoint": "F0036"
+    },
+    "power-circle": {
+      "symbol": "power_circle_fill",
+      "codepoint": "F057F"
+    },
+    "printer": {
+      "symbol": "printer",
+      "codepoint": "F0199"
+    },
+    "puzzle": {
+      "symbol": "puzzle",
+      "codepoint": "F04A0"
+    },
+    "qr-code": {
+      "symbol": "qrcode",
+      "codepoint": "F0128"
+    },
+    "redo-2": {
+      "symbol": "redo",
+      "codepoint": "F01F4"
+    },
+    "refresh-cw": {
+      "symbol": "arrow_clockwise",
+      "codepoint": "F00C7"
+    },
+    "repeat": {
+      "symbol": "repeat",
+      "codepoint": "F00B8"
+    },
+    "repeat-off": {
+      "symbol": "repeat_slash",
+      "codepoint": "F104C"
+    },
+    "rotate-ccw": {
+      "symbol": "arrow_counterclockwise",
+      "codepoint": "F00C8"
+    },
+    "rotate-ccw-clock": {
+      "symbol": "arrow_counterclockwise_clock",
+      "codepoint": "F03D5"
+    },
+    "rotate-cw": {
+      "symbol": "arrow_2_circlepath",
+      "codepoint": "F00DC"
+    },
+    "route": {
+      "symbol": "route",
+      "codepoint": "F08FC"
+    },
+    "ruler": {
+      "symbol": "ruler",
+      "codepoint": "F08FD"
+    },
+    "search": {
+      "symbol": "magnifyingglass",
+      "codepoint": "F0029"
+    },
+    "search-alert": {
+      "symbol": "exclamationmark_magnifyingglass",
+      "codepoint": "F011C"
+    },
+    "send": {
+      "symbol": "paperplane",
+      "codepoint": "F0030"
+    },
+    "settings": {
+      "symbol": "gearshape",
+      "codepoint": "F0020"
+    },
+    "settings-2": {
+      "symbol": "gearshape",
+      "codepoint": "F0020"
+    },
+    "share-2": {
+      "symbol": "share",
+      "codepoint": "F003D"
+    },
+    "shield": {
+      "symbol": "lock_shield",
+      "codepoint": "F0CDE"
+    },
+    "shield-alert": {
+      "symbol": "exclamationmark_shield_fill",
+      "codepoint": "F0477"
+    },
+    "shield-check": {
+      "symbol": "lock_shield",
+      "codepoint": "F0CDE"
+    },
+    "shield-plus": {
+      "symbol": "plus_shield",
+      "codepoint": "F04F1"
+    },
+    "shirt": {
+      "symbol": "shirt",
+      "codepoint": "F003E"
+    },
+    "shopping-bag": {
+      "symbol": "bag",
+      "codepoint": "F01F9"
+    },
+    "shopping-cart": {
+      "symbol": "cart",
+      "codepoint": "F01FC"
+    },
+    "shuffle": {
+      "symbol": "shuffle",
+      "codepoint": "F00B5"
+    },
+    "skip-back": {
+      "symbol": "backward_end_fill",
+      "codepoint": "F00A6"
+    },
+    "skip-forward": {
+      "symbol": "forward_end_fill",
+      "codepoint": "F00A7"
+    },
+    "slash-square": {
+      "symbol": "square_slash",
+      "codepoint": "F04B4"
+    },
+    "sliders": {
+      "symbol": "slider_vertical_3",
+      "codepoint": "F012A"
+    },
+    "sliders-horizontal": {
+      "symbol": "slider_horizontal_2",
+      "codepoint": "F0072"
+    },
+    "sliders-vertical": {
+      "symbol": "slider_vertical_3",
+      "codepoint": "F012A"
+    },
+    "smartphone": {
+      "symbol": "phone",
+      "codepoint": "F009A"
+    },
+    "snowflake": {
+      "symbol": "snowflake",
+      "codepoint": "F02C3"
+    },
+    "sofa": {
+      "symbol": "sofa_fill",
+      "codepoint": "F0654"
+    },
+    "spotlight": {
+      "symbol": "spot_light",
+      "codepoint": "F0632"
+    },
+    "square-arrow-down": {
+      "symbol": "arrow_down_square",
+      "codepoint": "F022C"
+    },
+    "square-arrow-left": {
+      "symbol": "arrow_left_and_square",
+      "codepoint": "F10ED"
+    },
+    "square-arrow-right": {
+      "symbol": "arrow_right_and_square",
+      "codepoint": "F09B0"
+    },
+    "square-check": {
+      "symbol": "checkmark_square",
+      "codepoint": "F0012"
+    },
+    "square-code": {
+      "symbol": "code_square",
+      "codepoint": "F0CDF"
+    },
+    "square-divide": {
+      "symbol": "divide_square_fill",
+      "codepoint": "F0860"
+    },
+    "square-minus": {
+      "symbol": "minus_square_fill",
+      "codepoint": "F0620"
+    },
+    "square-off": {
+      "symbol": "square_slash",
+      "codepoint": "F04B4"
+    },
+    "square-pen": {
+      "symbol": "square_and_pencil",
+      "codepoint": "F0073"
+    },
+    "square-play": {
+      "symbol": "play_square",
+      "codepoint": "F034F"
+    },
+    "square-plus": {
+      "symbol": "plus_square",
+      "codepoint": "F08C3"
+    },
+    "square-user": {
+      "symbol": "person_square",
+      "codepoint": "F05E8"
+    },
+    "square-x": {
+      "symbol": "xmark_square",
+      "codepoint": "F0EF4"
+    },
+    "star": {
+      "symbol": "star",
+      "codepoint": "F004E"
+    },
+    "stethoscope": {
+      "symbol": "stethoscope",
+      "codepoint": "F031D"
+    },
+    "sticker": {
+      "symbol": "stickers",
+      "codepoint": "F0592"
+    },
+    "store": {
+      "symbol": "store",
+      "codepoint": "F0698"
+    },
+    "sun": {
+      "symbol": "sun",
+      "codepoint": "F04FA"
+    },
+    "sun-dim": {
+      "symbol": "sun_min",
+      "codepoint": "F0051"
+    },
+    "sunrise": {
+      "symbol": "sunrise_fill",
+      "codepoint": "F02CB"
+    },
+    "target": {
+      "symbol": "scope",
+      "codepoint": "F04A6"
+    },
+    "text-align-center": {
+      "symbol": "text_aligncenter",
+      "codepoint": "F0076"
+    },
+    "thermometer": {
+      "symbol": "thermometer",
+      "codepoint": "F02D9"
+    },
+    "thermometer-sun": {
+      "symbol": "thermometer_sun_fill",
+      "codepoint": "F02D8"
+    },
+    "thumbs-down": {
+      "symbol": "hand_thumbsdown",
+      "codepoint": "F05D6"
+    },
+    "thumbs-up": {
+      "symbol": "hand_thumbsup",
+      "codepoint": "F05D8"
+    },
+    "ticket": {
+      "symbol": "ticket_fill",
+      "codepoint": "F0904"
+    },
+    "ticket-percent": {
+      "symbol": "coupon",
+      "codepoint": "F0201"
+    },
+    "timer": {
+      "symbol": "timer",
+      "codepoint": "F0406"
+    },
+    "train": {
+      "symbol": "subway",
+      "codepoint": "F02C9"
+    },
+    "trash": {
+      "symbol": "trash",
+      "codepoint": "F0001"
+    },
+    "trash-2": {
+      "symbol": "trash",
+      "codepoint": "F0001"
+    },
+    "triangle": {
+      "symbol": "triangleshape",
+      "codepoint": "F036C"
+    },
+    "triangle-alert": {
+      "symbol": "exclamationmark_triangle",
+      "codepoint": "F010A"
+    },
+    "trophy": {
+      "symbol": "star_trophy",
+      "codepoint": "F021A"
+    },
+    "type": {
+      "symbol": "textformat_size_square",
+      "codepoint": "F007C"
+    },
+    "umbrella": {
+      "symbol": "umbrella",
+      "codepoint": "F02E1"
+    },
+    "undo-2": {
+      "symbol": "undo",
+      "codepoint": "F01F3"
+    },
+    "unlink": {
+      "symbol": "link_slash",
+      "codepoint": "F02A0"
+    },
+    "unlock": {
+      "symbol": "lock_open",
+      "codepoint": "F04C4"
+    },
+    "upload": {
+      "symbol": "upload",
+      "codepoint": "F0408"
+    },
+    "upload-cloud": {
+      "symbol": "cloud_and_arrow_up",
+      "codepoint": "F0241"
+    },
+    "user": {
+      "symbol": "person",
+      "codepoint": "F05E5"
+    },
+    "user-2": {
+      "symbol": "person",
+      "codepoint": "F05E5"
+    },
+    "user-check": {
+      "symbol": "person_badge_checkmark",
+      "codepoint": "F0574"
+    },
+    "user-lock": {
+      "symbol": "person_badge_lock_fill",
+      "codepoint": "F0761"
+    },
+    "user-plus": {
+      "symbol": "person_badge_plus",
+      "codepoint": "F05DF"
+    },
+    "user-round": {
+      "symbol": "person",
+      "codepoint": "F05E5"
+    },
+    "user-shield": {
+      "symbol": "person_shield",
+      "codepoint": "F04DE"
+    },
+    "user-square": {
+      "symbol": "person_square",
+      "codepoint": "F05E8"
+    },
+    "user-star": {
+      "symbol": "person_badge_star",
+      "codepoint": "F10D5"
+    },
+    "user-x": {
+      "symbol": "person_xmark",
+      "codepoint": "F03B0"
+    },
+    "users": {
+      "symbol": "person_2",
+      "codepoint": "F05DC"
+    },
+    "users-2": {
+      "symbol": "person_2",
+      "codepoint": "F05DC"
+    },
+    "users-round": {
+      "symbol": "person_2",
+      "codepoint": "F05DC"
+    },
+    "utensils": {
+      "symbol": "fork_knife",
+      "codepoint": "F00F6"
+    },
+    "utensils-crossed": {
+      "symbol": "fork_knife",
+      "codepoint": "F00F6"
+    },
+    "video": {
+      "symbol": "video",
+      "codepoint": "F00A4"
+    },
+    "volume": {
+      "symbol": "speaker",
+      "codepoint": "F0044"
+    },
+    "volume-2": {
+      "symbol": "speaker",
+      "codepoint": "F0044"
+    },
+    "volume-off": {
+      "symbol": "speaker_slash",
+      "codepoint": "F0043"
+    },
+    "volume-x": {
+      "symbol": "speaker_slash",
+      "codepoint": "F0043"
+    },
+    "wallet": {
+      "symbol": "wallet",
+      "codepoint": "F021F"
+    },
+    "wallpaper": {
+      "symbol": "wallpapers",
+      "codepoint": "F0CE7"
+    },
+    "wand-2": {
+      "symbol": "wand_and_stars",
+      "codepoint": "F0157"
+    },
+    "wand-sparkles": {
+      "symbol": "wand_and_stars",
+      "codepoint": "F0157"
+    },
+    "watch": {
+      "symbol": "watch",
+      "codepoint": "F03CE"
+    },
+    "wifi": {
+      "symbol": "wifi",
+      "codepoint": "F0000"
+    },
+    "wifi-off": {
+      "symbol": "wifi_slash",
+      "codepoint": "F0691"
+    },
+    "wind": {
+      "symbol": "wind",
+      "codepoint": "F02EA"
+    },
+    "wrench": {
+      "symbol": "spanner",
+      "codepoint": "F0655"
+    },
+    "x": {
+      "symbol": "xmark",
+      "codepoint": "F0056"
+    },
+    "x-circle": {
+      "symbol": "xmark_circle",
+      "codepoint": "F0055"
+    },
+    "x-square": {
+      "symbol": "xmark_square",
+      "codepoint": "F0EF4"
+    },
+    "zap": {
+      "symbol": "bolt",
+      "codepoint": "F0262"
+    }
+  }
+}
