@@ -38,7 +38,7 @@
 
 - **原则**：先让任务和阅读顺序成立，再追求视觉表现。
 - **默认**：建立一个明确焦点和不超过三层的阅读层级；先用字号、字重、留白和位置分组。
-- **例外**：只有用户提供主要媒体或明确需要沉浸体验时，才让图片成为首要焦点；只有简短同级数据才使用双列网格。
+- **例外**：只有用户提供主要媒体，或页面内容确实需要摄影图并能从内置离线图库匹配时，才让图片成为首要焦点；只有简短同级数据才使用双列网格。
 - **禁止**：从“首页、仪表盘、详情页”等页面类型模板起步；为填满画面添加 hero、指标、标签页、导航或操作。
 - **验证**：遮住颜色后仍能从尺度和空间看出阅读顺序；删除装饰后页面任务仍完整。
 
@@ -96,6 +96,7 @@
 - **Token/验证**：标题 `text-ui-title` 24px，正文 `text-ui-body` 16px，说明 `text-ui-caption` 12px；配合 `font-ui`、`font-medium`、`font-bold`。
 
 这三个项目角色分别近似映射官方手机 Title_M、Body_L、Caption_L。页面必须使用本地 HarmonyOS Sans。
+前景按 `text-ui-fg`、`text-ui-fg-secondary`、`text-ui-fg-tertiary` 逐级弱化；`text-ui-fg-subtle` 是 `text-ui-fg-tertiary` 的兼容别名，只用于非关键、低强调辅助内容，不新增颜色层级。
 
 ## 8. 图标
 
@@ -110,7 +111,7 @@
 ```text
 导航：home search settings user map calendar chevron-left chevron-right chevron-down arrow-left arrow-up arrow-down
 操作：plus minus x check edit trash share-2 more-horizontal power
-通信/媒体：message-circle phone camera image mic mail play pause music volume-2
+通信/媒体：message-circle phone camera image mic mail play pause music volume-2 volume-x skip-back skip-forward repeat shuffle list-music cast timer sliders
 状态：heart star bell lock eye clock wifi battery battery-charging cloud cloud-rain
 环境/家居：sun moon thermometer wind snowflake flame droplet leaf lightbulb zap wand-sparkles sofa
 文件：file-text folder
@@ -122,9 +123,11 @@
 - **默认**：使用原生 `<button>`、`<input>` 和运行时样式；按钮按下、键盘焦点、禁用和主题状态由运行时处理。页面只表达静态结构和初始状态，不编写页面级业务交互。
 - **例外**：纯图标按钮必须用 `aria-label` 提供名称；装饰性 Symbol 从无障碍树隐藏。
 - **禁止**：JavaScript、内联脚本、内联事件、远程依赖、无法聚焦的伪按钮、占位符代替输入名称、没有标签的图标操作、只在点击后才出现可交互反馈。
-- **Token/验证**：本项目将 44px 作为 Web 触控基线。checkbox、radio 和 toggle 放在 `<label class="flex flex-row items-center w-full" data-component="row" data-ui-role="control-row">` 中扩大命中区域；slider 由运行时提供 44px 操作高度。
+- **Token/验证**：本项目将 44px 作为 Web 触控基线。checkbox、radio 和 toggle 的 `<label class="flex flex-row items-center w-full" data-component="row" data-ui-role="control-row">` 必须是完整的可点击行，把已标注的可见标签内容与 input 一起包在同一个 label 内。禁止另建外层横向 row 放文字，再让一个 `w-full` label 只包 input，否则 label 会占满父行并把文字压成逐字换行。slider 由运行时提供 44px 操作高度。
 
-按钮使用 `type="button"` 并包含可读文字或 `aria-label`。所有 input 提供 `aria-label`。图片提供准确 `alt`。DOM 顺序、视觉顺序和键盘焦点顺序保持一致。
+按钮使用 `type="button"` 并包含可读文字或 `aria-label`。所有 input 提供 `aria-label`；`radio` 同时提供非空 `name` 和 `value`，`slider` 同时提供 `min`、`max` 和 `value`。图片提供准确 `alt`。DOM 顺序、视觉顺序和键盘焦点顺序保持一致。
+
+组件标注保持最小而完整：独立文字只用一个 `data-component="text"` 节点直接承载文字，整段字体 class 也写在该节点，不再套 `span` 组件；`span` 组件只用于 `text` 直属、非空、需要独立样式的局部富文本。普通 HTML `<span>` 不等于 ArkUI `span` 组件，默认不写 `data-component` 或 `data-node-id`。纯文字按钮直接写文字且不放已标注子组件；纯图标按钮只放一个 `symbol`；图标加文字时，按钮只直接包含一个已标注的 `row`，再在该 `row` 中并列 `symbol` 与 `text`。禁止混用按钮直属原始文字与组件子节点。
 
 ## 10. 组件样式决策
 
@@ -133,8 +136,15 @@
 - 主要操作：`bg-ui-primary text-ui-on-primary rounded-ui-control`。
 - 次要操作：`bg-ui-component-secondary text-ui-fg rounded-ui-control`。
 - 列表：一个表面容器包住规则行；相邻行使用 `border-b-ui-hairline border-ui-divider`，末行不加。
-- 图片：使用 `object-cover` 或 `object-contain`、明确比例、有意义 `alt`，以及已复制的本地资源。
+- 图片：用户明确提供的图片优先。内容确实需要摄影图而用户未提供媒体时，可在原生 `<img data-component="image">` 上写简洁英文 `data-media-query`，可选 `data-media-orientation="portrait|landscape|squarish"`，并写稳定 `data-node-id`、准确 `alt`、`object-cover` / `object-contain` 及明确比例；首稿不写 `src`，由收尾器稳定选图、批内去重、补充相对 `src` 并只复制命中的离线文件。默认最多 3 张，明确要求图片密集内容时最多 8 张。不要枚举图库、读取 manifest、猜文件名、使用远程 URL 或为装饰索取图片；没有真实媒体价值时改用 surface、文字和 HarmonyOS Symbol。
+- 内置图库覆盖范围：头像与棚拍人像；精致餐食、拉面、咖啡；耳机、手表、护肤品、球鞋；笔记本、手机、抽象科技；度假村泳池、水上屋、酒店客房；山林海景；朋友生活、家居、跑步；书籍静物、阅读、图书馆；办公室、桌面、会议；猫狗与野生动物；绘画、画廊、雕塑。`data-media-query` 应描述这些范围内可见的具体主体；需求超出覆盖范围时不要强行使用近似图片。
 - 原生控件：使用运行时几何，不手绘 toggle、radio、checkbox、slider 或 input。
+
+普通分组、重复行和静态分段内容默认使用 `column` / `row`，不要为了外观使用专用结构。只有确实需要对应 ArkUI 语义时才使用：`list` 只直接包含 `list-item`，每项最多包含一个 `row` 或 `column`；`grid` 只直接包含 `grid-item`；可见标签按钮行位于 `tabs` 外，`tabs` 写非负整数 `data-index`，内部只直接包含带非空 `data-tab-bar` 的 `tab-content`。
+
+`scroll` 最多只放一个已标注直属子组件，多个内容节点先统一包进一个 `column`。`list` 的分隔线 class 写在相邻 `list-item` 上，不要把 `divider` 作为 `list` 的直属子组件。
+
+方形操作优先使用 `size-10`；`h-10` 只用于确实需要 40px 高度的非方形布局，避免与 `size-10`、`w-10` 重复。列表分隔仍使用 `border-b-ui-hairline border-ui-divider`；只有真实 Tabs 的选中标签可使用 `border-b-2 border-ui-primary`，不要给所有标签都添加强调下划线。
 
 只有概念边界存在时才增加表面。优先通过字体、留白和对齐建立层级，再考虑卡片、边框和阴影。
 
@@ -144,11 +154,12 @@
 - 方向与换行：`flex-row flex-col flex-wrap`。
 - 对齐：`items-start items-center items-end justify-start justify-center justify-between justify-end`。
 - 网格：`grid-cols-1 grid-cols-2 grid-cols-3 grid-cols-4`。
-- 尺寸：`w-full h-full min-h-screen min-w-0 flex-1 shrink-0 aspect-square aspect-video size-4 size-5 size-6 size-8`。
+- 尺寸：`w-6 w-10 w-full h-10 h-full min-h-screen min-w-0 flex-1 shrink-0 aspect-square aspect-video size-4 size-5 size-6 size-8 size-10`。
 - 溢出与媒体：`overflow-hidden overflow-x-auto overflow-y-auto object-cover object-contain`。
 - 文本：`text-left text-center text-right truncate line-clamp-2`。
 - 语义间距：`p|px|py|pt|pb|pl|pr|m|mx|my|mt|mb-ui-{page,section,card,item,compact}` 与 `gap-ui-{section,card,item,compact}`。
 - 小范围间距：`gap-1 gap-2 gap-3 gap-4 gap-6 p-0 p-2 p-3 p-4 px-2 px-3 px-4 py-2 py-3 py-4 mt-1 mt-2 mt-3 mt-4 mb-1 mb-2 mb-3 mb-4`。
+- 边框：`border border-b border-b-2 border-b-ui-hairline border-t-ui-hairline border-ui-border border-ui-divider border-ui-focus border-ui-primary`。
 - 表面与颜色：本文件第 6、7、10 节列出的所有 `bg-ui-*`、`text-ui-*`、`border-ui-*`、圆角和 `shadow-ui-surface`。
 
 禁止发明工具类、任意方括号值、透明度后缀、反向 flex、grid span、按列流动 grid、fixed、sticky、生成侧 transform/filter/backdrop class。

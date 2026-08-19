@@ -196,6 +196,7 @@ for (const element of allElements) {
 }
 
 const knownComponents = contract.components
+const controlRowComponents = new Set(contract.controlRowComponents ?? [])
 const nodeIds = new Set()
 const roots = componentNodes.filter((node) => node.parentComponent === null)
 if (roots.length !== 1) issue(errors, "COMPONENT_ROOT_COUNT_INVALID", `Expected exactly one component root, found ${roots.length}`)
@@ -262,7 +263,7 @@ for (const node of componentNodes) {
   if (node.component === "symbol" && node.attrs["aria-hidden"] !== undefined && node.attrs["aria-hidden"].toLowerCase() !== "true") {
     issue(errors, "SYMBOL_ARIA_HIDDEN_INVALID", 'symbol requires aria-hidden="true"', node.nodeId)
   }
-  if ((contract.controlRowComponents ?? []).includes(node.component)) {
+  if (controlRowComponents.has(node.component)) {
     const controlRow = node.parentComponent
     if (controlRow?.component !== "row" || controlRow.tag !== "label" || controlRow.attrs["data-ui-role"] !== "control-row") {
       issue(
@@ -277,6 +278,17 @@ for (const node of componentNodes) {
         if (!controlRowClasses.has(required)) {
           issue(errors, "CONTROL_ROW_CLASS_MISSING", `control-row requires class ${required}`, controlRow.nodeId)
         }
+      }
+      const hasLabelContent = controlRow.componentChildren.some(
+        (child) => !controlRowComponents.has(child.component) && hasReadableText(child.text),
+      )
+      if (contract.controlRowRequiresLabelContent && !hasLabelContent) {
+        issue(
+          errors,
+          "CONTROL_ROW_LABEL_CONTENT_MISSING",
+          "control-row must include annotated visible label content alongside its control; keep the label content and input in the same <label>",
+          controlRow.nodeId,
+        )
       }
     }
   }

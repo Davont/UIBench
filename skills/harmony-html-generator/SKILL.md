@@ -1,6 +1,6 @@
 ---
 name: harmony-html-generator
-description: 为设计师生成、重新生成、修改或审查精致且不依赖固定模板的鸿蒙风格移动端 HTML 页面。适用于创建新的鸿蒙 HTML 页面、重复相同提示重新生成新版本、优化已有页面或检查现有产物。严格区分创建、修改和审查，采用本地 HarmonyOS Sans 与 HarmonyOS Symbol、语义化 Design Token、稳定 data-node-id、受支持 data-component、离线资源、无障碍属性和确定性校验。
+description: 为设计师生成、重新生成、修改或审查精致且不依赖固定模板的鸿蒙风格移动端 HTML 页面。适用于创建新的鸿蒙 HTML 页面、重复相同提示重新生成新版本、优化已有页面或检查现有产物。严格区分创建、修改和审查，采用本地 HarmonyOS Sans、HarmonyOS Symbol 与按需物化的离线图片库、语义化 Design Token、稳定 data-node-id、受支持 data-component、无障碍属性和确定性校验。
 ---
 
 # 生成鸿蒙 HTML
@@ -23,7 +23,7 @@ description: 为设计师生成、重新生成、修改或审查精致且不依�
 └── assets/
     ├── harmony-runtime.css
     ├── fonts/
-    └── media/                 # 仅在页面确实需要本地图片时存在
+    └── media/                 # 仅在页面实际使用用户图片或内置图片时存在
 ```
 
 确保 `index.html` 可完全离线渲染，不依赖 Tailwind CDN、Lucide、远程字体、远程图片或其他项目目录。
@@ -36,7 +36,7 @@ description: 为设计师生成、重新生成、修改或审查精致且不依�
 
 - 触发词包括“生成、创建、设计、做一个、再生成、重新生成、重做”，以及没有修改对象、直接描述所需新页面的请求。
 - 用户重复发送相同或近似的创建请求时，仍执行创建模式：从需求重新做设计决策并生成全新版本。
-- 不主动读取、检查、复用或模仿已有 `index.html`、旧页面截图、baked 页面或页面模板；只有用户明确指定某个现有产物为参考时才读取它。可以复用本 Skill 的运行时、字体、图标映射和用户明确提供的媒体资源。
+- 不主动读取、检查、复用或模仿已有 `index.html`、旧页面截图、baked 页面或页面模板；只有用户明确指定某个现有产物为参考时才读取它。可以复用本 Skill 的运行时、字体、图标映射、内置离线图片库和用户明确提供的媒体资源。
 - 目标输出目录已存在且用户未明确要求覆盖时，不覆盖、不把旧页面当输入；自动选择同级的递增版本目录，例如 `<slug>-v2`、`<slug>-v3`。只有用户明确要求覆盖某个路径时才原位写入。
 
 ### 修改模式
@@ -53,35 +53,43 @@ description: 为设计师生成、重新生成、修改或审查精致且不依�
 
 若一句请求同时包含多种动作，以用户要求的最终交付物判断：要求得到新页面用创建模式，要求现有页面发生变化用修改模式，只要求结论用审查模式。只有最终交付物确实无法判断时才询问。
 
+## 普通创建与修改的上下文预算
+
+- 只完整读取 [`references/design-language.md`](references/design-language.md)；它是普通执行唯一需要加载的参考文件。
+- 把收尾器和校验器当作黑盒执行。禁止读取 `scripts/finalize-html.mjs` 或 `scripts/validate-html.mjs` 源码，禁止读取 `assets/harmony-runtime.css` 或字体。
+- 禁止读取 [`references/component-contract.json`](references/component-contract.json)；机器契约由校验器使用。禁止完整读取 [`references/icon-map.json`](references/icon-map.json)；仅当所需图标不在设计语言的常用清单中时，用精确名称检索该文件的局部匹配。
+- 禁止创建 todo、调用 todo 工具或输出规划。禁止使用 `ls`、`find`、`glob`、`tree` 或文件清单搜索探查工作区、Skill 目录或资产目录。执行环境已给出输出目录时直接使用；仅在未给出时检查一个已选定的具体目标路径是否冲突，不枚举目录。
+- 禁止枚举或打开内置图片库及其 manifest。内容确实需要摄影图时，只在 `<img>` 上写语义查询，由收尾器确定性选图；用户媒体路径仍只处理用户明确提供的文件。
+
 ## 创建与修改工作流
 
 1. 创建模式根据用户需求推断简洁的 kebab-case 页面名、无冲突输出目录和 `light` / `dark` 主题，未指定主题时使用 `light`。修改模式定位用户明确指向的现有页面并保留其主题，除非用户要求改变。仅在目标文件、输出位置或信息架构存在实质歧义时询问。
-2. 完整读取 [`references/design-language.md`](references/design-language.md)。不要检查庞大的 UIBench 组件目录、baked 页面或页面模板。
-3. 在内部按顺序确定：用户此刻的主要任务、必须显示的信息、第一阅读焦点、信息密度、主导构图、表面层级、唯一主要操作。除非用户要求，否则不要输出规划文件。
+2. 完整读取 [`references/design-language.md`](references/design-language.md)，且遵守上述上下文预算。
+3. 不调用工具、不输出规划，直接在内部确定：用户此刻的主要任务、必须显示的信息、第一阅读焦点、信息密度、主导构图、表面层级、唯一主要操作，以及摄影图片是否对内容理解或产品任务有实际价值。
 4. 创建模式直接从需求编写新的 body 片段或完整 HTML，不读取旧页面。修改模式先读取目标 HTML，再做最小相关修改。先建立阅读顺序和分组，再选择组件和 Token；不要从页面类型模板反推内容。
-5. 编写时同步添加稳定的 `data-node-id` 和受支持的 `data-component`。需要表达产品语义时使用可选的 kebab-case `data-ui-role`，它不能替代组件标注。
+5. 首稿只标注真正需要导出为 ArkUI 组件的节点，并同步写全稳定的 `data-node-id`、受支持的 `data-component` 和结构 class。独立文字用一个 `text` 节点直接承载文字，不要再套 `span` 组件；只有同一段 `text` 内确实需要独立样式的局部富文本才使用直属、非空的 `span` 组件。`column` 必须有 `flex flex-col`，`row` 必须有 `flex flex-row`，`grid` 必须有 `grid` 且只直接包含 `grid-item`，`stack` 必须有 `relative`。普通分组和重复行默认使用 `column` / `row`；只有确实需要原生列表、网格或标签页语义时才使用 `list` / `grid` / `tabs`，并一次写对其完整契约。需要表达产品语义时使用可选的 kebab-case `data-ui-role`，它不能替代组件标注。
 6. 只使用设计语言参考中列出的本地 class。禁止 `<style>`、行内 `style`、`<script>`、内联事件、远程 URL、JavaScript 和任意颜色字面量。
-7. 同步完成无障碍语义：按钮使用 `type="button"` 并提供可见文字或 `aria-label`；输入控件提供 `aria-label`；图标使用 `aria-hidden="true"`；图片提供有意义的 `alt`。
-8. 若使用用户提供的图片，先复制到 `<output>/assets/media/`，再以相对路径引用。不要用远程占位图代替缺失内容。
-9. 执行收尾：
+7. 同步完成无障碍语义：按钮使用 `type="button"` 并提供可见文字或 `aria-label`。纯文字按钮直接写文字且不放已标注子组件；纯图标按钮只放一个 `symbol`；图标加文字时，只放一个已标注的 `row` 直接子组件，再把 `symbol` 和 `text` 放进该 `row`。禁止混用按钮直属原始文字与组件子节点，不要把按钮文字误标成 `span`。输入控件提供 `aria-label`；`radio` 还必须提供非空 `name` 和 `value`，`slider` 还必须提供 `min`、`max` 和 `value`。checkbox、radio 和 toggle 的 `control-row` 必须是完整 label 行，把已标注的可见标签内容与 input 一起包住；禁止让 `w-full` label 只包 input 并与外部文字并列。图标使用 `aria-hidden="true"`；图片提供有意义的 `alt`。
+8. 图片只能走以下两条路径，且用户明确提供的图片优先：
+   - **内置图片**：当真实内容需要摄影图时，在原生 `<img data-component="image">` 上写非空、简洁的英文 `data-media-query`，可选 `data-media-orientation="portrait|landscape|squarish"`，同时写稳定 `data-node-id`、准确 `alt` 和所需媒体 class；首稿不要写 `src`。收尾器会稳定匹配、批内去重、补充相对 `src`，并只复制命中的图片。默认最多使用 3 张；只有用户明确需要更多图片时才可增加，硬上限为 8 张。
+   - **用户图片**：只有用户明确提供、可读取且已经实际复制成功的源文件，才可复制到 `<output>/assets/media/` 并以相对 `src` 引用；不得同时添加 `data-media-query`。
+
+   不为装饰或“高级感”索取摄影图，不枚举内置文件，不读取图片 manifest，不猜测文件名，不写远程 URL、data URL、虚构的 `assets/media/...` 路径或 CSS URL。没有合适媒体价值时使用 surface、文字和 HarmonyOS Symbol。
+9. 只调用一次 shell 工具，在同一条命令中依次收尾和校验：
 
    ```bash
    node <SKILL_DIR>/scripts/finalize-html.mjs \
      --input <source-html> \
      --out <output-directory> \
      --title "<页面标题>" \
-     --theme <light|dark>
+     --theme <light|dark> && \
+    node <SKILL_DIR>/scripts/validate-html.mjs \
+     <output-directory>/index.html
    ```
 
-   输入为片段时，收尾器补充中性的文档外壳，同时注入本地运行时、物化已知鸿蒙图标并复制字体。该外壳只是运行基础设施，不是视觉页面模板。
-10. 运行确定性校验：
-
-    ```bash
-    node <SKILL_DIR>/scripts/validate-html.mjs <output-directory>/index.html
-    ```
-
-11. 仅当本轮创建或修改的产物未通过校验时，才优先局部修复失败节点并重新运行；最多执行两轮修复，仍受阻时准确报告剩余问题。这条局部修复规则只适用于本轮校验，不得用来把创建模式改成修改或审查模式。
-12. 返回 `index.html` 的绝对路径、所用主题和校验结果。
+   不要在命令前读取两个脚本。输入为片段时，收尾器补充中性的文档外壳，同时注入本地运行时、物化已知鸿蒙图标、解析内置图片语义查询，并复制字体及实际命中的图片。该外壳只是运行基础设施，不是视觉页面模板。
+10. 只有校验失败才进入修复：按完整校验报告的错误代码和 `data-node-id` 定位，只修改报告明确指出的失败节点、class 或资源及其直接相关结构。禁止重写整个源文件，也禁止顺手重构或改写没有 ERROR 的节点。一次批量完成本轮全部机械修复后，下一步立即原样重跑上述合并命令；最多两轮局部修复，仍受阻时准确报告剩余问题。不得因校验失败改变任务模式。
+11. 返回 `index.html` 的绝对路径、所用主题和校验结果。
 
 ## 审查工作流
 
@@ -120,9 +128,11 @@ toggle tabs tab-content slider
 - 页面必须恰好只有一个组件根节点；根节点使用 `min-h-screen bg-ui-canvas text-ui-fg font-ui`。
 - 每个已标注节点的 DOM 父节点必须等于其组件父节点。禁止在两个已标注节点之间插入未标注 wrapper。
 - `column` 使用 `flex flex-col`，`row` 使用 `flex flex-row`，`grid` 使用 `grid`，`stack` 使用 `relative`。
-- `list` 只能直接包含 `list-item`，`grid` 只能直接包含 `grid-item`，`tabs` 只能直接包含 `tab-content`，`text` 只能直接包含 `span`。
+- 独立文字使用一个 `text` 节点并直接写文字；整段字体 class 也写在该 `text` 节点。不要因为 HTML 标签是 `<span>` 就标成 `data-component="span"`；普通 `<span>` 不写 `data-component` 或 `data-node-id`。`span` 组件只用于 `text` 直属、非空且需要局部独立样式的富文本。
+- 普通分组和重复行优先使用 `column` / `row`，避免不必要的专用结构。使用 `list` 时只能直接包含 `list-item`，且每个 `list-item` 最多放一个 `row` 或 `column` 子组件；使用 `grid` 时只能直接包含 `grid-item`；使用 `tabs` 时写 `data-index="0"`，可见标签按钮行放在 `tabs` 外作为同级节点，`tabs` 内只直接包含带非空 `data-tab-bar` 的 `tab-content`。
 - `scroll`、`button`、`list-item` 和 `grid-item` 最多只能有一个直接标注的子组件；需要组合内容时，先添加一个 `row` 或 `column` 子组件。
 - 对应组件使用原生 `<button>`、`<img>` 和 `<input>` 元素。所有输入控件都必须有 `aria-label`。
+- 内置图片首稿可用 `data-media-query` 代替 `src`，但收尾后的 `<img>` 必须拥有指向输出目录内真实文件的相对 `src`；用户图片始终直接使用已复制文件的相对 `src`。
 - 图标使用成对的空元素 `<i data-lucide="..." data-component="symbol" aria-hidden="true"></i>`，由收尾器插入固定的本地 HarmonyOS Symbol 字形。
 - 禁止输出 `textarea`、`select`、`progress`、不受支持的组件名、反向 flex、grid span 或按列流动的 grid。
 
@@ -135,13 +145,15 @@ toggle tabs tab-content slider
 - 精确图标不在常用清单中：只检索 [`references/icon-map.json`](references/icon-map.json)；不要完整加载。
 - 审计来源、更新规范或回答依据问题：读取 [`references/official-basis.md`](references/official-basis.md)。
 - 组件结构：由校验器读取 [`references/component-contract.json`](references/component-contract.json)。
+- 内置图片清单：由收尾器读取 `assets/media-library/manifest.json`；生成时不要加载、枚举或直接引用它。
 
 ## 加速规则
 
-- 默认只加载设计语言；不要加载官方来源、完整图标表或完整组件库。
+- 默认只加载设计语言；不要加载官方来源、脚本源码、运行时 CSS、完整图标表或机器组件契约。
 - 除非用户要求，只生成一个方案，不生成多个候选。
-- 复用内置 CSS、字体和图标映射，禁止重新生成或内联。
-- 默认运行静态校验，仅在质量模式下截图。
+- 用户没有指定精确数量时，同类演示数据最多渲染 3 条，用总数文案表达其余内容；不要为证明功能而复制长列表、长歌词或长卡片组。
+- 复用内置 CSS、字体、图标映射和按需图片库，禁止重新生成或内联。
+- 只调用一次合并的收尾+校验命令；仅在失败局部修复后重跑。仅在质量模式下截图。
 - 仅在本轮产物校验失败时修复失败节点，不重写本轮已经正确的 HTML；此规则不影响任务模式判定。
 - 使用真实、简洁的可见内容。需要简化时，先移除装饰复杂度，再删减次要信息，最后才考虑减少必要内容。
 

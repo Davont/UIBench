@@ -4,6 +4,7 @@
   "uiRolePattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
   "rootClassAll": ["min-h-screen", "bg-ui-canvas", "text-ui-fg", "font-ui"],
   "controlRowComponents": ["checkbox", "radio", "toggle"],
+  "controlRowRequiresLabelContent": true,
   "htmlDepthLimit": 256,
   "componentDepthLimit": 128,
   "components": {
