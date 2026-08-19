@@ -318,6 +318,35 @@ for (const node of componentNodes) {
   if (node.component === "tabs" && !/^\d+$/.test(node.attrs["data-index"] ?? "")) issue(errors, "TABS_INDEX_INVALID", "tabs requires a non-negative integer data-index", node.nodeId)
 }
 
+// Interaction hooks are inert in the static baseline, but validating their
+// references here lets the ordinary repair loop fix mechanical mistakes before
+// the one-shot JavaScript enhancement is attempted.
+const htmlIds = new Set(allElements.map((element) => element.attrs.id).filter(Boolean))
+for (const element of allElements) {
+  const action = element.attrs["data-action"]
+  if (action !== undefined) {
+    if (!element.nodeId || !nodeIds.has(element.nodeId)) {
+      issue(errors, "ACTION_NODE_ID_MISSING", "Every data-action hook requires a valid data-node-id", element.nodeId)
+    }
+    if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(action)) {
+      issue(errors, "ACTION_VALUE_INVALID", `data-action must be non-empty kebab-case: ${action}`, element.nodeId)
+    }
+  }
+
+  const targetNodeId = element.attrs["data-target"]
+  if (targetNodeId !== undefined && !nodeIds.has(targetNodeId)) {
+    const hint = htmlIds.has(targetNodeId)
+      ? " This value is an HTML id; keep it in aria-controls and use the target's data-node-id here."
+      : ""
+    issue(
+      errors,
+      "DATA_TARGET_INVALID",
+      `data-target must match exactly one existing data-node-id: ${targetNodeId}.${hint}`,
+      element.nodeId,
+    )
+  }
+}
+
 const outputRuntimePath = join(dirname(target), "assets", "harmony-runtime.css")
 if (!existsSync(outputRuntimePath)) {
   issue(errors, "RUNTIME_FILE_MISSING", `Missing runtime file: ${outputRuntimePath}`)

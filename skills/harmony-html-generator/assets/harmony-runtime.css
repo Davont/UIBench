@@ -223,6 +223,7 @@ img {
 .rounded-ui-pill { border-radius: var(--ui-radius-pill); }
 .rounded-none { border-radius: 0; }
 
+[hidden] { display: none !important; }
 .flex { display: flex; }
 .grid { display: grid; }
 .block { display: block; }

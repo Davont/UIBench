@@ -1,6 +1,6 @@
 ---
 name: harmony-html-generator
-description: 为设计师生成、重新生成、修改或审查精致且不依赖固定模板的鸿蒙风格移动端 HTML 页面。适用于创建新的鸿蒙 HTML 页面、重复相同提示重新生成新版本、优化已有页面或检查现有产物。严格区分创建、修改和审查，采用本地 HarmonyOS Sans、HarmonyOS Symbol 与按需物化的离线图片库、语义化 Design Token、稳定 data-node-id、受支持 data-component、无障碍属性和确定性校验。
+description: 为设计师生成、重新生成、修改或审查精致且不依赖固定模板的鸿蒙风格移动端 HTML 页面，并可在用户明确要求时输出纯离线、内存态的交互版本。适用于创建新的鸿蒙 HTML 页面、重复相同提示重新生成新版本、优化已有页面、增加页面内交互或检查现有产物。默认保持无脚本静态输出；交互输出也不生成 ArkTS，并在增强失败时确定性回退到已校验的静态页面。
 ---
 
 # 生成鸿蒙 HTML
@@ -15,7 +15,7 @@ description: 为设计师生成、重新生成、修改或审查精致且不依�
 
 ## 交付物
 
-创建以下离线目录：
+默认创建以下无脚本离线目录：
 
 ```text
 <output>/
@@ -26,11 +26,23 @@ description: 为设计师生成、重新生成、修改或审查精致且不依�
     └── media/                 # 仅在页面实际使用用户图片或内置图片时存在
 ```
 
-确保 `index.html` 可完全离线渲染，不依赖 Tailwind CDN、Lucide、远程字体、远程图片或其他项目目录。
+用户明确要求交互时，最终目录只额外包含一个脚本：
 
-## 任务模式
+```text
+<output>/
+├── index.html
+└── assets/
+    ├── app.js
+    ├── harmony-runtime.css
+    ├── fonts/
+    └── media/                 # 按需存在
+```
 
-执行任何页面读取或写入前，只根据用户**当前请求的明确措辞**选择一种模式。优先级为：当前请求 > 本轮明确引用的上下文 > 更早的对话 > 工作区已有文件。不得仅因为目标目录已有 HTML、浏览器正显示旧页面或用户重复了提示词，就自行切换成修改或审查模式。
+两种输出都必须完全离线，不依赖 Tailwind CDN、Lucide、远程字体、远程图片或其他项目目录。交互版的静态 HTML 必须在脚本不可用时仍可阅读和操作原生控件；增强或交互校验失败时，最终目录发布已校验的静态版本，不发布半成品。
+
+## 操作模式
+
+执行任何页面读取或写入前，只根据用户**当前请求的明确措辞**选择创建、修改或审查中的一种操作模式。优先级为：当前请求 > 本轮明确引用的上下文 > 更早的对话 > 工作区已有文件。不得仅因为目标目录已有 HTML、浏览器正显示旧页面或用户重复了提示词，就自行切换成修改或审查模式。
 
 ### 创建模式
 
@@ -53,10 +65,21 @@ description: 为设计师生成、重新生成、修改或审查精致且不依�
 
 若一句请求同时包含多种动作，以用户要求的最终交付物判断：要求得到新页面用创建模式，要求现有页面发生变化用修改模式，只要求结论用审查模式。只有最终交付物确实无法判断时才询问。
 
+## 输出模式
+
+输出模式与创建、修改、审查正交判断：
+
+- **静态模式（默认）**：用户没有明确要求页面行为时使用。按钮、切换器、输入框或“应用页面”语义本身不触发交互模式。沿用原有无脚本收尾和校验流程。
+- **交互模式**：仅在当前请求明确要求“带交互、可点击、可操作、动态反馈、模拟行为”或逐项描述点击后行为时使用。先完成一份无脚本且独立成立的静态页面，再以外部 `assets/app.js` 渐进增强。
+- **审查模式**不自行改变目标的输出模式；只按目标当前是否包含本地交互脚本选择对应校验器。
+
+交互模式的最终输出目录必须尚不存在，并与静态基线分离且不互相嵌套。增强现有页面时默认选择同级 `<slug>-interactive`，冲突时递增为 `-interactive-v2`、`-interactive-v3`；不得覆盖输入页面。交互模式只交付 HTML/CSS/JavaScript。不得调用 ArkUI/ArkTS 导出流程，不得编写或声称生成 ArkTS；现有 `data-component` 仅作为页面结构元数据保留。
+
 ## 普通创建与修改的上下文预算
 
 - 只完整读取 [`references/design-language.md`](references/design-language.md)；它是普通执行唯一需要加载的参考文件。
-- 把收尾器和校验器当作黑盒执行。禁止读取 `scripts/finalize-html.mjs` 或 `scripts/validate-html.mjs` 源码，禁止读取 `assets/harmony-runtime.css` 或字体。
+- 交互模式也先只加载设计语言；静态基线通过校验后，才完整读取 [`references/interaction-language.md`](references/interaction-language.md) 并编写脚本。静态模式不读取该参考。
+- 把收尾器、增强器和校验器当作黑盒执行。禁止读取 `scripts/finalize-html.mjs`、`scripts/enhance-html.mjs`、`scripts/validate-html.mjs` 或 `scripts/validate-interactive.mjs` 源码，禁止读取 `assets/harmony-runtime.css` 或字体。
 - 禁止读取 [`references/component-contract.json`](references/component-contract.json)；机器契约由校验器使用。禁止完整读取 [`references/icon-map.json`](references/icon-map.json)；仅当所需图标不在设计语言的常用清单中时，用精确名称检索该文件的局部匹配。
 - 禁止创建 todo、调用 todo 工具或输出规划。禁止使用 `ls`、`find`、`glob`、`tree` 或文件清单搜索探查工作区、Skill 目录或资产目录。执行环境已给出输出目录时直接使用；仅在未给出时检查一个已选定的具体目标路径是否冲突，不枚举目录。
 - 禁止枚举或打开内置图片库及其 manifest。内容确实需要摄影图时，只在 `<img>` 上写语义查询，由收尾器确定性选图；用户媒体路径仍只处理用户明确提供的文件。
@@ -65,17 +88,17 @@ description: 为设计师生成、重新生成、修改或审查精致且不依�
 
 1. 创建模式根据用户需求推断简洁的 kebab-case 页面名、无冲突输出目录和 `light` / `dark` 主题，未指定主题时使用 `light`。修改模式定位用户明确指向的现有页面并保留其主题，除非用户要求改变。仅在目标文件、输出位置或信息架构存在实质歧义时询问。
 2. 完整读取 [`references/design-language.md`](references/design-language.md)，且遵守上述上下文预算。
-3. 不调用工具、不输出规划，直接在内部确定：用户此刻的主要任务、必须显示的信息、第一阅读焦点、信息密度、主导构图、表面层级、唯一主要操作，以及摄影图片是否对内容理解或产品任务有实际价值。
+3. 不调用工具、不输出规划，直接在内部确定：用户此刻的主要任务、必须显示的信息、第一阅读焦点、信息密度、主导构图、表面层级、唯一主要操作，以及摄影图片是否对内容理解或产品任务有实际价值。交互模式还需确定有限的页面内状态、触发控件和预声明目标，但此时不编写 JavaScript。
 4. 创建模式直接从需求编写新的 body 片段或完整 HTML，不读取旧页面。修改模式先读取目标 HTML，再做最小相关修改。先建立阅读顺序和分组，再选择组件和 Token；不要从页面类型模板反推内容。
-5. 首稿只标注真正需要导出为 ArkUI 组件的节点，并同步写全稳定的 `data-node-id`、受支持的 `data-component` 和结构 class。独立文字用一个 `text` 节点直接承载文字，不要再套 `span` 组件；只有同一段 `text` 内确实需要独立样式的局部富文本才使用直属、非空的 `span` 组件。`column` 必须有 `flex flex-col`，`row` 必须有 `flex flex-row`，`grid` 必须有 `grid` 且只直接包含 `grid-item`，`stack` 必须有 `relative`。普通分组和重复行默认使用 `column` / `row`；只有确实需要原生列表、网格或标签页语义时才使用 `list` / `grid` / `tabs`，并一次写对其完整契约。需要表达产品语义时使用可选的 kebab-case `data-ui-role`，它不能替代组件标注。
-6. 只使用设计语言参考中列出的本地 class。禁止 `<style>`、行内 `style`、`<script>`、内联事件、远程 URL、JavaScript 和任意颜色字面量。
+5. 首稿只标注静态契约真正需要表达为 ArkUI 结构组件的节点，并同步写全稳定的 `data-node-id`、受支持的 `data-component` 和结构 class；这些标注本身不触发 ArkTS 生成。独立文字用一个 `text` 节点直接承载文字，不要再套 `span` 组件；只有同一段 `text` 内确实需要独立样式的局部富文本才使用直属、非空的 `span` 组件。`column` 必须有 `flex flex-col`，`row` 必须有 `flex flex-row`，`grid` 必须有 `grid` 且只直接包含 `grid-item`，`stack` 必须有 `relative`。普通分组和重复行默认使用 `column` / `row`；只有确实需要原生列表、网格或标签页语义时才使用 `list` / `grid` / `tabs`，并一次写对其完整契约。需要表达产品语义时使用可选的 kebab-case `data-ui-role`，它不能替代组件标注。
+6. 只使用设计语言参考中列出的本地 class。静态首稿始终禁止 `<style>`、行内 `style`、`<script>`、内联事件、远程 URL、JavaScript 和任意颜色字面量。交互模式只可额外在静态首稿中写 inert 的 `data-action`、`data-target` 与稳定 `data-node-id`：所有点击后可能显示、隐藏或更新的复杂内容必须预先存在于 DOM，初始页面在没有脚本时仍完整成立。不得预先写脚本标签，也不得在后续脚本中创建或重排组件树。
 7. 同步完成无障碍语义：按钮使用 `type="button"` 并提供可见文字或 `aria-label`。纯文字按钮直接写文字且不放已标注子组件；纯图标按钮只放一个 `symbol`；图标加文字时，只放一个已标注的 `row` 直接子组件，再把 `symbol` 和 `text` 放进该 `row`。禁止混用按钮直属原始文字与组件子节点，不要把按钮文字误标成 `span`。输入控件提供 `aria-label`；`radio` 还必须提供非空 `name` 和 `value`，`slider` 还必须提供 `min`、`max` 和 `value`。checkbox、radio 和 toggle 的 `control-row` 必须是完整 label 行，把已标注的可见标签内容与 input 一起包住；禁止让 `w-full` label 只包 input 并与外部文字并列。图标使用 `aria-hidden="true"`；图片提供有意义的 `alt`。
 8. 图片只能走以下两条路径，且用户明确提供的图片优先：
    - **内置图片**：当真实内容需要摄影图时，在原生 `<img data-component="image">` 上写非空、简洁的英文 `data-media-query`，可选 `data-media-orientation="portrait|landscape|squarish"`，同时写稳定 `data-node-id`、准确 `alt` 和所需媒体 class；首稿不要写 `src`。收尾器会稳定匹配、批内去重、补充相对 `src`，并只复制命中的图片。默认最多使用 3 张；只有用户明确需要更多图片时才可增加，硬上限为 8 张。
    - **用户图片**：只有用户明确提供、可读取且已经实际复制成功的源文件，才可复制到 `<output>/assets/media/` 并以相对 `src` 引用；不得同时添加 `data-media-query`。
 
    不为装饰或“高级感”索取摄影图，不枚举内置文件，不读取图片 manifest，不猜测文件名，不写远程 URL、data URL、虚构的 `assets/media/...` 路径或 CSS URL。没有合适媒体价值时使用 surface、文字和 HarmonyOS Symbol。
-9. 只调用一次 shell 工具，在同一条命令中依次收尾和校验：
+9. 始终先调用一次 shell 工具，在同一条命令中依次完成无脚本收尾和静态校验。静态模式原样使用以下默认命令；交互模式仅把其中的 `<output-directory>` 替换成执行环境中的临时 `<static-output-directory>`，不要把未增强目录提前发布为最终输出：
 
    ```bash
    node <SKILL_DIR>/scripts/finalize-html.mjs \
@@ -88,14 +111,24 @@ description: 为设计师生成、重新生成、修改或审查精致且不依�
    ```
 
    不要在命令前读取两个脚本。输入为片段时，收尾器补充中性的文档外壳，同时注入本地运行时、物化已知鸿蒙图标、解析内置图片语义查询，并复制字体及实际命中的图片。该外壳只是运行基础设施，不是视觉页面模板。
-10. 只有校验失败才进入修复：按完整校验报告的错误代码和 `data-node-id` 定位，只修改报告明确指出的失败节点、class 或资源及其直接相关结构。禁止重写整个源文件，也禁止顺手重构或改写没有 ERROR 的节点。一次批量完成本轮全部机械修复后，下一步立即原样重跑上述合并命令；最多两轮局部修复，仍受阻时准确报告剩余问题。不得因校验失败改变任务模式。
-11. 返回 `index.html` 的绝对路径、所用主题和校验结果。
+10. 只有静态校验失败才进入修复：按完整校验报告的错误代码和 `data-node-id` 定位，只修改报告明确指出的失败节点、class 或资源及其直接相关结构。禁止重写整个源文件，也禁止顺手重构或改写没有 ERROR 的节点。一次批量完成本轮全部机械修复后，下一步立即原样重跑上述合并命令；最多两轮局部修复，仍受阻时准确报告剩余问题。不得因校验失败改变任务模式，也不得在静态基线未通过时尝试交互增强。
+11. 静态模式到此结束。交互模式在静态基线通过后，完整读取 [`references/interaction-language.md`](references/interaction-language.md)，只针对已预声明的 DOM 编写一个临时 JavaScript 源文件，然后调用一次增强器：
+
+    ```bash
+    node <SKILL_DIR>/scripts/enhance-html.mjs \
+      --input <static-output-directory> \
+      --script <generated-js-source> \
+      --out <final-output-directory>
+    ```
+
+    增强器在 staging 目录复制静态基线、写入 `assets/app.js`、注入唯一的 `<script src="assets/app.js" defer></script>`，并调用交互校验器；禁止手工改写已校验的 `index.html`。增强成功时原子发布 `mode=interactive`。脚本或交互校验失败时，它仍以退出码 0 原子发布字节不变的静态副本并返回 `mode=fallback-static`；接受该回退，不重写静态页面、不放宽校验。若增强器因无效基线或文件系统错误以非零状态退出，保留并返回已校验静态目录，不声称已生成交互版。
+12. 返回最终 `index.html` 的绝对路径、所用主题、静态校验结果，以及实际输出模式 `static`、`interactive` 或 `fallback-static`。回退时明确说明页面仍是可用的原静态方案。
 
 ## 审查工作流
 
 1. 确认用户指向的 `index.html`，不要推断另一个相似页面。
 2. 完整读取 [`references/design-language.md`](references/design-language.md)；用户要求视觉、高保真或截图审查时，再读取 [`references/visual-review.md`](references/visual-review.md)。
-3. 运行确定性校验；需要视觉审查且环境允许时，按质量模式渲染所选主题。
+3. 运行确定性校验：无脚本页面使用 `validate-html.mjs`；包含唯一 `assets/app.js` defer 脚本的页面使用 `validate-interactive.mjs`。只有审查交互行为时才读取交互语言参考。需要视觉审查且环境允许时，按质量模式渲染所选主题。
 4. 按严重度报告结构、Token、组件、视觉和无障碍问题，并区分已验证事实与未执行的检查。
 5. 未得到修复请求时不写入任何页面文件。用户要求修复时切换为修改模式，并在修改后重新校验。
 
@@ -107,8 +140,8 @@ description: 为设计师生成、重新生成、修改或审查精致且不依�
 2. 完整读取 [`references/visual-review.md`](references/visual-review.md)。
 3. 使用可用浏览器以 390×844 渲染所选主题。若浏览器禁止直接访问 `file://`，在权限允许时使用现有运行环境启动仅监听 `127.0.0.1` 的临时静态服务器；不要安装依赖。
 4. 按“目的 → 层级 → 几何 → Token → 平台特征 → 无障碍”的顺序检查截图，并确认 390px 宽度下不存在横向溢出。
-5. 只做一轮聚焦修复，保留正确内容、结构和数据属性。
-6. 再次校验最终 HTML。用户明确要求同时验收深浅色时，分别渲染两种主题。
+5. 只做一轮聚焦修复，保留正确内容、结构和数据属性。交互模式只修改静态源和预声明 hooks，再重跑静态阶段与增强器；禁止手工修补已发布的交互目录。
+6. 按最终输出模式再次运行静态或交互校验。用户明确要求同时验收深浅色时，分别渲染两种主题。
 
 若环境没有浏览器或截图能力，或安全策略仍阻止访问本地页面，完成静态校验并明确说明未执行视觉检查。不要自动安装依赖。
 
@@ -141,6 +174,7 @@ toggle tabs tab-content slider
 ## 参考文件路由
 
 - 普通生成：完整读取 [`references/design-language.md`](references/design-language.md)。
+- 交互生成：静态基线校验通过后，再完整读取 [`references/interaction-language.md`](references/interaction-language.md)。
 - 视觉验收：额外读取 [`references/visual-review.md`](references/visual-review.md)。
 - 精确图标不在常用清单中：只检索 [`references/icon-map.json`](references/icon-map.json)；不要完整加载。
 - 审计来源、更新规范或回答依据问题：读取 [`references/official-basis.md`](references/official-basis.md)。
@@ -153,7 +187,7 @@ toggle tabs tab-content slider
 - 除非用户要求，只生成一个方案，不生成多个候选。
 - 用户没有指定精确数量时，同类演示数据最多渲染 3 条，用总数文案表达其余内容；不要为证明功能而复制长列表、长歌词或长卡片组。
 - 复用内置 CSS、字体、图标映射和按需图片库，禁止重新生成或内联。
-- 只调用一次合并的收尾+校验命令；仅在失败局部修复后重跑。仅在质量模式下截图。
+- 静态模式只调用一次合并的收尾+校验命令；交互模式在静态校验通过后再调用一次增强器。仅在失败局部修复后重跑静态阶段；交互增强失败直接接受静态回退。仅在质量模式下截图。
 - 仅在本轮产物校验失败时修复失败节点，不重写本轮已经正确的 HTML；此规则不影响任务模式判定。
 - 使用真实、简洁的可见内容。需要简化时，先移除装饰复杂度，再删减次要信息，最后才考虑减少必要内容。
 
@@ -162,4 +196,5 @@ toggle tabs tab-content slider
 - 未渲染并检查最终页面时，不要声称已经达到严格视觉一致。
 - 即使工作区存在页面模板，也禁止使用。
 - 不把本 Skill 的实现 Token 描述成华为官方唯一数值。
+- 交互模式只改变当前页面进程中的内存状态；不联网、不持久化、不产生页面外副作用，也不生成 ArkTS。
 - 执行页面生成任务时，不要修改 UIBench 应用代码。
