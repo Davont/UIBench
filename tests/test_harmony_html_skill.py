@@ -61,7 +61,7 @@ def _finalize_source(
 def test_skill_declares_the_fast_black_box_workflow() -> None:
     content = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
 
-    assert "普通执行唯一需要加载的参考文件" in content
+    assert "它是该阶段唯一需要加载的参考文件" in content
     assert "禁止读取 `scripts/finalize-html.mjs`" in content
     assert "禁止读取 `assets/harmony-runtime.css`" in content
     assert "禁止读取 [`references/component-contract.json`]" in content
@@ -79,6 +79,31 @@ def test_skill_declares_the_fast_black_box_workflow() -> None:
     assert "只复制命中的图片" in content
     assert "--theme <light|dark> && \\" in content
     assert "禁止重写整个源文件" in content
+
+
+def test_skill_defaults_actionable_pages_to_interactive_with_static_opt_out() -> None:
+    skill = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+    output_modes = skill.split("## 输出模式", 1)[1].split("\n## ", 1)[0]
+    workflow = skill.split("## 创建与修改工作流", 1)[1].split("\n## ", 1)[0]
+    design_language = (
+        SKILL_DIR / "references" / "design-language.md"
+    ).read_text(encoding="utf-8")
+    interaction_language = (
+        SKILL_DIR / "references" / "interaction-language.md"
+    ).read_text(encoding="utf-8")
+
+    assert "交互模式（默认最终输出）" in output_modes
+    assert "静态模式（显式退出）" in output_modes
+    assert "功能描述本身就是交互需求" in output_modes
+    assert "单文件 HTML" in output_modes and "不是关闭交互的指令" in output_modes
+    assert "不为凑 `app.js` 虚构功能" in output_modes
+    assert "只有已选择静态输出时才到此结束" in workflow
+    assert "不调用增强器" in workflow
+    assert "默认交互输出在静态基线通过后" in workflow
+    assert "mode=fallback-static" in workflow
+    assert "仅在用户明确要求交互" not in skill
+    assert "仅在用户明确要求交互" not in interaction_language
+    assert "页面只表达静态结构和初始状态" not in design_language
 
 
 def test_recommended_minimal_text_and_button_structure_validates(

@@ -1,6 +1,6 @@
 # 鸿蒙 HTML 交互语言
 
-仅在用户明确要求交互、且无脚本静态基线已经通过 `validate-html.mjs` 后读取本文件。这里约束页面级渐进增强；视觉、组件和 class 规则仍由 `design-language.md` 与静态校验器决定。
+当 `SKILL.md` 选择交互输出、且无脚本静态基线已经通过 `validate-html.mjs` 后读取本文件。这里约束页面级渐进增强；视觉、组件和 class 规则仍由 `design-language.md` 与静态校验器决定。
 
 ## 1. 增强边界
 
