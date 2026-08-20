@@ -333,7 +333,10 @@ def test_interactive_validator_allows_existing_id_and_action_hooks(
     javascript = """
 const trigger = document.querySelector('[data-action]')
 const panel = document.getElementById('details-panel')
-trigger.addEventListener('click', () => panel.focus())
+trigger.addEventListener('click', () => {
+  panel.textContent = '详情已聚焦'
+  panel.focus()
+})
 """.strip()
     output = _make_interactive(tmp_path, javascript=javascript)
 
@@ -347,10 +350,11 @@ def test_javascript_words_in_strings_and_comments_are_not_treated_as_apis(
 ) -> None:
     javascript = """
 const trigger = document.querySelector('[data-action="toggle-panel"]')
+const panel = document.querySelector('[data-node-id="page.panel"]')
 const copy = 'fetch, innerHTML, and localStorage are forbidden API names'
 // fetch('/not-a-call')
 trigger.addEventListener('click', () => {
-  trigger.textContent = copy
+  panel.textContent = copy
 })
 """.strip()
     output = _make_interactive(tmp_path, javascript=javascript)
@@ -474,6 +478,198 @@ trigger.addEventListener('click', () => {
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_class_list_accepts_a_boolean_choice_between_declared_classes(
+    tmp_path: Path,
+) -> None:
+    javascript = """
+const trigger = document.querySelector('[data-action="toggle-panel"]')
+const panel = document.querySelector('[data-node-id="page.panel"]')
+let expanded = false
+trigger.addEventListener('click', () => {
+  expanded = !expanded
+  panel.classList.add(expanded ? 'text-ui-body' : 'bg-ui-component-subtle')
+})
+""".strip()
+    output = _make_interactive(tmp_path, javascript=javascript)
+
+    result = _run_node(INTERACTIVE_VALIDATOR, str(output / "index.html"), "--json")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_class_list_rejects_a_dynamic_class_variable(tmp_path: Path) -> None:
+    javascript = """
+const trigger = document.querySelector('[data-action="toggle-panel"]')
+const panel = document.querySelector('[data-node-id="page.panel"]')
+const nextClass = 'hidden'
+trigger.addEventListener('click', () => {
+  panel.classList.add(nextClass)
+})
+""".strip()
+    output = _make_interactive(tmp_path, javascript=javascript)
+
+    result = _run_node(INTERACTIVE_VALIDATOR, str(output / "index.html"), "--json")
+
+    assert result.returncode == 1
+    assert "CLASS_NAME_DYNAMIC" in _error_codes(result)
+
+
+def test_class_list_rejects_a_dynamic_later_argument(tmp_path: Path) -> None:
+    javascript = """
+const trigger = document.querySelector('[data-action="toggle-panel"]')
+const panel = document.querySelector('[data-node-id="page.panel"]')
+const nextClass = 'bg-ui-component-subtle'
+trigger.addEventListener('click', () => {
+  panel.classList.add('text-ui-body', nextClass)
+})
+""".strip()
+    output = _make_interactive(tmp_path, javascript=javascript)
+
+    result = _run_node(INTERACTIVE_VALIDATOR, str(output / "index.html"), "--json")
+
+    assert result.returncode == 1
+    assert "CLASS_NAME_DYNAMIC" in _error_codes(result)
+
+
+@pytest.mark.parametrize(
+    "symbol_mutation",
+    [
+        "trigger.setAttribute('data-lucide', 'pause')",
+        "trigger.removeAttribute('data-lucide')",
+        "trigger.toggleAttribute('data-lucide')",
+        "trigger.dataset.lucide = 'pause'",
+        "trigger.dataset.lucide ||= 'pause'",
+        "trigger.dataset.lucide -= 1",
+        "delete trigger.dataset.lucide",
+        "trigger.dataset['lucide'] = 'pause'",
+        "delete trigger.dataset['lucide']",
+    ],
+)
+def test_interactive_validator_rejects_runtime_symbol_name_changes(
+    tmp_path: Path,
+    symbol_mutation: str,
+) -> None:
+    javascript = f"""
+const trigger = document.querySelector('[data-action="toggle-panel"]')
+trigger.addEventListener('click', () => {{
+  {symbol_mutation}
+  trigger.textContent = '已暂停'
+}})
+""".strip()
+    output = _make_interactive(tmp_path, javascript=javascript)
+
+    result = _run_node(INTERACTIVE_VALIDATOR, str(output / "index.html"), "--json")
+
+    assert result.returncode == 1
+    assert "JS_SYMBOL_REMAP_FORBIDDEN" in _error_codes(result)
+
+
+def test_symbol_name_text_in_a_comment_is_not_a_runtime_mutation(
+    tmp_path: Path,
+) -> None:
+    javascript = """
+const trigger = document.querySelector('[data-action="toggle-panel"]')
+const panel = document.querySelector('[data-node-id="page.panel"]')
+// trigger.dataset.lucide = 'pause'
+trigger.addEventListener('click', () => {
+  panel.textContent = '图标保持静态，状态文字已更新'
+})
+""".strip()
+    output = _make_interactive(tmp_path, javascript=javascript)
+
+    result = _run_node(INTERACTIVE_VALIDATOR, str(output / "index.html"), "--json")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_interactive_validator_rejects_aria_and_data_only_feedback(
+    tmp_path: Path,
+) -> None:
+    javascript = """
+const trigger = document.querySelector('[data-action="toggle-panel"]')
+trigger.addEventListener('click', () => {
+  trigger.setAttribute('aria-pressed', 'true')
+  trigger.setAttribute('data-state', 'active')
+  trigger.dataset.phase = 'complete'
+})
+""".strip()
+    output = _make_interactive(tmp_path, javascript=javascript)
+
+    result = _run_node(INTERACTIVE_VALIDATOR, str(output / "index.html"), "--json")
+
+    assert result.returncode == 1
+    assert "JS_VISIBLE_FEEDBACK_MISSING" in _error_codes(result)
+
+
+def test_each_action_must_reference_its_declared_feedback_channel(
+    tmp_path: Path,
+) -> None:
+    output = _make_interactive(
+        tmp_path,
+        javascript="""
+const first = document.querySelector('[data-action="toggle-panel"]')
+const panel = document.querySelector('[data-node-id="page.panel"]')
+const second = document.querySelector('[data-action="secondary-action"]')
+first.addEventListener('click', () => {
+  panel.textContent = '第一项有可见反馈'
+})
+second.addEventListener('click', () => {
+  second.setAttribute('aria-pressed', 'true')
+})
+""".strip(),
+    )
+    index = output / "index.html"
+    index.write_text(
+        index.read_text(encoding="utf-8").replace(
+            '<div id="details-panel"',
+            """
+  <button type="button" data-component="button" data-node-id="page.secondary"
+          data-action="secondary-action" data-feedback="page.secondary-status"
+          class="bg-ui-component-subtle rounded-ui-control">第二项</button>
+  <p data-component="text" data-node-id="page.secondary-status"
+     class="text-ui-body">第二项尚未操作</p>
+  <div id="details-panel""".strip(),
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    result = _run_node(INTERACTIVE_VALIDATOR, str(index), "--json")
+
+    assert result.returncode == 1
+    assert "JS_FEEDBACK_HOOK_UNUSED" in _error_codes(result)
+
+
+@pytest.mark.parametrize(
+    "visible_change",
+    [
+        "panel.textContent = '更新后的详情'",
+        "panel.hidden = true",
+        "panel.classList.remove('text-ui-body')",
+        "trigger.value = 'updated'",
+        "trigger.checked = true",
+        "trigger.disabled = true",
+        "panel.toggleAttribute('hidden')",
+    ],
+)
+def test_interactive_validator_accepts_perceptible_dom_state_changes(
+    tmp_path: Path,
+    visible_change: str,
+) -> None:
+    javascript = f"""
+const trigger = document.querySelector('[data-action="toggle-panel"]')
+const panel = document.querySelector('[data-node-id="page.panel"]')
+trigger.addEventListener('click', () => {{
+  {visible_change}
+}})
+""".strip()
+    output = _make_interactive(tmp_path, javascript=javascript)
+
+    result = _run_node(INTERACTIVE_VALIDATOR, str(output / "index.html"), "--json")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_interactive_validator_rejects_javascript_on_handler_assignment(
     tmp_path: Path,
 ) -> None:
@@ -582,6 +778,16 @@ def test_enhancer_publishes_valid_interaction_without_mutating_static_input(
     [
         ("dangerous", 'fetch("/api")'),
         ("syntax-error", "const broken ="),
+        (
+            "no-visible-feedback",
+            """
+const trigger = document.querySelector('[data-action="toggle-panel"]')
+trigger.addEventListener('click', () => {
+  trigger.setAttribute('aria-pressed', 'true')
+  trigger.dataset.state = 'active'
+})
+""".strip(),
+        ),
     ],
 )
 def test_enhancer_falls_back_to_an_identical_static_tree(

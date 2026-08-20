@@ -84,6 +84,7 @@ const elements = parseElements(html)
 const nodeIdCounts = new Map()
 const idCounts = new Map()
 const actions = new Set()
+const actionableHooks = []
 const classes = new Set()
 for (const element of elements) {
   const nodeId = element.attrs.get("data-node-id")?.[0]
@@ -91,7 +92,15 @@ for (const element of elements) {
   const id = element.attrs.get("id")?.[0]
   if (id) idCounts.set(id, (idCounts.get(id) ?? 0) + 1)
   const action = element.attrs.get("data-action")?.[0]
-  if (action) actions.add(action)
+  if (action) {
+    actions.add(action)
+    actionableHooks.push({
+      action,
+      feedbackNodeId: element.attrs.get("data-feedback")?.[0] ?? null,
+      nodeId: element.nodeId,
+      targetNodeId: element.attrs.get("data-target")?.[0] ?? null,
+    })
+  }
   for (const className of (element.attrs.get("class")?.[0] ?? "").split(/\s+/).filter(Boolean)) {
     classes.add(className)
   }
@@ -121,6 +130,12 @@ for (const element of elements) {
     element.targetCountAtParse = count
   }
 }
+
+const htmlIdByNodeId = new Map(
+  elements
+    .filter((element) => element.nodeId && element.attrs.get("id")?.[0])
+    .map((element) => [element.nodeId, element.attrs.get("id")[0]]),
+)
 
 for (const element of elements) {
   if (!Object.hasOwn(element, "targetNodeId")) continue
@@ -396,6 +411,12 @@ function parseSingleLiteralArgument(source, callEnd) {
   return literal.value
 }
 
+function parseFirstLiteralArgument(source, callEnd) {
+  let index = callEnd
+  while (/\s/.test(source[index] ?? "")) index += 1
+  return decodeSimpleJsString(source, index)?.value ?? null
+}
+
 function validateSelector(selector) {
   const value = selector.trim()
   if (value === "[data-node-id]") return nodeIdCounts.size > 0 ? null : "target-missing"
@@ -472,37 +493,92 @@ function validateDomLookups(source, masked) {
 }
 
 function validateClassList(source, masked) {
+  function parseClassExpression(start) {
+    let index = start
+    while (/\s/.test(source[index] ?? "")) index += 1
+
+    const literal = decodeSimpleJsString(source, index)
+    if (literal) return { values: [literal.value], end: literal.end }
+
+    // A boolean condition choosing between two literal, predeclared classes is
+    // still deterministic. Supporting this common form avoids forcing the
+    // generator to duplicate whole if/else branches just to express selection.
+    const condition = source.slice(index).match(/^(!?[A-Za-z_$][A-Za-z0-9_$]*)\s*\?/)
+    if (!condition) return null
+    index += condition[0].length
+    while (/\s/.test(source[index] ?? "")) index += 1
+    const truthy = decodeSimpleJsString(source, index)
+    if (!truthy) return null
+    index = truthy.end
+    while (/\s/.test(source[index] ?? "")) index += 1
+    if (source[index] !== ":") return null
+    index += 1
+    while (/\s/.test(source[index] ?? "")) index += 1
+    const falsy = decodeSimpleJsString(source, index)
+    if (!falsy) return null
+    return { values: [truthy.value, falsy.value], end: falsy.end }
+  }
+
   const calls = /\.\s*classList\s*\.\s*(add|remove|toggle|replace)\s*\(/g
   let match
   while ((match = calls.exec(masked)) !== null) {
     const method = match[1]
     let index = match.index + match[0].length
-    const requiredLiterals = method === "replace" ? 2 : 1
-    for (let literalIndex = 0; literalIndex < requiredLiterals; literalIndex += 1) {
+    let classArgumentCount = 0
+    let invalid = false
+    while (true) {
       while (/\s/.test(source[index] ?? "")) index += 1
-      const literal = decodeSimpleJsString(source, index)
-      if (!literal) {
-        issue(errors, "CLASS_NAME_DYNAMIC", `classList.${method} requires static class names`)
+      const expression = parseClassExpression(index)
+      if (!expression) {
+        issue(
+          errors,
+          "CLASS_NAME_DYNAMIC",
+          `classList.${method} requires literal class names or a boolean choice between two literal class names`,
+        )
+        invalid = true
         break
       }
-      if (!classes.has(literal.value)) {
-        issue(errors, "CLASS_NAME_UNDECLARED", `Class is not declared in the static HTML: ${literal.value}`)
-      }
-      index = literal.end
-      while (/\s/.test(source[index] ?? "")) index += 1
-      if (literalIndex + 1 < requiredLiterals) {
-        if (source[index] !== ",") {
-          issue(errors, "CLASS_NAME_DYNAMIC", `classList.${method} requires static class names`)
-          break
+      classArgumentCount += 1
+      for (const className of expression.values) {
+        if (!classes.has(className)) {
+          issue(errors, "CLASS_NAME_UNDECLARED", `Class is not declared in the static HTML: ${className}`)
         }
-        index += 1
       }
+      index = expression.end
+      while (/\s/.test(source[index] ?? "")) index += 1
+      if (source[index] === ")") break
+      if (source[index] !== ",") {
+        issue(errors, "CLASS_NAME_DYNAMIC", `classList.${method} contains an unsupported argument`)
+        invalid = true
+        break
+      }
+      index += 1
+
+      if (method === "toggle" && classArgumentCount === 1) {
+        while (/\s/.test(source[index] ?? "")) index += 1
+        const force = source.slice(index).match(/^(?:true|false|!?[A-Za-z_$][A-Za-z0-9_$]*)\s*\)/)
+        if (!force) {
+          issue(errors, "CLASS_NAME_DYNAMIC", "classList.toggle force must be a boolean literal or variable")
+          invalid = true
+        }
+        index += force?.[0].length ?? 0
+        break
+      }
+    }
+    if (!invalid && method === "replace" && classArgumentCount !== 2) {
+      issue(errors, "CLASS_NAME_DYNAMIC", "classList.replace requires exactly two static class names")
     }
   }
 }
 
 function validateJavaScript(source) {
   const { masked, literals } = maskNonCode(source)
+  const literalValues = new Set(literals)
+  const referencesHook = (attribute, value) => literals.some((literal) => (
+    literal === value
+    || literal.includes(`[${attribute}="${value}"]`)
+    || literal.includes(`[${attribute}='${value}']`)
+  ))
   const dangerousRules = [
     ["JS_NETWORK_API_FORBIDDEN", "fetch", /\bfetch\b/],
     ["JS_NETWORK_API_FORBIDDEN", "XMLHttpRequest", /\bXMLHttpRequest\b/],
@@ -563,6 +639,100 @@ function validateJavaScript(source) {
   }
   if (!/\.\s*addEventListener\s*\(/.test(masked)) {
     issue(errors, "JS_EVENT_LISTENER_MISSING", "Interactive JavaScript requires addEventListener")
+  }
+
+  let hasVisibleFeedback = /\.\s*(?:textContent|hidden|value|checked|disabled)\s*(?:\+\+|--|\+=|-=|\*=|\/=|%=|\?\?=|\|\|=|&&=|=(?!=|>))/.test(masked)
+    || /\.\s*classList\s*\.\s*(?:add|remove|toggle|replace)\s*\(/.test(masked)
+  const attributeMutations = /\.\s*(setAttribute|removeAttribute|toggleAttribute)\s*\(/g
+  let attributeMutation
+  while ((attributeMutation = attributeMutations.exec(masked)) !== null) {
+    const method = attributeMutation[1]
+    const attributeName = parseFirstLiteralArgument(
+      source,
+      attributeMutation.index + attributeMutation[0].length,
+    )?.toLowerCase()
+    if (attributeName === "data-lucide") {
+      issue(
+        errors,
+        "JS_SYMBOL_REMAP_FORBIDDEN",
+        "Runtime data-lucide changes cannot rematerialize the pinned Harmony symbol glyph",
+      )
+    }
+    if (new Set(["hidden", "value", "checked", "disabled"]).has(attributeName)) {
+      hasVisibleFeedback = true
+    }
+  }
+  const lucideAssignment = /\.\s*dataset\s*\.\s*lucide\s*(?:=|\+=|-=|\*=|\/=|%=|\?\?=|\|\|=|&&=)/i
+  const lucideDelete = /\bdelete\s+[^;\n]*\.\s*dataset\s*\.\s*lucide\b/i
+  let mutatesLucideDataset = lucideAssignment.test(masked) || lucideDelete.test(masked)
+  const datasetBrackets = /\.\s*dataset\s*\[/g
+  let datasetBracket
+  while (!mutatesLucideDataset && (datasetBracket = datasetBrackets.exec(masked)) !== null) {
+    let index = datasetBracket.index + datasetBracket[0].length
+    while (/\s/.test(source[index] ?? "")) index += 1
+    const key = decodeSimpleJsString(source, index)
+    if (!key || key.value.toLowerCase() !== "lucide") continue
+    index = key.end
+    while (/\s/.test(source[index] ?? "")) index += 1
+    if (source[index] !== "]") continue
+    index += 1
+    while (/\s/.test(source[index] ?? "")) index += 1
+    const lineStart = masked.lastIndexOf("\n", datasetBracket.index) + 1
+    const prefix = masked.slice(lineStart, datasetBracket.index)
+    if (/\bdelete\s+/.test(prefix)
+        || /^(?:=|\+=|-=|\*=|\/=|%=|\?\?=|\|\|=|&&=)/.test(source.slice(index))) {
+      mutatesLucideDataset = true
+    }
+  }
+  if (mutatesLucideDataset) {
+    issue(
+      errors,
+      "JS_SYMBOL_REMAP_FORBIDDEN",
+      "Runtime data-lucide changes cannot rematerialize the pinned Harmony symbol glyph",
+    )
+  }
+  if (!hasVisibleFeedback) {
+    issue(
+      errors,
+      "JS_VISIBLE_FEEDBACK_MISSING",
+      "Interactive JavaScript must visibly change textContent, hidden, classList, value, checked, or disabled; ARIA/data-only updates are insufficient",
+    )
+  }
+
+  const handlesActionsGenerically = literalValues.has("[data-action]")
+  const readsGenericFeedback = /\.\s*dataset\s*\.\s*feedback\b/.test(masked)
+  const readsGenericTarget = /\.\s*dataset\s*\.\s*target\b/.test(masked)
+  for (const hook of actionableHooks) {
+    if (!handlesActionsGenerically && !referencesHook("data-action", hook.action)) {
+      issue(
+        errors,
+        "JS_ACTION_HOOK_UNUSED",
+        `JavaScript does not reference the declared action hook: ${hook.action}`,
+        hook.nodeId,
+      )
+    }
+    if (hook.feedbackNodeId
+        && !readsGenericFeedback
+        && !referencesHook("data-node-id", hook.feedbackNodeId)
+        && !literalValues.has(htmlIdByNodeId.get(hook.feedbackNodeId))) {
+      issue(
+        errors,
+        "JS_FEEDBACK_HOOK_UNUSED",
+        `JavaScript never addresses the declared visible feedback node: ${hook.feedbackNodeId}`,
+        hook.nodeId,
+      )
+    }
+    if (hook.targetNodeId
+        && !readsGenericTarget
+        && !referencesHook("data-node-id", hook.targetNodeId)
+        && !literalValues.has(htmlIdByNodeId.get(hook.targetNodeId))) {
+      issue(
+        errors,
+        "JS_TARGET_HOOK_UNUSED",
+        `JavaScript never addresses the declared interaction target: ${hook.targetNodeId}`,
+        hook.nodeId,
+      )
+    }
   }
 
   // Reject the common bracket-notation escape for named dangerous properties.

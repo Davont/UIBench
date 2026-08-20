@@ -1,6 +1,6 @@
 ---
 name: harmony-html-generator
-description: 为设计师生成、重新生成、修改或审查精致且不依赖固定模板的鸿蒙风格移动端 HTML 页面。适用于创建新的鸿蒙 HTML 页面、重复相同提示重新生成新版本、优化已有页面、实现页面内操作或检查现有产物。有意义的操作需求默认输出纯离线、内存态的交互版；只有明确要求纯静态时才停在无脚本版。交互输出不生成 ArkTS，并在增强失败时确定性回退到已校验的静态页面。
+description: 为设计师生成、重新生成、修改或审查精致且不依赖固定模板的鸿蒙风格移动端 HTML 页面。适用于创建新的鸿蒙 HTML 页面、重复相同提示重新生成新版本、优化已有页面、实现页面内操作或检查现有产物。有意义的操作需求默认输出纯离线、内存态且有可见反馈的交互版；只有明确要求纯静态时才停在无脚本版。交互输出不生成 ArkTS，并在增强失败时确定性回退到已校验的静态页面。
 ---
 
 # 生成鸿蒙 HTML
@@ -88,11 +88,11 @@ description: 为设计师生成、重新生成、修改或审查精致且不依�
 
 1. 创建模式根据用户需求推断简洁的 kebab-case 页面名、无冲突输出目录和 `light` / `dark` 主题，未指定主题时使用 `light`。修改模式定位用户明确指向的现有页面并保留其主题，除非用户要求改变。仅在目标文件、输出位置或信息架构存在实质歧义时询问。
 2. 完整读取 [`references/design-language.md`](references/design-language.md)，且遵守上述上下文预算。
-3. 不调用工具、不输出规划，直接在内部确定：用户此刻的主要任务、必须显示的信息、第一阅读焦点、信息密度、主导构图、表面层级、唯一主要操作，以及摄影图片是否对内容理解或产品任务有实际价值。选择默认交互输出时还需确定有限的页面内状态、触发控件和预声明目标，但此时不编写 JavaScript。
+3. 不调用工具、不输出规划，直接在内部确定：用户此刻的主要任务、必须显示的信息、第一阅读焦点、信息密度、主导构图、表面层级、唯一主要操作，以及摄影图片是否对内容理解或产品任务有实际价值。选择默认交互输出时还需为每个有意义的操作确定有限的页面内状态、原生触发控件和一个肉眼可见的预声明反馈目标，但此时不编写 JavaScript。
 4. 创建模式直接从需求编写新的 body 片段或完整 HTML，不读取旧页面。修改模式先读取目标 HTML，再做最小相关修改。先建立阅读顺序和分组，再选择组件和 Token；不要从页面类型模板反推内容。
 5. 首稿只标注静态契约真正需要表达为 ArkUI 结构组件的节点，并同步写全稳定的 `data-node-id`、受支持的 `data-component` 和结构 class；这些标注本身不触发 ArkTS 生成。独立文字用一个 `text` 节点直接承载文字，不要再套 `span` 组件；只有同一段 `text` 内确实需要独立样式的局部富文本才使用直属、非空的 `span` 组件。`column` 必须有 `flex flex-col`，`row` 必须有 `flex flex-row`，`grid` 必须有 `grid` 且只直接包含 `grid-item`，`stack` 必须有 `relative`。普通分组和重复行默认使用 `column` / `row`；只有确实需要原生列表、网格或标签页语义时才使用 `list` / `grid` / `tabs`，并一次写对其完整契约。需要表达产品语义时使用可选的 kebab-case `data-ui-role`，它不能替代组件标注。
-6. 只使用设计语言参考中列出的本地 class。静态首稿始终禁止 `<style>`、行内 `style`、`<script>`、内联事件、远程 URL、JavaScript 和任意颜色字面量。默认交互输出的静态首稿可额外写 inert 的 `data-action`、`data-target` 与稳定 `data-node-id`：所有点击后可能显示、隐藏或更新的复杂内容必须预先存在于 DOM，初始页面在没有脚本时仍完整成立。不得预先写脚本标签，也不得在后续脚本中创建或重排组件树。
-7. 同步完成无障碍语义：按钮使用 `type="button"` 并提供可见文字或 `aria-label`。纯文字按钮直接写文字且不放已标注子组件；纯图标按钮只放一个 `symbol`；图标加文字时，只放一个已标注的 `row` 直接子组件，再把 `symbol` 和 `text` 放进该 `row`。禁止混用按钮直属原始文字与组件子节点，不要把按钮文字误标成 `span`。输入控件提供 `aria-label`；`radio` 还必须提供非空 `name` 和 `value`，`slider` 还必须提供 `min`、`max` 和 `value`。checkbox、radio 和 toggle 的 `control-row` 必须是完整 label 行，把已标注的可见标签内容与 input 一起包住；禁止让 `w-full` label 只包 input 并与外部文字并列。图标使用 `aria-hidden="true"`；图片提供有意义的 `alt`。
+6. 只使用设计语言参考中列出的本地 class。静态首稿始终禁止 `<style>`、行内 `style`、`<script>`、内联事件、远程 URL、JavaScript 和任意颜色字面量。默认交互输出的静态首稿可额外写 inert 的 `data-action`、`data-target`、`data-feedback` 与稳定 `data-node-id`。`data-action` 只能写在原生 `button` 或 `input` 上；每个带 `data-action` 的按钮必须以 `data-target` 或 `data-feedback` 指向另一个已存在的 `data-node-id`，前者表示显隐或内容目标，后者表示可见文字或状态反馈。原生 input 已有可见值或选中状态；它影响其他内容时仍声明目标。所有可能显示、隐藏或更新的复杂内容必须预先存在于 DOM，初始页面在没有脚本时仍完整成立。不得预先写脚本标签，也不得在后续脚本中创建或重排组件树。
+7. 同步完成无障碍语义：按钮使用 `type="button"` 并提供可见文字或 `aria-label`。不得给 `symbol`、`text`、`span`、`row` 或 `column` 添加 `role="button"` / `tabindex` 来伪装操作控件；纯图标操作也把 `data-action` 写在外层原生按钮上，图标本身仍使用 `aria-hidden="true"`。纯文字按钮直接写文字且不放已标注子组件；纯图标按钮只放一个 `symbol`；图标加文字时，只放一个已标注的 `row` 直接子组件，再把 `symbol` 和 `text` 放进该 `row`。禁止混用按钮直属原始文字与组件子节点，不要把按钮文字误标成 `span`。输入控件提供 `aria-label`；`radio` 还必须提供非空 `name` 和 `value`，`slider` 还必须提供 `min`、`max` 和 `value`。checkbox、radio 和 toggle 的 `control-row` 必须是完整 label 行，把已标注的可见标签内容与 input 一起包住；禁止让 `w-full` label 只包 input 并与外部文字并列。图片提供有意义的 `alt`。
 8. 图片只能走以下两条路径，且用户明确提供的图片优先：
    - **内置图片**：当真实内容需要摄影图时，在原生 `<img data-component="image">` 上写非空、简洁的英文 `data-media-query`，可选 `data-media-orientation="portrait|landscape|squarish"`，同时写稳定 `data-node-id`、准确 `alt` 和所需媒体 class；首稿不要写 `src`。收尾器会稳定匹配、批内去重、补充相对 `src`，并只复制命中的图片。默认最多使用 3 张；只有用户明确需要更多图片时才可增加，硬上限为 8 张。
    - **用户图片**：只有用户明确提供、可读取且已经实际复制成功的源文件，才可复制到 `<output>/assets/media/` 并以相对 `src` 引用；不得同时添加 `data-media-query`。
@@ -121,7 +121,7 @@ description: 为设计师生成、重新生成、修改或审查精致且不依�
       --out <final-output-directory>
     ```
 
-    增强器在 staging 目录复制静态基线、写入 `assets/app.js`、注入唯一的 `<script src="assets/app.js" defer></script>`，并调用交互校验器；禁止手工改写已校验的 `index.html`。增强成功时原子发布 `mode=interactive`。脚本或交互校验失败时，它仍以退出码 0 原子发布字节不变的静态副本并返回 `mode=fallback-static`；接受该回退，不重写静态页面、不放宽校验。若增强器因无效基线或文件系统错误以非零状态退出，保留并返回已校验静态目录，不声称已生成交互版。
+    增强器在 staging 目录复制静态基线、写入 `assets/app.js`、注入唯一的 `<script src="assets/app.js" defer></script>`，并调用交互校验器；禁止手工改写已校验的 `index.html`。脚本中的每个业务操作都必须在更新 ARIA 的同时更新 `data-target` / `data-feedback` 指向的可见文字、显隐、原生值或已声明 class；只翻转内存布尔值、ARIA 或 `data-*` 不算完成交互。增强成功时原子发布 `mode=interactive`。脚本或交互校验失败时，它仍以退出码 0 原子发布字节不变的静态副本并返回 `mode=fallback-static`；接受该回退，不重写静态页面、不放宽校验。若增强器因无效基线或文件系统错误以非零状态退出，保留并返回已校验静态目录，不声称已生成交互版。
 12. 返回最终 `index.html` 的绝对路径、所用主题、静态校验结果，以及实际输出模式 `static`、`interactive` 或 `fallback-static`。回退时明确说明页面仍是可用的原静态方案。
 
 ## 审查工作流

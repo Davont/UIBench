@@ -106,6 +106,122 @@ def test_skill_defaults_actionable_pages_to_interactive_with_static_opt_out() ->
     assert "页面只表达静态结构和初始状态" not in design_language
 
 
+def test_action_button_requires_a_separate_visible_feedback_target(
+    tmp_path: Path,
+) -> None:
+    _, output, _ = _finalize_source(
+        tmp_path,
+        """
+<main data-component="column" data-node-id="page"
+      class="min-h-screen bg-ui-canvas text-ui-fg font-ui flex flex-col">
+  <button type="button" data-component="button" data-node-id="page.play"
+          data-action="toggle-play"
+          class="bg-ui-primary text-ui-on-primary rounded-ui-control">播放</button>
+</main>
+""".strip(),
+        name="action-without-feedback",
+    )
+
+    result = _run_node(
+        SKILL_DIR / "scripts" / "validate-html.mjs",
+        str(output / "index.html"),
+        "--json",
+    )
+
+    assert result.returncode == 1
+    codes = {item["code"] for item in json.loads(result.stdout)["errors"]}
+    assert "ACTION_VISIBLE_FEEDBACK_MISSING" in codes
+
+
+def test_action_rejects_pseudo_buttons_hidden_from_accessibility(
+    tmp_path: Path,
+) -> None:
+    _, output, _ = _finalize_source(
+        tmp_path,
+        """
+<main data-component="column" data-node-id="page"
+      class="min-h-screen bg-ui-canvas text-ui-fg font-ui flex flex-col">
+  <i data-lucide="heart" data-component="symbol" data-node-id="page.like"
+     data-action="toggle-like" data-feedback="page.status"
+     role="button" tabindex="0" aria-label="收藏" aria-hidden="true"></i>
+  <p data-component="text" data-node-id="page.status" class="text-ui-body">未收藏</p>
+</main>
+""".strip(),
+        name="pseudo-action",
+    )
+
+    result = _run_node(
+        SKILL_DIR / "scripts" / "validate-html.mjs",
+        str(output / "index.html"),
+        "--json",
+    )
+
+    assert result.returncode == 1
+    codes = {item["code"] for item in json.loads(result.stdout)["errors"]}
+    assert "PSEUDO_BUTTON_FORBIDDEN" in codes
+    assert "ACTION_NATIVE_CONTROL_REQUIRED" in codes
+    assert "ACTION_ARIA_HIDDEN_FORBIDDEN" in codes
+
+
+def test_action_accepts_declared_feedback_and_intrinsic_input_state(
+    tmp_path: Path,
+) -> None:
+    _, output, _ = _finalize_source(
+        tmp_path,
+        """
+<main data-component="column" data-node-id="page"
+      class="min-h-screen bg-ui-canvas text-ui-fg font-ui flex flex-col">
+  <button type="button" data-component="button" data-node-id="page.play"
+          data-action="toggle-play" data-feedback="page.status"
+          class="bg-ui-primary text-ui-on-primary rounded-ui-control">播放</button>
+  <p data-component="text" data-node-id="page.status" class="text-ui-body">已暂停</p>
+  <input type="range" data-component="slider" data-node-id="page.progress"
+         data-action="seek" min="0" max="100" value="30" aria-label="播放进度">
+</main>
+""".strip(),
+        name="perceptible-actions",
+    )
+
+    result = _run_node(
+        SKILL_DIR / "scripts" / "validate-html.mjs",
+        str(output / "index.html"),
+        "--json",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_action_rejects_missing_or_self_referenced_feedback(
+    tmp_path: Path,
+) -> None:
+    _, output, _ = _finalize_source(
+        tmp_path,
+        """
+<main data-component="column" data-node-id="page"
+      class="min-h-screen bg-ui-canvas text-ui-fg font-ui flex flex-col">
+  <button type="button" data-component="button" data-node-id="page.self"
+          data-action="self-feedback" data-feedback="page.self"
+          class="bg-ui-component-subtle rounded-ui-control">自身反馈</button>
+  <button type="button" data-component="button" data-node-id="page.missing"
+          data-action="missing-feedback" data-feedback="page.unknown"
+          class="bg-ui-component-subtle rounded-ui-control">缺失反馈</button>
+</main>
+""".strip(),
+        name="invalid-feedback-references",
+    )
+
+    result = _run_node(
+        SKILL_DIR / "scripts" / "validate-html.mjs",
+        str(output / "index.html"),
+        "--json",
+    )
+
+    assert result.returncode == 1
+    codes = {item["code"] for item in json.loads(result.stdout)["errors"]}
+    assert "ACTION_FEEDBACK_SELF_REFERENCE" in codes
+    assert "DATA_FEEDBACK_INVALID" in codes
+
+
 def test_recommended_minimal_text_and_button_structure_validates(
     tmp_path: Path,
 ) -> None:

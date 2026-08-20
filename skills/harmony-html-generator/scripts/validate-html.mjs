@@ -190,6 +190,14 @@ for (const element of allElements) {
   if (element.attrs["data-lucide"] && element.component !== "symbol") {
     issue(errors, "SYMBOL_ANNOTATION_MISSING", 'Elements with data-lucide must use data-component="symbol"', element.nodeId)
   }
+  if (element.attrs.role?.toLowerCase() === "button" && element.tag !== "button") {
+    issue(
+      errors,
+      "PSEUDO_BUTTON_FORBIDDEN",
+      "Use a native <button type=\"button\"> instead of role=\"button\" on a non-button element",
+      element.nodeId,
+    )
+  }
   if (element.component && element.parentComponent && element.domParent !== element.parentComponent) {
     issue(errors, "UNANNOTATED_COMPONENT_WRAPPER", "Annotated components cannot be separated by an unannotated DOM wrapper", element.nodeId)
   }
@@ -331,6 +339,40 @@ for (const element of allElements) {
     if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(action)) {
       issue(errors, "ACTION_VALUE_INVALID", `data-action must be non-empty kebab-case: ${action}`, element.nodeId)
     }
+    if (element.tag !== "button" && element.tag !== "input") {
+      issue(
+        errors,
+        "ACTION_NATIVE_CONTROL_REQUIRED",
+        "data-action requires a native <button> or <input>; do not turn symbols, text, or containers into pseudo-buttons",
+        element.nodeId,
+      )
+    }
+    if (element.attrs["aria-hidden"]?.toLowerCase() === "true") {
+      issue(
+        errors,
+        "ACTION_ARIA_HIDDEN_FORBIDDEN",
+        "An actionable control cannot be hidden from the accessibility tree",
+        element.nodeId,
+      )
+    }
+    const visibleFeedbackNodeId = element.attrs["data-feedback"]
+    const targetNodeId = element.attrs["data-target"]
+    if (element.tag === "button" && visibleFeedbackNodeId === undefined && targetNodeId === undefined) {
+      issue(
+        errors,
+        "ACTION_VISIBLE_FEEDBACK_MISSING",
+        "A data-action button must declare data-feedback or data-target pointing to a separate predeclared node with visible state",
+        element.nodeId,
+      )
+    }
+    if (element.nodeId && (visibleFeedbackNodeId === element.nodeId || targetNodeId === element.nodeId)) {
+      issue(
+        errors,
+        "ACTION_FEEDBACK_SELF_REFERENCE",
+        "Visible interaction feedback must use a separate predeclared node, not only mutate the trigger's hidden attributes",
+        element.nodeId,
+      )
+    }
   }
 
   const targetNodeId = element.attrs["data-target"]
@@ -344,6 +386,26 @@ for (const element of allElements) {
       `data-target must match exactly one existing data-node-id: ${targetNodeId}.${hint}`,
       element.nodeId,
     )
+  }
+
+  const visibleFeedbackNodeId = element.attrs["data-feedback"]
+  if (visibleFeedbackNodeId !== undefined) {
+    if (action === undefined) {
+      issue(
+        errors,
+        "DATA_FEEDBACK_ACTION_MISSING",
+        "data-feedback is only valid on an element with data-action",
+        element.nodeId,
+      )
+    }
+    if (!nodeIds.has(visibleFeedbackNodeId)) {
+      issue(
+        errors,
+        "DATA_FEEDBACK_INVALID",
+        `data-feedback must match exactly one existing data-node-id: ${visibleFeedbackNodeId}`,
+        element.nodeId,
+      )
+    }
   }
 }
 
